@@ -13,11 +13,14 @@ kết quả — không cộng dồn và không nhân đôi số liệu.
 """
 
 import asyncio
+import logging
 from datetime import UTC, datetime, timedelta
 
 from app.db import get_database
 from app.services.analytics_svc import khoa_su_kien
 from app.services.presence import dem_online
+
+log = logging.getLogger("app")
 
 # Job chạy tối đa 30 giây, quá hạn thì tiến trình khác giành lại.
 HAN_THUE_GIAY = 30
@@ -180,7 +183,7 @@ class AnalyticsWorker:
             except asyncio.CancelledError:
                 raise
             except Exception as exc:
-                print(f"[analytics] worker lỗi, thử lại: {exc}")
+                log.warning("[analytics] worker lỗi, thử lại: %s", exc)
             await asyncio.sleep(self.chu_ky_giay)
 
     async def don_co(self) -> int:

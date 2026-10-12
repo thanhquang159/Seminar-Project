@@ -1,3 +1,4 @@
+import logging
 from contextlib import asynccontextmanager
 from pathlib import Path
 
@@ -9,6 +10,7 @@ from app.config import kiem_tra_bi_mat, settings
 from app.csrf import ChanGhiOrigin
 from app.db import close_db, connect_db, get_database
 from app.limits import GioiHanBody
+from app.log_setup import dat_cau_hinh_log
 from app.permissions import dam_bao_roles
 from app.routers import (
     admin_analytics,
@@ -33,6 +35,12 @@ from app.services.analytics_svc import dam_bao_index as dam_bao_index_analytics
 from app.services.runtime_observability import dam_bao_index as dam_bao_index_runtime
 from app.services.tasks import quan_ly_tasks
 
+log = logging.getLogger("app")
+
+# Bọc log ngay lúc nạp module (không đợi vào lifespan) để access log của uvicorn —
+# vào trước mọi request — cũng nằm trong bộ che (SEC-006).
+dat_cau_hinh_log()
+
 
 @asynccontextmanager
 async def lifespan(app: FastAPI):
@@ -45,20 +53,21 @@ async def lifespan(app: FastAPI):
         # kết nối + đọc DB hoạt động, đúng như Verification của DB-001.
         db = get_database()
         collections = await db.list_collection_names()
-        print(f"[startup] MongoDB connected ✅ ({len(collections)} collections)")
+        log.info("[startup] MongoDB connected ✅ (%d collections)", len(collections))
         await dam_bao_roles(db)
         quan_ly_tasks.gan_db(db)
         await quan_ly_tasks.dam_bao_index()
         dem = await quan_ly_tasks.khoi_phuc()
         if dem:
-            print(f"[startup] Phục hồi {dem} tác vụ audio treo.")
+            log.info("[startup] Phục hồi %d tác vụ audio treo.", dem)
         # Tầng 4: index observability + analytics rồi mới bật worker nền.
         await dam_bao_index_runtime(db)
         await dam_bao_index_analytics(db)
         analytics_worker.gan_db(db)
         await analytics_worker.bat_dau()
     except Exception as e:
-        print(f"[startup] MongoDB chưa sẵn sàng: {e}")
+        # Nội dung lỗi driver có thể chứa DSN (kèm mật khẩu) — bộ che SEC-006 xử lý.
+        log.warning("[startup] MongoDB chưa sẵn sàng: %s", e)
     yield
     # Shutdown
     await analytics_worker.dung()

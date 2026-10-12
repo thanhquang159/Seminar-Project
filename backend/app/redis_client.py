@@ -1,10 +1,13 @@
 """Redis dùng chung: hiện diện và giới hạn tần suất, tắt thì fail-open."""
 
 import asyncio
+import logging
 
 import redis.asyncio as aredis
 
 from app.config import settings
+
+log = logging.getLogger("app")
 
 _client: aredis.Redis | None = None
 _loop: asyncio.AbstractEventLoop | None = None
@@ -32,7 +35,7 @@ async def lay_redis() -> aredis.Redis | None:
         _loop = None
         if not _da_canh_bao:
             _da_canh_bao = True
-            print("[redis] Redis tắt, hiện diện và limit Redis tạm nghỉ (fail-open).")
+            log.warning("[redis] Redis tắt, hiện diện và limit Redis tạm nghỉ (fail-open).")
         return None
 
 
