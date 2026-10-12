@@ -50,6 +50,10 @@ def chay(ten: str, lenh: list[str], cwd: Path) -> bool:
 # ruff format chỉ kiểm tra file mới: 20 file cũ tồn tại từ trước chưa format,
 # để "check toàn repo" luôn đỏ thì lệnh này mất tác dụng. Xem scripts/verify.py --full-format.
 CAC_BUOC = [
+    # Đứng đầu vì rẻ và vì hậu quả nặng nhất: bí mật đã lọt vào git thì xoá file
+    # cũng không gỡ được. Tên bước chứa chữ "lint" để nó chạy cùng nhóm lint —
+    # một kiểm tra bảo mật mà mặc định bị `--only test` bỏ qua thì coi như không có.
+    ("bí mật lint (audit_secrets)", lambda: chay("quét bí mật (SEC-005)", [python_backend(), str(GOC / "scripts" / "audit_secrets.py"), "--lich-su"], GOC)),
     ("backend lint", lambda: chay("backend lint (ruff check)", [python_backend(), "-m", "ruff", "check", "."], BACKEND)),
     ("backend test", lambda: chay("backend test (pytest)", [python_backend(), "-m", "pytest", "-q"], BACKEND)),
     ("frontend lint", lambda: chay("frontend lint (eslint)", npm("run", "lint"), FRONTEND)),

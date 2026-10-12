@@ -10,6 +10,16 @@ plan-task/
 .env.local
 .env.*.local
 
+# Khoá riêng tư / bí mật (SEC-005): các định dạng này không bao giờ có lý do để
+# commit — nếu đã lỡ commit thì xoá file KHÔNG gỡ được khỏi lịch sử, phải đổi khoá.
+*.pem
+*.key
+*.pfx
+*.p12
+*.keystore
+secrets/
+*.jks
+
 # Python
 .venv/
 venv/
