@@ -61,7 +61,6 @@ def xoa_luong_rate_limit():
 @pytest.fixture(autouse=True)
 def mang_gia(monkeypatch, tmp_path):
     import app.services.audio_svc as am
-    import app.services.localization as loc
 
     monkeypatch.setattr(am, "THU_MUC_AUDIO", tmp_path)
 
@@ -69,4 +68,3 @@ def mang_gia(monkeypatch, tmp_path):
         return b"ID3" + van_ban.encode()[:10]
 
     monkeypatch.setattr(am, "tao_mp3", mp3_gia)
-    monkeypatch.setattr(loc, "dich_van_ban", lambda van_ban, lang: f"{van_ban} [{lang}]")

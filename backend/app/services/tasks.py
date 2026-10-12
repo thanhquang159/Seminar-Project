@@ -59,7 +59,6 @@ class QuanLyTasks:
             from bson import ObjectId
 
             from app.services.audio_svc import hoan_tat_audio, tao_mp3_cached
-            from app.services.localization import dich_va_luu
 
             try:
                 while (await self._doc(task_id)).get("status") == "paused":
@@ -72,7 +71,12 @@ class QuanLyTasks:
                     {"poi_id": poi_id, "lang": doc["lang"]}
                 )
                 if not ban_dich:
-                    ban_dich = await dich_va_luu(self.db, poi_id, doc["lang"])
+                    # Không còn dịch máy (SEC-010): task hỏng vì thiếu bản dịch
+                    # thì báo rõ, để admin nhập tay rồi kích hoạt lại. Im lặng
+                    # tự dịch sẽ sinh ra audio sai ngôn ngữ.
+                    raise RuntimeError(
+                        f"POI {doc['poi_id']} chưa có bản dịch '{doc['lang']}' — cần nhập tay trước"
+                    )
                 await self._doi_trang_thai(task_id, "running", 50)
                 tep, _hit = await tao_mp3_cached(ban_dich["description"] or ban_dich["name"], doc["lang"])
                 from app.services.audio_svc import duong_audio_url

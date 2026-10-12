@@ -68,12 +68,32 @@ def test_on_demand_upsert() -> None:
     nap_du_lieu()
     with TestClient(app) as c:
         dang_nhap(c)
-        r1 = c.post("/localizations/on-demand", json={"poi_id": "x", "lang": "ja"})
-        assert r1.status_code == 400
+        # SEC-010: endpoint nhập tay nên thiếu `name` là 422, không phải tự dịch
+        # (Pydantic chạy trước hàm nên 422 đến trước cả lỗi id sai).
+        r_khong_ten_dau = c.post("/localizations/on-demand", json={"poi_id": "x", "lang": "ja"})
+        assert r_khong_ten_dau.status_code == 422
         pid = c.get("/poi").json()[0]["id"]
-        r2 = c.post("/localizations/on-demand", json={"poi_id": pid, "lang": "ja"})
+        r_khong_ten = c.post("/localizations/on-demand", json={"poi_id": pid, "lang": "ja"})
+        assert r_khong_ten.status_code == 422
+        r1 = c.post(
+            "/localizations/on-demand",
+            json={"poi_id": "x", "lang": "ja", "name": "A"},
+        )
+        assert r1.status_code == 400
+        r_thieu_poi = c.post(
+            "/localizations/on-demand",
+            json={"poi_id": "0" * 24, "lang": "ja", "name": "A"},
+        )
+        assert r_thieu_poi.status_code == 404
+        r2 = c.post(
+            "/localizations/on-demand",
+            json={"poi_id": pid, "lang": "ja", "name": "Chợ Xuyên", "description": "mô tả"},
+        )
         assert r2.status_code == 200
-        r3 = c.post("/localizations/on-demand", json={"poi_id": pid, "lang": "ja"})
+        r3 = c.post(
+            "/localizations/on-demand",
+            json={"poi_id": pid, "lang": "ja", "name": "Chợ Xuyên", "description": "mô tả 2"},
+        )
         assert r3.status_code == 200
         mongo = MongoClient(settings.mongodb_uri)
         dem = mongo[settings.mongodb_db_name]["poi_localizations"].count_documents(

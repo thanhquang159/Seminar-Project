@@ -37,13 +37,13 @@ def test_bundle_chinh_ready() -> None:
             assert "app_title" in res.json()["bundle"]
 
 
-def test_bundle_la_pending() -> None:
+def test_bundle_la_bi_tu_choi() -> None:
+    """SEC-010: không còn dịch nền nên locale lạ bị 404, không phải 'pending'."""
     nap()
     with TestClient(app) as c:
         r1 = c.get("/ui-bundles/xx")
-        assert r1.status_code == 200
-        assert r1.json()["status"] in ("pending", "ready")
-        assert r1.json()["bundle"]["app_title"]
+        assert r1.status_code == 404
+        assert "locale" in r1.json()["detail"]
 
 
 def test_nearby_va_hotset() -> None:

@@ -59,15 +59,26 @@ function App() {
     let dung = false
     let thatBai = 0
     let henGio = 0
+    // SEC-010: server 409 khi POI chưa có bản dịch (không còn dịch máy tự
+    // sinh). Ghi nhớ để không gọi lại cùng một cặp (POI, ngôn ngữ) mỗi vòng —
+    // nếu không, mỗi POI thiếu bản dịch sẽ tốn một request mỗi 60 giây, suốt
+    // cả buổi đi bộ.
+    const thieu = new Set<string>()
     const chay = async () => {
       if (dung) return
       for (const p of chonPrefetch(pois, viTri.lat, viTri.lng)) {
+        const khoa = `${p.id}:${langRef.current}`
+        if (thieu.has(khoa)) continue
         try {
           const res = await apiText('/audio/on-demand', {
             method: 'POST',
             headers: { 'Content-Type': 'application/json' },
             body: JSON.stringify({ poi_id: p.id, lang: langRef.current }),
           })
+          if (res.status === 409) {
+            thieu.add(khoa)
+            continue
+          }
           if (res.status === 429) {
             thatBai += 1
             henGio = window.setTimeout(chay, tinhBackoff(thatBai))

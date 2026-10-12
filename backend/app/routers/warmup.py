@@ -1,48 +1,31 @@
-"""Hâm nóng corpus: dịch nền toàn bộ bản thiếu, xem trạng thái."""
+"""Báo cáo POI nào còn thiếu bản dịch — để admin biết cần nhập tay cái gì.
 
-import asyncio
+Trước SEC-010 route này chạy dịch nền toàn corpus. Sau khi gỡ deep-translator
+thì không còn gì để "hâm nóng", nhưng danh sách thiếu vẫn có giá trị thật: đó
+chính là việc cần làm, nên route đổi từ hành động sang báo cáo đọc-only.
+"""
 
 from fastapi import APIRouter
 
 from app.auth import doi_quyen
 from app.db import get_database
-from app.services.localization import NGON_NGU_UU_TIEN, dam_bao_index, dich_va_luu
+from app.services.localization import NGON_NGU_UU_TIEN
 
 router = APIRouter(prefix="/localizations", tags=["localizations-warmup"])
 
 DuocCapNhatPoi = doi_quyen("poi:update")
 
-_trang_thai: dict = {"running": False, "done": 0, "total": 0}
 
-
-@router.post("/warmup", summary="Dịch nền toàn corpus thiếu")
-async def ham_nong(_user: dict = DuocCapNhatPoi) -> dict:
-    if _trang_thai["running"]:
-        return {"ok": True, "note": "đang chạy"}
-    _trang_thai.update({"running": True, "done": 0, "total": 0})
-    asyncio.create_task(_chay_nen())
-    return {"ok": True}
-
-
-async def _chay_nen() -> None:
-    try:
-        db = get_database()
-        await dam_bao_index(db)
-        pois = await db["pois"].find().to_list(length=5000)
-        langs = [lang for lang in NGON_NGU_UU_TIEN if lang != "vi"]
-        _trang_thai["total"] = len(pois) * len(langs)
-        for poi in pois:
-            for lang in langs:
-                if not await db["poi_localizations"].find_one({"poi_id": poi["_id"], "lang": lang}):
-                    try:
-                        await dich_va_luu(db, poi["_id"], lang)
-                    except Exception:
-                        pass
-                _trang_thai["done"] += 1
-    finally:
-        _trang_thai["running"] = False
-
-
-@router.get("/warmup-status", summary="Tiến độ hâm nóng")
+@router.get("/warmup-status", summary="Danh sách (POI, ngôn ngữ) còn thiếu bản dịch")
 async def trang_thai_ham_nong(_user: dict = DuocCapNhatPoi) -> dict:
-    return dict(_trang_thai)
+    db = get_database()
+    co = {
+        (d["poi_id"], d["lang"])
+        async for d in db["poi_localizations"].find({}, {"poi_id": 1, "lang": 1})
+    }
+    thieu = []
+    async for poi in db["pois"].find({}, {"name": 1, "localized": 1}).limit(5000):
+        for lang in NGON_NGU_UU_TIEN:
+            if (poi["_id"], lang) not in co:
+                thieu.append({"poi_id": str(poi["_id"]), "lang": lang})
+    return {"tong": len(thieu), "thieu": thieu}

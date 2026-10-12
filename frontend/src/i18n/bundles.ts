@@ -1,43 +1,38 @@
-import { useEffect, useRef, useState } from 'react'
+import { useEffect, useState } from 'react'
 
 const API_GOC = 'http://127.0.0.1:8000'
 
-// Làn UI độc lập làn nội dung: chọn ngôn ngữ lạ thì tạm tiếng Anh + pending,
-// dịch nền xong thì tự chuyển khi ready.
+// Bundle UI tĩnh trong `backend/static/ui/*.json`, 5 ngôn ngữ, không dịch máy.
+// Trước SEC-010 hàm này poll mỗi 3s tối đa 10 lần chờ trạng thái `ready` vì
+// server dịch nền locale lạ. Nay server trả `ready` ngay hoặc 404, nên một lần
+// fetch là đủ — poll chỉ là chờ vô ích và giữ mạng sống thêm 30 giây mỗi lần đổi
+// ngôn ngữ.
 export function useUiBundle(locale: string): { t: (khoa: string) => string; sanSang: boolean } {
   const [bundle, setBundle] = useState<Record<string, string>>({})
   const [sanSang, setSanSang] = useState(false)
-  const [localeDaTai, setLocaleDaTai] = useState(locale)
-  const huyRef = useRef(false)
-
-  // Đổi locale thì reset readiness ngay khi render, không chờ effect.
-  if (locale !== localeDaTai) {
-    setLocaleDaTai(locale)
-    setSanSang(false)
-  }
 
   useEffect(() => {
-    huyRef.current = false
-    let dem = 0
+    let huy = false
     const tai = async () => {
       try {
         const res = await fetch(`${API_GOC}/ui-bundles/${locale}`)
-        const goi = (await res.json()) as { status: string; bundle: Record<string, string> }
-        if (huyRef.current) return
-        setBundle(goi.bundle)
-        if (goi.status === 'ready' || dem >= 10) {
-          setSanSang(goi.status === 'ready')
+        if (huy) return
+        if (!res.ok) {
+          setBundle({})
+          setSanSang(false)
           return
         }
-        dem += 1
-        window.setTimeout(() => void tai(), 3000)
+        const goi = (await res.json()) as { status: string; bundle: Record<string, string> }
+        if (huy) return
+        setBundle(goi.bundle)
+        setSanSang(goi.status === 'ready')
       } catch {
-        if (!huyRef.current) setSanSang(false)
+        if (!huy) setSanSang(false)
       }
     }
     void tai()
     return () => {
-      huyRef.current = true
+      huy = true
     }
   }, [locale])
 

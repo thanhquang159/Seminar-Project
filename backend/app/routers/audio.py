@@ -18,7 +18,7 @@ from app.services.audio_svc import (
     hoan_tat_audio,
     tao_mp3_cached,
 )
-from app.services.localization import dam_bao_index, dich_va_luu
+from app.services.localization import dam_bao_index
 from app.services.ratelimit import khoa_cho, kiem_tra
 from app.services.tasks import quan_ly_tasks
 
@@ -53,7 +53,7 @@ async def tts(body: TtsYeuCau, request: Request, user: dict = YeuCauDangNhap) ->
     )
 
 
-@router.post("/on-demand", summary="Dịch + TTS cho POI thiếu audio (Tier 1.5)")
+@router.post("/on-demand", summary="TTS cho POI đã có bản dịch (Tier 1.5)")
 async def on_demand(body: OnDemandYeuCau, request: Request, user: dict = YeuCauDangNhap) -> dict:
     try:
         oid = ObjectId(body.poi_id)
@@ -64,7 +64,13 @@ async def on_demand(body: OnDemandYeuCau, request: Request, user: dict = YeuCauD
     await dam_bao_index(db)
     ban_dich = await db["poi_localizations"].find_one({"poi_id": oid, "lang": body.lang})
     if not ban_dich:
-        ban_dich = await dich_va_luu(db, oid, body.lang)
+        # Trước đây chỗ này tự dịch bằng Google Translate; deep-translator đã
+        # bị gỡ ở SEC-010. Không có bản dịch thì không nên đọc nội dung tiếng
+        # Việt bằng giọng tiếng Nhật — trả 409 để FE rơi về tầng dưới.
+        raise HTTPException(
+            status_code=409,
+            detail=f"POI chưa có bản dịch '{body.lang}' — cần admin nhập tay trước",
+        )
     try:
         tep, _hit = await tao_mp3_cached(ban_dich["description"] or ban_dich["name"], body.lang)
     except RuntimeError as exc:

@@ -8,9 +8,6 @@ Nguyên tắc: input không tin được. Mọi ký tự đều do client gửi,
 query string — không có ngoại lệ cho "chỉ là endpoint nội bộ".
 """
 
-import asyncio
-import time
-
 from fastapi.testclient import TestClient
 from pymongo import MongoClient
 
@@ -158,56 +155,24 @@ def test_locale_rac_bi_chan() -> None:
         assert r.status_code == 422, f"locale rác lọt qua (HTTP {r.status_code})"
 
 
-# --- Đạn 10: dịch nền không được chiếm event loop -----------------------------
-# Kẻ tấn công: một request duy nhất tới /ui-bundles/xx kích hoạt dịch hàng
-# trăm khóa. Hàm dịch là blocking I/O — nếu chạy thẳng trong event loop thì
-# toàn bộ API đứng im chờ Google, không còn phục vụ ai.
-def test_dich_nen_khong_cho_event_loop(monkeypatch) -> None:
-    import app.db as db_mod
-    import app.routers.i18n as i18n
-    import app.services.localization as loc
-
-    bundle_en = {f"k{i}": f"giá trị {i}" for i in range(8)}
-
-    def dich_cham(van_ban: str, dich: str) -> str:
-        time.sleep(0.05)  # giả lập một lần gọi mạng tới Google
-        return van_ban
-
-    monkeypatch.setattr(loc, "dich_van_ban", dich_cham)
-    monkeypatch.setattr(i18n, "dich_van_ban", dich_cham)
-
-    class _Bo:
-        async def update_one(self, *a, **k) -> None:
-            return None
-
-    class _DB:
-        """DB giả — `dich_nen` nuốt lỗi, có DB thật thì test sẽ đo nhầm."""
-
-        def __getitem__(self, k: str) -> _Bo:
-            return _Bo()
-
-    monkeypatch.setattr(db_mod, "get_database", lambda: _DB())
-
-    async def kich_ban() -> int:
-        tick = 0
-
-        async def dong_ho() -> None:
-            nonlocal tick
-            for _ in range(60):
-                tick += 1
-                await asyncio.sleep(0.01)
-
-        _dong_ho = asyncio.create_task(dong_ho())
-        await asyncio.sleep(0.05)  # đồng hồ chạy trước, để có chỗ để bị bịt
-        await i18n.dich_nen("fr", bundle_en, "h")
-        # Chụp số vòng ngay khi dịch xong, KHÔNG đợi đồng hồ — nếu dịch chạy
-        # nền thì đồng hồ đã quay được phần lớn số vòng.
-        return tick
-
-    tick = asyncio.run(kich_ban())
-    # 8 lần dịch × 0.05s = 0.4s chặn nếu chạy blocking; đồng hồ 0.01s/vòng
-    # nên chỉ quay được ~5 vòng nếu bị bịt, ~40 vòng nếu chạy ngoài loop.
-    assert tick >= 20, f"event loop bị chặn: đồng hồ chỉ quay {tick} vòng trong lúc dịch"
+# --- Đạn 10: endpoint bundle UI không được ghi DB ----------------------------
+# Kẻ tấn công: một request duy nhất tới /ui-bundles/xx từng kích hoạt dịch nền
+# cả bộ UI bằng Google Translate, và còn upsert một bản ghi vào `ui_bundles`.
+# SEC-010 đã gỡ deep-translator (PYSEC-2022-252) nên nhánh dịch nền biến mất;
+# endpoint phải thành thao tác đọc thuần, locale lạ trả 404.
+def test_bundle_ui_khong_ghi_db() -> None:
+    mongo = MongoClient(settings.mongodb_uri)
+    mongo[settings.mongodb_db_name]["ui_bundles"].delete_many({})
+    mongo.close()
+    with TestClient(app) as c:
+        r = c.get("/ui-bundles/xx")
+        assert r.status_code == 404, f"locale lạ phải bị từ chối (HTTP {r.status_code})"
+        r2 = c.get("/ui-bundles/ja")
+        assert r2.status_code == 200
+    mongo = MongoClient(settings.mongodb_uri)
+    dem = mongo[settings.mongodb_db_name]["ui_bundles"].count_documents({})
+    mongo.close()
+    assert dem == 0, f"endpoint vẫn ghi vào ui_bundles ({dem} bản ghi)"
 
 
 # --- Đạn 11: query param không ràng buộc -------------------------------------

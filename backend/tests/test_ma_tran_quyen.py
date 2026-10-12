@@ -64,8 +64,7 @@ KHAI_BAO: dict[str, str | None] = {
     "POST /audio/tasks/{task_id}/{lenh}": "__dang_nhap__",
     "POST /audio/tts": "__dang_nhap__",
     "POST /audio/on-demand": "__dang_nhap__",
-    "POST /localizations/on-demand": "__dang_nhap__",
-    "POST /localizations/warmup": "poi:update",
+    "POST /localizations/on-demand": "poi:update",  # SEC-010: nhập tay nên cần quyền sửa POI
     "GET /localizations/warmup-status": "poi:update",
     # ---- Owner ----
     "GET /owner/registration-status": "__dang_nhap__",
@@ -256,7 +255,6 @@ def test_voi_poi_owner_moi_route_bien_anh_403() -> None:
         "/admin/analytics/summary": "GET",
         "/admin/runtime-observability/location": "GET",
         "/owner/registrations": "GET",
-        "/localizations/warmup": "POST",
         "/localizations/warmup-status": "GET",
     }
     with client_dang_nhap("chu") as c:
