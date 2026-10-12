@@ -5,7 +5,7 @@ from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
-from app.config import kiem_tra_bi_mat
+from app.config import kiem_tra_bi_mat, settings
 from app.db import close_db, connect_db, get_database
 from app.limits import GioiHanBody
 from app.permissions import dam_bao_roles
@@ -74,14 +74,17 @@ app = FastAPI(
 # 413 phải mang header CORS cho browser đọc được lỗi.
 app.add_middleware(GioiHanBody)
 
-# Cookie cần origin cụ thể, không dùng "*" kèm credentials được.
-# Sau này thu hẹp tiếp ở SEC-003 khi deploy domain thật.
+# Cookie cần origin cụ thể, không dùng "*" kèm credentials được (SEC-003).
 app.add_middleware(
     CORSMiddleware,
-    allow_origins=["http://localhost:5173", "http://127.0.0.1:5173"],
+    allow_origins=settings.cors_origins,
     allow_credentials=True,
-    allow_methods=["*"],
-    allow_headers=["*"],
+    # Đủ dùng cho REST; không mở tất cả để bớt bề mặt.
+    allow_methods=["GET", "POST", "PUT", "PATCH", "DELETE", "OPTIONS"],
+    # Chỉ hai header API thật sự dùng. `["*"]` kèm credentials bị trình duyệt
+    # bỏ qua, và nếu trình duyệt gửi header lạ thì cấu hình đó đẩy lại cả danh
+    # sách header đó — tức cho phép thứ không cần.
+    allow_headers=["Content-Type", "Authorization"],
 )
 
 app.include_router(health.router)

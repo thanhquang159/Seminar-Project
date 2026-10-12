@@ -89,7 +89,11 @@ async def xoa_thiet_bi(anonymous_id: str) -> None:
 
 
 async def origin_duoc_phep(origin: str | None) -> bool:
-    """Chỉ nhận payload từ origin đã khai báo, chặn việc gọi chéo domain."""
+    """Chỉ nhận payload từ origin đã khai báo, chặn việc gọi chéo domain.
+
+    Dùng chung `cors_origins` với CORS của API: một danh sách duy nhất để
+    deploy — sửa `CORS_ORIGINS` thì cả hai cùng đổi, không sửa hai chỗ rồi quên.
+    """
     if not origin:
         return True
-    return origin in settings.analytics_allowed_origins
+    return origin in settings.cors_origins
