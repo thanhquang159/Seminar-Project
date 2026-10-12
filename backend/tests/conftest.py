@@ -27,7 +27,7 @@ def kiem_tra_ha_tang() -> None:
 
 
 @pytest.fixture(autouse=True)
-def xoa_luong_redis():
+def xoa_luong_rate_limit():
     """Dọn bộ đếm rate limit trong Redis trước mỗi test.
 
     Rate limit analytics đếm bằng Redis (`quan4:rl:*`), còn rate limit chung
@@ -41,13 +41,20 @@ def xoa_luong_redis():
         from app.redis_client import lay_redis
 
         redis = await lay_redis()
-        if redis is None:
-            return
-        khoa = [k async for k in redis.scan_iter(match="quan4:rl:*")]
-        if khoa:
-            await redis.delete(*khoa)
+        if redis is not None:
+            khoa = [k async for k in redis.scan_iter(match="quan4:rl:*")]
+            if khoa:
+                await redis.delete(*khoa)
 
     _asyncio.run(don())
+
+    # Mongo: bộ đếm rate limit chung nằm ở collection `rate_limits` của đúng
+    # database test, nên nó sống dai qua các lần chạy pytest khác nhau. Không
+    # dọn thì test chạy sau dính 429 của lần chạy trước, suite chập chờn theo
+    # thứ tự chạy chứ không theo thứ tự test.
+    from pymongo import MongoClient
+
+    MongoClient(settings.mongodb_uri)[settings.mongodb_db_name]["rate_limits"].delete_many({})
     yield
 
 

@@ -1,7 +1,7 @@
 """Route xác thực admin: login, me, refresh, logout."""
 
 from fastapi import APIRouter, HTTPException, Response
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.auth import (
     ACCESS_PHUT,
@@ -14,6 +14,7 @@ from app.auth import (
     tao_token,
 )
 from app.config import la_dev
+from app.limits import MatKhau
 
 router = APIRouter(prefix="/admin/auth", tags=["admin-auth"])
 
@@ -21,8 +22,10 @@ THONG_BAO_SAI = "Sai tên đăng nhập hoặc mật khẩu"
 
 
 class DangNhap(BaseModel):
-    username: str
-    password: str
+    # SEC-001: bcrypt cắt cứng ở 72 byte, nên mật khẩu dài hơn phải bị từ chối
+    # thay vì bị cắt âm thầm (xem app/limits.py:_mat_khau_trong_gioi_han).
+    username: str = Field(min_length=1, max_length=50)
+    password: MatKhau
 
 
 def dat_cookie(response: Response, ten: str, token: str, tuoi_giay: int) -> None:

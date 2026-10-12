@@ -3,10 +3,11 @@
 from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.auth import YeuCauDangNhap
 from app.db import get_database
+from app.limits import LangField
 from app.services.localization import dam_bao_index, dich_va_luu
 from app.services.ratelimit import khoa_cho, kiem_tra
 
@@ -14,8 +15,10 @@ router = APIRouter(prefix="/localizations", tags=["localizations"])
 
 
 class DichYeuCau(BaseModel):
-    poi_id: str
-    lang: str
+    # Chỉ giới hạn độ dài để chặn rác khổng lồ; hình dạng ObjectId vẫn do
+    # `ObjectId()` bên dưới quyết định để giữ nguyên 400 cho id sai định dạng.
+    poi_id: str = Field(min_length=1, max_length=64)
+    lang: LangField
 
 
 @router.post("/on-demand", summary="Dịch on-demand một POI sang ngôn ngữ mới")

@@ -4,16 +4,30 @@ import asyncio
 import hashlib
 import json
 from pathlib import Path
+from typing import Annotated
 
 from fastapi import APIRouter
+from fastapi import Path as PathParam
 
 from app.db import get_database
+from app.limits import MA_NGON_NGU
 from app.services.localization import dich_van_ban
 
 router = APIRouter(prefix="/ui-bundles", tags=["i18n"])
 
 THU_MUC_UI = Path(__file__).resolve().parents[2] / "static" / "ui"
 NGON_NGU_CHINH = ("vi", "en", "zh", "ja", "ko")
+
+# SEC-001: endpoint này công khai và locale lạ sẽ kích hoạt dịch nền cả bộ UI.
+# Không chặn thì một kẻ tấn công chỉ cần quét locale để biến server thành máy
+# gọi Google Translate hàng trăm nghìn lần từ IP của mình. Giữ một số task
+# dịch chạy song song là đủ để có tác dụng, nhiều hơn chỉ tự đốt bản thân.
+DICH_NEN_DONG_CONG = 1
+_sem_dich = asyncio.Semaphore(DICH_NEN_DONG_CONG)
+
+# `Path(...)` không dùng làm giá trị mặc định được (FastAPI cấm), nên ràng buộc
+# phải nằm trong Annotated.
+Locale = Annotated[str, PathParam(min_length=2, max_length=10, pattern=MA_NGON_NGU)]
 
 
 def doc_bundle_tinh(locale: str) -> dict | None:
@@ -28,7 +42,7 @@ def source_hash(bundle_en: dict) -> str:
 
 
 @router.get("/{locale}", summary="Bundle UI, lạ thì tiếng Anh + pending")
-async def lay_bundle(locale: str) -> dict:
+async def lay_bundle(locale: Locale) -> dict:
     bundle_en = doc_bundle_tinh("en") or {}
     if locale in NGON_NGU_CHINH:
         bundle = doc_bundle_tinh(locale) or bundle_en
@@ -49,20 +63,27 @@ async def lay_bundle(locale: str) -> dict:
 
 
 async def dich_nen(locale: str, bundle_en: dict, hash_moi: str) -> None:
-    """Dịch long-tail nền từng khóa, xong thì ready."""
-    try:
-        from app.db import get_database as _db
+    """Dịch long-tail nền từng khóa, xong thì ready.
 
-        db = _db()
-        ket_qua = {}
-        for khoa, gia_tri in bundle_en.items():
-            try:
-                ket_qua[khoa] = dich_van_ban(str(gia_tri), locale)
-            except Exception:
-                ket_qua[khoa] = gia_tri
-        await db["ui_bundles"].update_one(
-            {"locale": locale},
-            {"$set": {"bundle": ket_qua, "status": "ready", "source_hash": hash_moi}},
-        )
-    except Exception:
-        pass
+    `dich_van_ban` là blocking I/O (deep-translator gọi thẳng Google), chạy
+    thẳng trong event loop sẽ treo **toàn bộ API** suốt thời gian dịch
+    (hàng trăm khóa × vài trăm ms). Vì vậy đẩy sang thread và giới hạn số
+    task dịch chạy song song.
+    """
+    async with _sem_dich:
+        try:
+            from app.db import get_database as _db
+
+            db = _db()
+            ket_qua = {}
+            for khoa, gia_tri in bundle_en.items():
+                try:
+                    ket_qua[khoa] = await asyncio.to_thread(dich_van_ban, str(gia_tri), locale)
+                except Exception:
+                    ket_qua[khoa] = gia_tri
+            await db["ui_bundles"].update_one(
+                {"locale": locale},
+                {"$set": {"bundle": ket_qua, "status": "ready", "source_hash": hash_moi}},
+            )
+        except Exception:
+            pass

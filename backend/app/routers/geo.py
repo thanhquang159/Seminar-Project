@@ -5,6 +5,7 @@ import math
 from fastapi import APIRouter, HTTPException
 
 from app.db import get_database
+from app.limits import LangQuery
 from app.services.localization import dam_bao_index, ghep_poi, lay_ban_dich
 
 router = APIRouter(prefix="/poi", tags=["poi-geo"])
@@ -65,7 +66,7 @@ async def gan_khoang_cach(db, lat: float, lng: float, gioi_han_m: float, lang: s
 
 
 @router.get("/nearby", summary="POI gần nhất quanh vị trí")
-async def gan_day(lat: float, lng: float, radius_m: float = 1500, lang: str = "vi") -> list[dict]:
+async def gan_day(lat: float, lng: float, radius_m: float = 1500, lang: LangQuery = "vi") -> list[dict]:
     if not (-90 <= lat <= 90 and -180 <= lng <= 180):
         raise HTTPException(status_code=400, detail="Tọa độ không hợp lệ")
     if not (0 < radius_m <= 5000):
@@ -74,6 +75,6 @@ async def gan_day(lat: float, lng: float, radius_m: float = 1500, lang: str = "v
 
 
 @router.get("/hotset", summary="10 POI gần nhất trong 1.5km để hâm nóng")
-async def hotset(lat: float, lng: float, lang: str = "vi") -> list[dict]:
+async def hotset(lat: float, lng: float, lang: LangQuery = "vi") -> list[dict]:
     gan = await gan_khoang_cach(get_database(), lat, lng, 1500, lang)
     return gan[:10]

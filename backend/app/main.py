@@ -7,6 +7,7 @@ from fastapi.staticfiles import StaticFiles
 
 from app.config import kiem_tra_bi_mat
 from app.db import close_db, connect_db, get_database
+from app.limits import GioiHanBody
 from app.permissions import dam_bao_roles
 from app.routers import (
     admin_analytics,
@@ -68,6 +69,10 @@ app = FastAPI(
     version="0.1.0",
     lifespan=lifespan,
 )
+
+# Chặn body quá lớn (SEC-001). Đăng TRƯỚC CORS nên CORS vẫn là lớp ngoài:
+# 413 phải mang header CORS cho browser đọc được lỗi.
+app.add_middleware(GioiHanBody)
 
 # Cookie cần origin cụ thể, không dùng "*" kèm credentials được.
 # Sau này thu hẹp tiếp ở SEC-003 khi deploy domain thật.

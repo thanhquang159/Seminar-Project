@@ -6,10 +6,11 @@ from bson import ObjectId
 from bson.errors import InvalidId
 from fastapi import APIRouter, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
-from pydantic import BaseModel
+from pydantic import BaseModel, Field
 
 from app.auth import YeuCauDangNhap
 from app.db import get_database
+from app.limits import MAX_TEXT_TTS, LangField
 from app.services.audio_svc import (
     NGON_NGU_AUDIO,
     THU_MUC_AUDIO,
@@ -25,13 +26,17 @@ router = APIRouter(prefix="/audio", tags=["audio"])
 
 
 class TtsYeuCau(BaseModel):
-    text: str
-    lang: str = "vi"
+    # SEC-001: không giới hạn thì mỗi text khác nhau sinh một file MP3 trong
+    # static/audio/ và không bao giờ bị dọn — đủ vài trăm request là đầy đĩa.
+    text: str = Field(min_length=1, max_length=MAX_TEXT_TTS)
+    lang: LangField = "vi"
 
 
 class OnDemandYeuCau(BaseModel):
-    poi_id: str
-    lang: str
+    # Xem `localizations.DichYeuCau`: độ dài có chặn, hình dạng id để `ObjectId()`
+    # lo, để mã 400 cũ của route giữ nguyên.
+    poi_id: str = Field(min_length=1, max_length=64)
+    lang: LangField
 
 
 @router.post("/tts", summary="Văn bản thành MP3 stream (Tier 2)")

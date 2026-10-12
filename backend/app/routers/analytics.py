@@ -10,6 +10,7 @@ from fastapi import APIRouter, HTTPException, Request
 from pydantic import BaseModel, Field
 
 from app.db import get_database
+from app.limits import MAX_THUOC_TINH
 from app.services import analytics_svc as an
 from app.services.presence import dem_online, heartbeat, origin_duoc_phep, xoa_thiet_bi
 
@@ -24,7 +25,9 @@ class ConsentYeuCau(BaseModel):
 class SuKien(BaseModel):
     name: str = Field(min_length=1, max_length=40)
     at: int | None = None
-    properties: dict = Field(default_factory=dict)
+    # max_length của dict là số khóa. Sự kiện lưu 1 tài liệu/sự kiện nên số khóa
+    # bị thổi phình sẽ phình luôn cả collection analytics.
+    properties: dict = Field(default_factory=dict, max_length=MAX_THUOC_TINH)
 
 
 class CollectYeuCau(BaseModel):

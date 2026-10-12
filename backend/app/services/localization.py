@@ -1,5 +1,7 @@
 """Bản dịch POI ở collection riêng, khóa unique (poi_id, lang) (ADR-004)."""
 
+import asyncio
+
 from bson import ObjectId
 from deep_translator import GoogleTranslator
 from fastapi import HTTPException
@@ -21,15 +23,23 @@ def dich_van_ban(van_ban: str, dich: str) -> str:
 
 
 async def dich_va_luu(db, poi_id: ObjectId, lang: str) -> dict:
-    """Dịch tên+mô tả POI rồi upsert vào poi_localizations."""
+    """Dịch tên+mô tả POI rồi upsert vào poi_localizations.
+
+    `dich_van_ban` blocking nên đẩy sang thread — gọi thẳng sẽ chặn event
+    loop, tức là treo mọi request khác suốt thời gian chờ Google (SEC-001).
+    """
     poi = await db["pois"].find_one({"_id": poi_id})
     if poi is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy POI")
+    ten, mo_ta = await asyncio.gather(
+        asyncio.to_thread(dich_van_ban, poi["name"], lang),
+        asyncio.to_thread(dich_van_ban, poi.get("description", ""), lang),
+    )
     ban_dich = {
         "poi_id": poi_id,
         "lang": lang,
-        "name": dich_van_ban(poi["name"], lang),
-        "description": dich_van_ban(poi.get("description", ""), lang),
+        "name": ten,
+        "description": mo_ta,
         "audio_url": None,
     }
     await db["poi_localizations"].update_one(

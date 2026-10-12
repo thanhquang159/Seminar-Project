@@ -4,6 +4,7 @@ from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse, JSONResponse
 
 from app.db import get_database
+from app.limits import LangQuery
 from app.services.maps import (
     SCOPES,
     THU_MUC_MAPS,
@@ -41,7 +42,7 @@ async def tai_pack(scope: str, ten_tep: str) -> FileResponse:
 
 
 @router.get("/audio-pack", summary="Manifest gói audio theo ngôn ngữ")
-async def audio_pack(lang: str = "vi") -> dict:
+async def audio_pack(lang: LangQuery = "vi") -> dict:
     return await manifest_audio_pack(get_database(), lang)
 
 

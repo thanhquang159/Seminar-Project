@@ -2,10 +2,11 @@
 
 from bson import ObjectId
 from bson.errors import InvalidId
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, HTTPException, Query, Request
 from fastapi.responses import JSONResponse, Response
 
 from app.db import get_database
+from app.limits import LangQuery
 from app.services.localization import dam_bao_index, ghep_poi, lay_ban_dich
 from app.services.sync import etag_cho, lay_phien_ban
 
@@ -26,7 +27,7 @@ def doi_poi(doc: dict) -> dict:
 
 
 @router.get("", summary="Lấy danh sách POI")
-async def lay_danh_sach(lang: str = "vi") -> list[dict]:
+async def lay_danh_sach(lang: LangQuery = "vi") -> list[dict]:
     db = get_database()
     await dam_bao_index(db)
     docs = await db["pois"].find({"is_active": {"$ne": False}}).to_list(length=100)
@@ -38,7 +39,7 @@ async def lay_danh_sach(lang: str = "vi") -> list[dict]:
 
 
 @router.get("/load-all", summary="Tải toàn bộ POI kèm phiên bản sync")
-async def tai_tat_ca(request: Request, lang: str = "vi") -> JSONResponse:
+async def tai_tat_ca(request: Request, lang: LangQuery = "vi") -> JSONResponse:
     db = get_database()
     await dam_bao_index(db)
     version = await lay_phien_ban(db)
@@ -61,7 +62,7 @@ async def tai_tat_ca(request: Request, lang: str = "vi") -> JSONResponse:
 
 
 @router.get("/delta", summary="Chỉ tải phần đổi từ updated_after")
-async def tai_delta(updated_after: int = 0, lang: str = "vi") -> dict:
+async def tai_delta(updated_after: int = Query(ge=0), lang: LangQuery = "vi") -> dict:
     db = get_database()
     await dam_bao_index(db)
     version = await lay_phien_ban(db)
@@ -82,7 +83,7 @@ async def tai_delta(updated_after: int = 0, lang: str = "vi") -> dict:
 
 
 @router.get("/{poi_id}", summary="Lấy một POI theo id")
-async def lay_mot(poi_id: str, lang: str = "vi") -> dict:
+async def lay_mot(poi_id: str, lang: LangQuery = "vi") -> dict:
     try:
         oid = ObjectId(poi_id)
     except InvalidId:

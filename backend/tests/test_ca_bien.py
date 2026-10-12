@@ -123,9 +123,26 @@ def test_chuoi_qua_dai_bi_chan_co_tran() -> None:
     with TestClient(app) as c:
         dong_nhap(c)
         lon = "x" * 100_000
-        assert c.post("/admin/pois", json={"name": lon, "lat": 10.75, "lng": 106.76}).status_code == 422
-        assert c.post("/admin/pois", json={"name": "Q", "description": lon, "lat": 10.75, "lng": 106.76}).status_code == 422
-        assert c.post("/analytics/consent", json={"anonymous_id": ANON, "granted": True, "x": lon}).status_code == 200
+        # SEC-001: body > 64 KiB giờ bị middleware chặn với 413 trước khi
+        # Pydantic kịp validate từng trường, nên 413 hoặc 422 đều đúng —
+        # điều cần giữ là "bị chặt trước khi ghi vào DB".
+        assert c.post("/admin/pois", json={"name": lon, "lat": 10.75, "lng": 106.76}).status_code in (413, 422)
+        assert (
+            c.post(
+                "/admin/pois", json={"name": "Q", "description": lon, "lat": 10.75, "lng": 106.76}
+            ).status_code
+            in (413, 422)
+        )
+        # Trường lạ vẫn bị bỏ qua (tương thích ngược) — nhưng phải dưới trần
+        # body 64 KiB, nên dùng rác vừa đủ chứ không dùng 100 KB.
+        lon_vua_du = "x" * 10_000
+        assert (
+            c.post(
+                "/analytics/consent",
+                json={"anonymous_id": ANON, "granted": True, "x": lon_vua_du},
+            ).status_code
+            == 200
+        )
         # anonymous_id vượt 64 ký tự thì 422 chứ không cắt bừa.
         assert c.post("/analytics/consent", json={"anonymous_id": "a" * 65, "granted": True}).status_code == 422
 

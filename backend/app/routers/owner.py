@@ -10,6 +10,7 @@ from pydantic import BaseModel, Field
 from app.audit import ghi_audit
 from app.auth import YeuCauDangNhap, YeuCauOwnerDuyet, bam_mat_khau, doi_quyen
 from app.db import get_database
+from app.limits import MAX_ADMIN_NOTE, MAX_MO_TA, MAX_TEN, MatKhauDangKy
 from app.pii import giai_ma_pii, ma_hoa_pii
 from app.services.sync import cham_dataset
 
@@ -21,18 +22,20 @@ DuocDuyetPoi = doi_quyen("poi:approve")
 
 class DangKyOwner(BaseModel):
     username: str = Field(min_length=3, max_length=50)
-    password: str = Field(min_length=6, max_length=100)
-    cccd: str = Field(min_length=9, max_length=20)
+    # Cùng giới hạn 72 byte như đăng nhập, nếu không hai nơi sẽ lệch nhau.
+    password: MatKhauDangKy
+    # CCCD/CMND là số, không phải chuỗi tự do: chặn sớm rác lọt vào trường PII.
+    cccd: str = Field(min_length=9, max_length=20, pattern=r"^[0-9]{9,20}$")
 
 
 class XetDuyet(BaseModel):
-    admin_note: str = ""
+    admin_note: str = Field(default="", max_length=MAX_ADMIN_NOTE)
 
 
 class SubmissionNhap(BaseModel):
     poi_id: str | None = None
-    name: str = Field(min_length=1, max_length=200)
-    description: str = Field(default="", max_length=5000)
+    name: str = Field(min_length=1, max_length=MAX_TEN)
+    description: str = Field(default="", max_length=MAX_MO_TA)
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
 
