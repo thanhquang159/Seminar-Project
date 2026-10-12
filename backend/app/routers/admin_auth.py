@@ -1,6 +1,6 @@
 """Route xác thực admin: login, me, refresh, logout."""
 
-from fastapi import APIRouter, HTTPException, Response
+from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
 from app.auth import (
@@ -15,6 +15,7 @@ from app.auth import (
 )
 from app.config import la_dev
 from app.limits import MatKhau
+from app.services import login_guard
 
 router = APIRouter(prefix="/admin/auth", tags=["admin-auth"])
 
@@ -42,7 +43,13 @@ def dat_cookie(response: Response, ten: str, token: str, tuoi_giay: int) -> None
 
 
 @router.post("/login", summary="Đăng nhập admin")
-async def dang_nhap(body: DangNhap, response: Response) -> dict:
+async def dang_nhap(body: DangNhap, request: Request, response: Response) -> dict:
+    from app.db import get_database
+
+    db = get_database()
+    ip = request.client.host if request.client else "la"
+    # SEC-002: hỏi bộ đếm TRƯỚC khi băm bcrypt, để đoán sai không tốn CPU nữa.
+    await login_guard.kiem_tra(db, body.username, ip)
     user = await lay_user_theo_ten(body.username)
     # Sai tên và sai mật khẩu trả cùng một thông báo để chống dò tài khoản.
     dung = (
@@ -51,9 +58,10 @@ async def dang_nhap(body: DangNhap, response: Response) -> dict:
         else dung_mat_khau("gia", bam_mat_khau("gia"))
     )
     if user is None or not dung:
+        await login_guard.ghi_nhan_that_bai(db, body.username, ip)
         raise HTTPException(status_code=401, detail=THONG_BAO_SAI)
+    await login_guard.xoa_that_bai(db, body.username, ip)
     role = user.get("role", "admin")
-    from app.db import get_database
     from app.permissions import quyen_cua_role
 
     quyen = await quyen_cua_role(get_database(), role)

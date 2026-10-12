@@ -37,11 +37,16 @@ async def cho_phep(
     duong_dan: str,
     gioi_han: int = GIOI_HAN,
     cua_so_phut: int = CUA_SO_PHUT,
+    ghi_nhan: bool = True,
 ) -> tuple[bool, int]:
     """Đếm lượt trong cửa sổ trượt rồi ghi nhận. Trả (cho phép, giây phải chờ).
 
     Dùng chung cho audio, on-demand, analytics và quan sát runtime nên
     ngưỡng khác nhau chỉ việc truyền tham số, không nhân bản logic.
+
+    `ghi_nhan=False` chỉ đếm mà không ghi — dùng khi muốn hỏi "lượt này có bị
+    chặn không" mà không tính nó vào bộ đếm (SEC-002: hỏi trước khi băm mật
+    khẩu, nhưng chỉ lần THẤT BẠI mới được tính).
     """
     await dam_bao_index_ratelimit(db)
     moc = datetime.now(UTC) - timedelta(minutes=cua_so_phut)
@@ -50,14 +55,15 @@ async def cho_phep(
     if dem >= gioi_han:
         cu = await db["rate_limits"].find(quy).sort("luc", 1).limit(1).to_list(length=1)
         return False, _giay_cho_lai(cu[0], cua_so_phut) if cu else cua_so_phut * 60
-    await db["rate_limits"].insert_one(
-        {
-            "khoa": khoa,
-            "duong_dan": duong_dan,
-            "luc": datetime.now(UTC),
-            "het_han": datetime.now(UTC) + timedelta(minutes=cua_so_phut),
-        }
-    )
+    if ghi_nhan:
+        await db["rate_limits"].insert_one(
+            {
+                "khoa": khoa,
+                "duong_dan": duong_dan,
+                "luc": datetime.now(UTC),
+                "het_han": datetime.now(UTC) + timedelta(minutes=cua_so_phut),
+            }
+        )
     return True, 0
 
 
