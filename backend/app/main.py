@@ -9,6 +9,7 @@ from fastapi.staticfiles import StaticFiles
 from app.config import kiem_tra_bi_mat, settings
 from app.csrf import ChanGhiOrigin
 from app.db import close_db, connect_db, get_database
+from app.headers import HeaderBaoMat
 from app.limits import GioiHanBody
 from app.log_setup import dat_cau_hinh_log
 from app.permissions import dam_bao_roles
@@ -100,6 +101,11 @@ app.add_middleware(
 # Chặn thao tác ghi từ origin lạ (SEC-004). Đăng sau CORS nên nằm trong CORS:
 # 403 vẫn mang header CORS để trình duyệt đọc được và báo đúng lý do.
 app.add_middleware(ChanGhiOrigin)
+
+# Header bảo mật (SEC-009). Đăng cuối, nên là lớp trong cùng: dù 403 của
+# ChanGhiOrigin hay 413 của GioiHanBody thì người gọi vẫn nhận được nosniff
+# và CSP, không phải chỉ response 200 mới có.
+app.add_middleware(HeaderBaoMat)
 
 app.include_router(health.router)
 app.include_router(geo.router)
