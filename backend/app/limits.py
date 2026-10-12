@@ -39,6 +39,13 @@ MAX_THUOC_TINH = 20
 MAX_TEN = 200
 MAX_MO_TA = 5000
 
+# Tải ảnh POI (SEC-012): 5 MB là trần do đặc tả (`MAX_IMAGE_SIZE`), cộng 1 MB
+# biên cho phần multipart (tên tệp, ranh giới) — không có biên thì client hợp
+# lệ sẽ bị 413 đúng ở ranh giới 5 MB.
+MAX_BYTE_ANH = 5 * 1024 * 1024
+MAX_BYTE_TAI_ANH = MAX_BYTE_ANH + 1024 * 1024
+DUONG_DAN_TAI_ANH = ("/admin/pois/",)
+
 
 def _mat_khau_trong_gioi_han(v: str) -> str:
     """Đếm **byte** chứ không đếm ký tự — bcrypt cắt theo byte."""
@@ -80,20 +87,33 @@ class GioiHanBody:
         self.app = app
         self.gioi_han = gioi_han
 
+    def _nguong(self, scope) -> int:
+        """Ngưỡng theo đường dẫn: upload ảnh được phép vượt trần JSON.
+
+        Không mở chung cho mọi endpoint — chỉ đúng một đường dẫn, và trần riêng
+        vẫn là `MAX_BYTE_TAI_ANH` chứ không phải "không giới hạn".
+        """
+        path = scope.get("path", "")
+        if any(path.startswith(tien) for tien in DUONG_DAN_TAI_ANH):
+            return MAX_BYTE_TAI_ANH
+        return self.gioi_han
+
     async def __call__(self, scope, receive, send) -> None:
         if scope["type"] != "http":
             await self.app(scope, receive, send)
             return
 
+        nguong = self._nguong(scope)
+
         # Đường nhanh: Content-Length nói trước kích thước, chặn không cần đọc.
         khai_bao = dict(scope.get("headers") or {}).get(b"content-length")
         if khai_bao is not None:
             try:
-                qua = int(khai_bao) > self.gioi_han
+                qua = int(khai_bao) > nguong
             except ValueError:
                 qua = True  # Content-Length rác: coi như quá ngưỡng, đừng đoán
             if qua:
-                await self._toi_cha(scope, receive, send)
+                await self._toi_cha(scope, receive, send, nguong)
                 return
 
         chunks: list[bytes] = []
@@ -105,8 +125,8 @@ class GioiHanBody:
                 return  # client bỏ giữa chừng, không cần trả lời ai
             khoi = tin.get("body", b"")
             tong += len(khoi)
-            if tong > self.gioi_han:
-                await self._toi_cha(scope, receive, send)
+            if tong > nguong:
+                await self._toi_cha(scope, receive, send, nguong)
                 return
             chunks.append(khoi)
             con = tin.get("more_body", False)
@@ -122,9 +142,9 @@ class GioiHanBody:
 
         await self.app(scope, phat_lai, send)
 
-    async def _toi_cha(self, scope, receive, send) -> None:
+    async def _toi_cha(self, scope, receive, send, nguong: int) -> None:
         await JSONResponse(
             status_code=413,
-            content={"detail": "Body vượt giới hạn kích thước", "gioi_han_bytes": self.gioi_han},
+            content={"detail": "Body vượt giới hạn kích thước", "gioi_han_bytes": nguong},
             headers={"Connection": "close"},
         )(scope, receive, send)

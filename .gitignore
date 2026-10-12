@@ -65,3 +65,6 @@ docker-compose.override.yml
 # Logs
 logs
 *.log
+
+# Ảnh POI tải lên lúc chạy (SEC-012) — không commit dữ liệu người dùng
+backend/static/images/

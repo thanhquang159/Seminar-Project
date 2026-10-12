@@ -82,6 +82,9 @@ KHAI_BAO: dict[str, str | None] = {
     "POST /admin/pois": "poi:create",
     "PUT /admin/pois/{poi_id}": "poi:update",
     "DELETE /admin/pois/{poi_id}": "poi:delete",
+    "GET /admin/pois/{poi_id}/images": "poi:update",
+    "POST /admin/pois/{poi_id}/images": "poi:update",
+    "DELETE /admin/pois/{poi_id}/images/{ten}": "poi:update",
     # ---- Admin meta ----
     "GET /admin/roles": "role:read",
     "GET /admin/audit-logs": "audit:read",
@@ -251,6 +254,8 @@ def test_voi_poi_owner_moi_route_bien_anh_403() -> None:
     path_that = {
         "/admin/pois": "POST",
         "/admin/pois/000000000000000000000000": "PUT",
+        "/admin/pois/000000000000000000000000/images": "POST",
+        "/admin/pois/000000000000000000000000/images/abc.jpg": "DELETE",
         "/admin/roles": "GET",
         "/admin/audit-logs": "GET",
         "/admin/analytics/summary": "GET",
@@ -301,6 +306,8 @@ def test_route_quan_tri_phan_401_khi_khong_dang_nhap() -> None:
         ("POST", "/admin/pois"),
         ("PUT", "/admin/pois/000000000000000000000000"),
         ("DELETE", "/admin/pois/000000000000000000000000"),
+        ("POST", "/admin/pois/000000000000000000000000/images"),
+        ("DELETE", "/admin/pois/000000000000000000000000/images/abc.jpg"),
         ("GET", "/localizations/warmup-status"),
     ]
     with TestClient(app) as c:
