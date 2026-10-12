@@ -56,7 +56,7 @@ async def main() -> None:
     quyen = await quyen_cua_role(db, "super_admin")
     await db["admin_users"].insert_one(
         {"username": ADMIN_E2E, "password_hash": bam_mat_khau(MAT_KHAU_E2E),
-         "role": "super_admin", "permissions": quyen}
+         "role": "super_admin", "permissions": quyen, "phi_en_ver": 1}
     )
 
     for ten, (ten_quan, lat, lng) in enumerate(POIS_E2E):

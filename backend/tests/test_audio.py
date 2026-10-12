@@ -82,11 +82,25 @@ def test_an_poi_cho_tieng_anh() -> None:
     assert asyncio.run(kich_ban()) is True
 
 
-def test_khoi_phuc_tasks_treo() -> None:
+def test_khoi_phuc_tasks_treo(monkeypatch) -> None:
+    """Chỉ kiểm logic khôi phục, không cho task nền chạy thật.
+
+    `khoi_phuc()` gọi `asyncio.create_task(_chay(...))` ngay, và giữa lúc đó
+    với lúc đọc `status` có `await` — nên task nền có thể kịp đổi trạng thái
+    sang `running`/`error` trước khi assert. Đó là cuộc đua có sẵn trong test,
+    không phải lỗi của `khoi_phuc`; SEC-011 làm task hỏng sớm hơn nên nó lộ ra.
+    """
+    from app.services.tasks import QuanLyTasks
+
+    async def chay_noop(_task_id: str) -> None:
+        return None
+
+    # `staticmethod`: hàm gán vào class sẽ bị Python gọi như method, tức là
+    # nhận thêm `self` — không có staticmethod thì TypeError.
+    monkeypatch.setattr(QuanLyTasks, "_chay", staticmethod(chay_noop))
+
     async def chay() -> int:
         from motor.motor_asyncio import AsyncIOMotorClient
-
-        from app.services.tasks import QuanLyTasks
 
         client = AsyncIOMotorClient(settings.mongodb_uri)
         db = client[settings.mongodb_db_name]

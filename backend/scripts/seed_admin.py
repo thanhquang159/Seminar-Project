@@ -22,6 +22,7 @@ async def main() -> None:
             "$setOnInsert": {
                 "password_hash": bam_mat_khau(settings.admin_password),
                 "role": "super_admin",
+                "phi_en_ver": 1,
             }
         },
         upsert=True,

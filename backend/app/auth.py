@@ -12,6 +12,10 @@ from app.db import get_database
 ACCESS_PHUT = 30
 REFRESH_NGAY = 7
 
+# Tài khoản tạo trước SEC-011 chưa có `phi_en_ver`; coi như 1 để không phá phiên
+# của họ, và số phiên chỉ tăng chứ không giảm nên tự lành sau lần đổi mật khẩu.
+SO_PHIEN_MAC_DINH = 1
+
 
 def bam_mat_khau(mat_khau: str) -> str:
     """Băm bcrypt kèm salt ngẫu nhiên, hai lần băm cho hai chuỗi khác nhau."""
@@ -26,12 +30,27 @@ def dung_mat_khau(mat_khau: str, bam: str) -> bool:
         return False
 
 
-def tao_token(username: str, role: str, loai: str, quyen: list[str] | None = None) -> str:
-    """Cấp JWT access (30 phút) hoặc refresh (7 ngày), kèm danh sách quyền."""
+def tao_token(
+    username: str, role: str, loai: str, quyen: list[str] | None = None, so_phien: int = 1
+) -> str:
+    """Cấp JWT access (30 phút) hoặc refresh (7 ngày), kèm quyền và số phiên.
+
+    SEC-011: `sv` là số phiên của tài khoản lúc cấp token. Token không có trường
+    này thì bị từ chối — nếu cho qua, kẻ tấn công chỉ cần tự ký token hợp lệ
+    (biết `JWT_SECRET` là xong), hoặc dùng lại token cũ phát ra trước khi có
+    cơ chế thu hồi.
+    """
     han = timedelta(minutes=ACCESS_PHUT) if loai == "access" else timedelta(days=REFRESH_NGAY)
     bi_mat = settings.jwt_secret if loai == "access" else settings.refresh_secret
     return jwt.encode(
-        {"sub": username, "role": role, "permissions": quyen or [], "type": loai, "exp": datetime.now(UTC) + han},
+        {
+            "sub": username,
+            "role": role,
+            "permissions": quyen or [],
+            "type": loai,
+            "sv": so_phien,
+            "exp": datetime.now(UTC) + han,
+        },
         bi_mat,
         algorithm="HS256",
     )
@@ -47,6 +66,20 @@ def doc_token(token: str, loai: str) -> dict:
     if data.get("type") != loai:
         raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
     return data
+
+
+def kiem_tra_phien(data: dict, user: dict) -> None:
+    """SEC-011: token chỉ còn hiệu lực khi số phiên khớp DB và role khớp DB.
+
+    Hai kiểm tra vì mỗi cách lọt một kiểu:
+    - `sv` lệch  ⇒ tài khoản đã bị thu hồi (đổi mật khẩu, đuổi, đổi role).
+    - `role` lệch ⇒ token mang quyền cũ; quyền nằm *trong* token nên nếu không
+      chặn ở đây thì đổi role trong DB chỉ có tác dụng sau khi hết 30 phút.
+    """
+    if data.get("sv") != user.get("phi_en_ver", SO_PHIEN_MAC_DINH):
+        raise HTTPException(status_code=401, detail="Phiên không còn hiệu lực")
+    if data.get("role") != user.get("role", "admin"):
+        raise HTTPException(status_code=401, detail="Phiên không còn hiệu lực")
 
 
 async def lay_user_theo_ten(username: str) -> dict | None:
@@ -79,6 +112,7 @@ async def lay_user_hien_tai(
     user = await lay_user_theo_ten(str(data["sub"]))
     if user is None:
         raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
+    kiem_tra_phien(data, user)
     role = user.get("role", "admin")
     quyen = await quyen_hien_tai(user["username"], role, list(data.get("permissions", [])))
     return {"username": user["username"], "role": role, "permissions": quyen}
@@ -126,7 +160,15 @@ async def lay_user_refresh(
     user = await lay_user_theo_ten(str(data["sub"]))
     if user is None:
         raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
-    return {"username": user["username"], "role": user.get("role", "admin")}
+    kiem_tra_phien(data, user)
+    role = user.get("role", "admin")
+    quyen = await quyen_hien_tai(user["username"], role, [])
+    return {
+        "username": user["username"],
+        "role": role,
+        "permissions": quyen,
+        "phi_en_ver": user.get("phi_en_ver", SO_PHIEN_MAC_DINH),
+    }
 
 
 YeuCauRefresh = Depends(lay_user_refresh)

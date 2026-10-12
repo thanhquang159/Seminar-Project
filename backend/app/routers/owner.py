@@ -60,6 +60,8 @@ async def dang_ky(body: DangKyOwner) -> dict:
             "username": body.username,
             "password_hash": bam_mat_khau(body.password),
             "role": "poi_owner",
+            # SEC-011: mọi tài khoản đều có số phiên để thu hồi được
+            "phi_en_ver": 1,
             "is_verified": False,
             "is_poi_owner_verified": False,
             "cccd_encrypted": ma_cccd,

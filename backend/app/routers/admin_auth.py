@@ -1,11 +1,15 @@
-"""Route xác thực admin: login, me, refresh, logout."""
+"""Route xác thực: login, me, refresh, logout, đổi mật khẩu (SEC-011)."""
+
+from datetime import UTC, datetime
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
 
+from app.audit import ghi_audit
 from app.auth import (
     ACCESS_PHUT,
     REFRESH_NGAY,
+    SO_PHIEN_MAC_DINH,
     YeuCauDangNhap,
     YeuCauRefresh,
     bam_mat_khau,
@@ -14,7 +18,7 @@ from app.auth import (
     tao_token,
 )
 from app.config import la_dev
-from app.limits import MatKhau
+from app.limits import MatKhau, MatKhauDangKy
 from app.services import login_guard
 
 router = APIRouter(prefix="/admin/auth", tags=["admin-auth"])
@@ -65,19 +69,86 @@ async def dang_nhap(body: DangNhap, request: Request, response: Response) -> dic
     from app.permissions import quyen_cua_role
 
     quyen = await quyen_cua_role(get_database(), role)
+    so_phien = user.get("phi_en_ver", SO_PHIEN_MAC_DINH)
     dat_cookie(
         response,
         "access_token",
-        tao_token(user["username"], role, "access", quyen),
+        tao_token(user["username"], role, "access", quyen, so_phien),
         ACCESS_PHUT * 60,
     )
     dat_cookie(
         response,
         "refresh_token",
-        tao_token(user["username"], role, "refresh", quyen),
+        tao_token(user["username"], role, "refresh", quyen, so_phien),
         REFRESH_NGAY * 86400,
     )
     return {"ok": True, "username": user["username"], "role": role}
+
+
+class DoiMatKhau(BaseModel):
+    """Bắt buộc có mật khẩu cũ: chỉ cần phiên hợp lệ thì kẻ cướp token phiên
+    cũng đổi được mật khẩu, tức là chiếm tài khoản vĩnh viễn."""
+
+    mat_khau_cu: MatKhau
+    mat_khau_moi: MatKhauDangKy
+
+
+@router.post("/change-password", summary="Đổi mật khẩu và thu hồi mọi phiên khác")
+async def doi_mat_khau(
+    body: DoiMatKhau, request: Request, response: Response, user: dict = YeuCauDangNhap
+) -> dict:
+    """Sau khi đổi, mọi token cũ chết; chỉ máy đang đổi được cấp token mới.
+
+    Vì sao không huỷ phiên của chính máy này: người dùng đang sửa mật khẩu vì
+    nghi ngờ lộ — bắt họ đăng nhập lại cũng được, nhưng thêm một bước vô ích.
+    Cookie mới gửi kèm trong cùng response nên trải nghiệm liền mạch.
+    """
+    from app.db import get_database
+
+    db = get_database()
+    doc = await lay_user_theo_ten(user["username"])
+    if doc is None:
+        raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
+    if not dung_mat_khau(body.mat_khau_cu, doc.get("password_hash", "")):
+        raise HTTPException(status_code=401, detail="Mật khẩu cũ không đúng")
+    if body.mat_khau_cu == body.mat_khau_moi:
+        raise HTTPException(status_code=400, detail="Mật khẩu mới phải khác mật khẩu cũ")
+
+    ket_qua = await db["admin_users"].update_one(
+        {"username": user["username"]},
+        {
+            "$set": {
+                "password_hash": bam_mat_khau(body.mat_khau_moi),
+                "password_changed_at": datetime.now(UTC),
+            },
+            "$inc": {"phi_en_ver": 1},
+        },
+    )
+    if ket_qua.matched_count == 0:
+        raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
+    so_phien = doc.get("phi_en_ver", SO_PHIEN_MAC_DINH) + 1
+
+    # Đổi mật khẩu thường đi kèm lần đăng nhập sai bị khoá tạm — dù xong thì
+    # phải mở khoá, nếu không người dùng vừa sửa xong lại bị chặn 15 phút.
+    ip = request.client.host if request.client else "la"
+    await login_guard.xoa_that_bai(db, user["username"], ip)
+
+    await ghi_audit(db, user["username"], "auth:change_password", f"user:{user['username']}")
+
+    quyen = user.get("permissions", [])
+    dat_cookie(
+        response,
+        "access_token",
+        tao_token(user["username"], user["role"], "access", quyen, so_phien),
+        ACCESS_PHUT * 60,
+    )
+    dat_cookie(
+        response,
+        "refresh_token",
+        tao_token(user["username"], user["role"], "refresh", quyen, so_phien),
+        REFRESH_NGAY * 86400,
+    )
+    return {"ok": True, "so_phien": so_phien}
 
 
 @router.get("/me", summary="Xem phiên hiện tại")
@@ -87,10 +158,18 @@ async def xem_toi(user: dict = YeuCauDangNhap) -> dict:
 
 @router.post("/refresh", summary="Cấp access mới từ refresh cookie")
 async def lam_moi(response: Response, user: dict = YeuCauRefresh) -> dict:
+    # SEC-011: quyền lấy từ DB chứ không từ token refresh cũ — token cũ có quyền
+    # lúc nó được cấp, đã lỗi thời nếu role của tài khoản đã đổi.
     dat_cookie(
         response,
         "access_token",
-        tao_token(user["username"], user["role"], "access", user.get("permissions", [])),
+        tao_token(
+            user["username"],
+            user["role"],
+            "access",
+            user.get("permissions", []),
+            user.get("phi_en_ver", SO_PHIEN_MAC_DINH),
+        ),
         ACCESS_PHUT * 60,
     )
     return {"ok": True}

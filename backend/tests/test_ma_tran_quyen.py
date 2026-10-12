@@ -59,6 +59,7 @@ KHAI_BAO: dict[str, str | None] = {
     # ---- Cần đăng nhập (bất kỳ role nào đã đăng nhập) ----
     "GET /admin/auth/me": "__dang_nhap__",
     "POST /admin/auth/refresh": "__refresh__",
+    "POST /admin/auth/change-password": "__dang_nhap__",  # SEC-011
     "GET /audio/tasks": "__dang_nhap__",
     "GET /audio/tasks/stream": "__dang_nhap__",
     "POST /audio/tasks/{task_id}/{lenh}": "__dang_nhap__",
