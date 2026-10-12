@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
 
 from app.config import kiem_tra_bi_mat, settings
+from app.csrf import ChanGhiOrigin
 from app.db import close_db, connect_db, get_database
 from app.limits import GioiHanBody
 from app.permissions import dam_bao_roles
@@ -86,6 +87,10 @@ app.add_middleware(
     # sách header đó — tức cho phép thứ không cần.
     allow_headers=["Content-Type", "Authorization"],
 )
+
+# Chặn thao tác ghi từ origin lạ (SEC-004). Đăng sau CORS nên nằm trong CORS:
+# 403 vẫn mang header CORS để trình duyệt đọc được và báo đúng lý do.
+app.add_middleware(ChanGhiOrigin)
 
 app.include_router(health.router)
 app.include_router(geo.router)
