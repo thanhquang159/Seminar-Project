@@ -3,6 +3,7 @@ import MapView from './components/MapView'
 import ConsentBanner from './components/ConsentBanner'
 import LanguagePicker from './components/LanguagePicker'
 import OfflinePacks from './components/OfflinePacks'
+import { PoiDetail, PoiList } from './components/PoiList'
 import { useMapPack } from './components/useMapPack'
 import Settings from './components/Settings'
 import AdminApp from './admin/AdminApp'
@@ -164,16 +165,7 @@ function App() {
           />
 
           {dangChon !== null && (
-            <section className="card" aria-label="Chi tiết điểm tham quan">
-              <div className="spread">
-                <h2 className="card__title">{dangChon.name}</h2>
-                {dangChon.is_fallback && <span className="badge badge--warn">Nội dung thay thế</span>}
-              </div>
-              <p className="card__subtitle">{dangChon.description}</p>
-              <button className="btn btn--accent" type="button" onClick={() => speak(dangChon.description, 'vi-VN')}>
-                ▶ Nghe thuyết minh
-              </button>
-            </section>
+            <PoiDetail poi={dangChon} onNghe={() => void speak(dangChon.description, 'vi-VN')} />
           )}
 
           {dangDoc !== null && <div className="badge badge--accent mb">Đang đọc: {dangDoc}</div>}
@@ -185,17 +177,7 @@ function App() {
             <div className="notice notice--warn">Chưa có dữ liệu.</div>
           )}
 
-          <ul className="poi-list">
-            {pois.map((poi) => (
-              <li key={poi.id} className="poi-item">
-                <button type="button" className="poi-btn" onClick={() => setSelectedId(poi.id)}>
-                  <span className="poi-btn__name">{poi.name}</span>
-                  <span className="poi-btn__arrow">›</span>
-                  <span className="poi-btn__desc">{poi.description}</span>
-                </button>
-              </li>
-            ))}
-          </ul>
+          <PoiList pois={pois} onChon={chonPoi} />
         </>
       )}
     </div>
