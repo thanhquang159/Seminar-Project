@@ -92,6 +92,14 @@ async def liet_ke_don(user: dict = DuocQuanLyUser) -> list[dict]:
 
 @router.post("/owner/registrations/{username}/approve", summary="Duyệt chủ quán")
 async def duyet(user_duyet: dict = DuocQuanLyUser, username: str = "") -> dict:
+    # SEC-013 (A01 IDOR): `username` đến từ URL nên không được tin. Nhưng
+    # nghiệp vụ vốn là admin duyệt đơn của người khác, nên không thể đòi
+    # `username == người gọi` (sẽ khóa luôn cả luồng đúng). Vậy chặn đúng kịch
+    # bản nguy hiểm nhất: chủ quán tự duyệt đơn của chính mình. Còn lại admin A
+    # duyệt đơn B là IDOR mức thấp — đã ghi vào báo cáo SEC-013 như việc cần
+    # quyết định nghiệp vụ, không tự sửa.
+    if username == user_duyet["username"]:
+        raise HTTPException(status_code=403, detail="Không được tự duyệt đơn của mình")
     db = get_database()
     don = await db["owner_registrations"].find_one({"username": username, "status": "pending"})
     if not don:
@@ -106,6 +114,8 @@ async def duyet(user_duyet: dict = DuocQuanLyUser, username: str = "") -> dict:
 
 @router.post("/owner/registrations/{username}/reject", summary="Từ chối đơn")
 async def tu_choi(body: XetDuyet, user_duyet: dict = DuocQuanLyUser, username: str = "") -> dict:
+    if username == user_duyet["username"]:
+        raise HTTPException(status_code=403, detail="Không được tự xử đơn của mình")
     if not body.admin_note.strip():
         raise HTTPException(status_code=400, detail="Từ chối phải có ghi chú")
     db = get_database()
@@ -158,6 +168,17 @@ async def duyet_submission(sid: str, user_duyet: dict = DuocDuyetPoi) -> dict:
     sub = await db["owner_submissions"].find_one({"_id": oid, "status": "pending"})
     if not sub:
         raise HTTPException(status_code=404, detail="Không có submission chờ")
+    # SEC-013 (A01 IDOR): đối chiếu LẠI lúc duyệt, đừng tin lúc gửi. Gửi có kiểm
+    # `owner_username` nhưng dữ liệu cũ có thể lệch, và `poi_id` do owner tự
+    # khai — nếu không đối chiếu thì owner A duyệt (qua admin) nội dung của A
+    # ghi đè lên quán của owner B.
+    if sub.get("poi_id"):
+        poi_goc = await db["pois"].find_one({"_id": doi_id(sub["poi_id"])}, {"owner_username": 1})
+        if poi_goc and poi_goc.get("owner_username") not in (None, sub["username"]):
+            raise HTTPException(
+                status_code=409,
+                detail="Đề xuất không còn khớp với quán hiện tại, cần gửi lại",
+            )
     du_lieu = dict(sub["data"])
     du_lieu.update(
         {

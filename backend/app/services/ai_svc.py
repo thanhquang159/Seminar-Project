@@ -23,6 +23,14 @@ class HttpProvider(NhaCungCap):
     """Provider HTTP chung (ProxyPal/Gemini-compatible), lỗi theo nhà cung cấp."""
 
     async def viet_lai(self, mo_ta: str) -> str:
+        # SEC-013 (A04): thiếu URL thì báo lỗi cấu hình NGAY, đừng đi request với
+        # URL rỗng rồi trả về cho client một lỗi httpx khó hiểu. Đây là lỗi đặt
+        # sai biến môi trường, phải nói đúng tên biến chứ không nói "request
+        # thiếu protocol".
+        if not settings.ai_api_url:
+            raise RuntimeError(
+                "AI chưa cấu hình: đặt AI_API_URL (và AI_API_KEY) khi AI_PROVIDER=http"
+            )
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT_GIAY) as client:
                 res = await client.post(

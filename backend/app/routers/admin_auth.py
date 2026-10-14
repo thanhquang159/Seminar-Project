@@ -109,7 +109,14 @@ async def doi_mat_khau(
     doc = await lay_user_theo_ten(user["username"])
     if doc is None:
         raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
+    ip = request.client.host if request.client else "la"
+    # SEC-013 (A07): hỏi bộ đếm TRƯỚC khi băm, như `/admin/auth/login` đã làm.
+    await login_guard.kiem_tra(db, user["username"], ip)
     if not dung_mat_khau(body.mat_khau_cu, doc.get("password_hash", "")):
+        # SEC-013 (A07): SEC-002 chỉ bọc `/admin/auth/login` nên route này trước
+        # đó KHÔNG đếm lần sai — 1000 lượt đoán mật khẩu cũ trong 15 phút không
+        # bị chặn. Đếm cả lần sai ở đây nữa, cùng bộ đếm với đăng nhập.
+        await login_guard.ghi_nhan_that_bai(db, user["username"], ip)
         raise HTTPException(status_code=401, detail="Mật khẩu cũ không đúng")
     if body.mat_khau_cu == body.mat_khau_moi:
         raise HTTPException(status_code=400, detail="Mật khẩu mới phải khác mật khẩu cũ")
