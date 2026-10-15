@@ -10,6 +10,16 @@ CUA_SO_PHUT = 10
 
 async def dam_bao_index_ratelimit(db) -> None:
     await db["rate_limits"].create_index("het_han", expireAfterSeconds=0)
+    # PERF-002: `cho_phep` chạy TRƯỚC mọi request có rate limit và nó
+    # `count_documents({khoa, duong_dan, luc >= moc})` — explain trước khi có
+    # chỉ mục này là `COUNT -> COLLSCAN` (quét hết collection, kể cả khi chỉ
+    # 1 dòng khớp). Sau khi thêm:
+    #   count  -> COUNT_SCAN, keys=2 docs=0  (đếm qua chỉ mục, không fetch doc)
+    #   find+sort luc -> LIMIT -> FETCH -> IXSCAN (chỉ mục đã sắp sẵn,
+    #   không cần stage SORT)
+    # Chỉ mục TTL `het_han` không phục vụ truy vấn này — hai chỉ mục phục vụ
+    # hai việc khác nhau: TTL dọn document, compound đếm lượt.
+    await db["rate_limits"].create_index([("khoa", 1), ("duong_dan", 1), ("luc", 1)])
 
 
 def khoa_cho(request: Request, user: dict | None = None) -> str:
