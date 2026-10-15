@@ -1,16 +1,20 @@
 import { useEffect, useRef, useState } from 'react'
-import * as maplibregl from 'maplibre-gl'
 import type { StyleSpecification } from 'maplibre-gl'
-import { Protocol } from 'pmtiles'
 
 const API_GOC = 'http://127.0.0.1:8000'
 export type CheDo = 'cloud' | 'offline' | 'hybrid'
 
 // Đăng ký giao thức một lần, tile đi qua fetch nên SW cache phục vụ offline.
+// Import ĐỘNG (PERF-004): maplibre-gl nặng hàng trăm KB, chỉ tải khi thật sự
+// kích hoạt pack offline — không kéo vào chunk chính của trang.
 let daDangKyPmtiles = false
-function damBaoPmtiles() {
+async function damBaoPmtiles() {
   if (daDangKyPmtiles) return
-  maplibregl.addProtocol('pmtiles', new Protocol().tile)
+  const [{ addProtocol }, { Protocol }] = await Promise.all([
+    import('maplibre-gl'),
+    import('pmtiles'),
+  ])
+  addProtocol('pmtiles', new Protocol().tile)
   daDangKyPmtiles = true
 }
 
@@ -36,7 +40,7 @@ export function useMapPack() {
 
   // Chỉ kích hoạt sau khi hash đạt, style.json của pack quyết định vẽ gì.
   const kichHoat = async (tenCache: string, styleUrl: string) => {
-    damBaoPmtiles()
+    await damBaoPmtiles()
     const cache = await caches.open(tenCache)
     const res = await cache.match(styleUrl)
     if (!res) {

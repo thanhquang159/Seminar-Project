@@ -1,13 +1,10 @@
-import { useCallback, useEffect, useRef, useState } from 'react'
-import MapView from './components/MapView'
+import { lazy, Suspense, useCallback, useEffect, useRef, useState } from 'react'
 import ConsentBanner from './components/ConsentBanner'
 import LanguagePicker from './components/LanguagePicker'
 import OfflinePacks from './components/OfflinePacks'
 import { PoiDetail, PoiList } from './components/PoiList'
 import { useMapPack } from './components/useMapPack'
 import Settings from './components/Settings'
-import AdminApp from './admin/AdminApp'
-import OwnerApp from './admin/OwnerApp'
 import { apiText } from './admin/api'
 import { playWithFallback } from './audio/playback'
 import { speak } from './geofence/audio'
@@ -19,6 +16,14 @@ import { batDauAnalytics, ghiSuKien } from './analytics/service'
 import { baoMau, batDauQuanSatVịTri } from './telemetry/location'
 import { laySessionId, useConsentStore } from './stores/consentStore'
 import { usePoiStore } from './stores/poiStore'
+
+// PERF-004: tách chunk cho mã chỉ cần khi vào tab tương ứng. MapView kéo theo
+// maplibre-gl (hàng trăm KB, parse chậm trên điện thoại); AdminApp/OwnerApp
+// chỉ dùng khi chủ/admin mở tab. Chunk lười vẫn nằm trong precache của SW nên
+// offline dùng được sau lần cài đầu.
+const MapView = lazy(() => import('./components/MapView'))
+const AdminApp = lazy(() => import('./admin/AdminApp'))
+const OwnerApp = lazy(() => import('./admin/OwnerApp'))
 
 const TAB: { ma: 'kham-pha' | 'admin' | 'chu-quan' | 'goi-offline' | 'cai-dat'; ten: string }[] = [
   { ma: 'kham-pha', ten: 'Khám phá' },
@@ -162,11 +167,12 @@ function App() {
 
       <ConsentBanner />
 
-      {tab === 'admin' && <AdminApp onPoisChanged={fetchPOIs} />}
-      {tab === 'chu-quan' && <OwnerApp />}
-      {tab === 'goi-offline' && <OfflinePacks pack={pack} />}
-      {tab === 'cai-dat' && <Settings />}
-      {tab === 'kham-pha' && (
+      <Suspense fallback={<div className="notice notice--info">Đang tải giao diện…</div>}>
+        {tab === 'admin' && <AdminApp onPoisChanged={fetchPOIs} />}
+        {tab === 'chu-quan' && <OwnerApp />}
+        {tab === 'goi-offline' && <OfflinePacks pack={pack} />}
+        {tab === 'cai-dat' && <Settings />}
+        {tab === 'kham-pha' && (
         <>
           <MapView
             pois={pois}
@@ -190,7 +196,8 @@ function App() {
 
           <PoiList pois={pois} onChon={chonPoi} />
         </>
-      )}
+        )}
+      </Suspense>
     </div>
   )
 }
