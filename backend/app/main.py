@@ -5,6 +5,7 @@ from pathlib import Path
 from fastapi import FastAPI
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.staticfiles import StaticFiles
+from starlette.middleware.gzip import GZipMiddleware
 
 from app.config import kiem_tra_bi_mat, settings
 from app.csrf import ChanGhiOrigin
@@ -98,14 +99,27 @@ app.add_middleware(
     allow_headers=["Content-Type", "Authorization"],
 )
 
-# Chặn thao tác ghi từ origin lạ (SEC-004). Đăng sau CORS nên nằm trong CORS:
-# 403 vẫn mang header CORS để trình duyệt đọc được và báo đúng lý do.
+# Chặn thao tác ghi từ origin lạ (SEC-004). `add_middleware` insert(0):
+# đăng SAU CORS nên lớp này nằm NGOÀI CORS (nhãn "nằm trong CORS" ở bản cũ
+# là sai). Hành vi vẫn đúng ý đồ: 403 chỉ dành cho origin KHÔNG nằm trong
+# allowlist, mà origin đó CORS không bao giờ cấp ACAO — trình duyệt đọc
+# response dưới dạng opaque là chính xác, không lộ lý do cho origin lạ.
+# Origin hợp lệ không bao giờ rơi vào 403 này.
 app.add_middleware(ChanGhiOrigin)
 
-# Header bảo mật (SEC-009). Đăng cuối, nên là lớp trong cùng: dù 403 của
-# ChanGhiOrigin hay 413 của GioiHanBody thì người gọi vẫn nhận được nosniff
-# và CSP, không phải chỉ response 200 mới có.
+# Header bảo mật (SEC-009). Đăng cuối nên là lớp NGOÀI CÙNG (insert(0)) —
+# đúng mục đích: 403 của ChanGhiOrigin hay 413 của GioiHanBody sinh ra
+# bên dưới vẫn đi qua đây và nhận đủ nosniff/CSP.
 app.add_middleware(HeaderBaoMat)
+
+# Nén JSON trả về (PERF-003). Số đo baseline (53 POI): load-all 21 371 byte
+# thô -> 1 474 byte gzip (-93%); trạng thái không đổi đã có ETag 304 về 0
+# byte. Đăng cuối nên bọc ngoài cùng — nén được cả response lỗi. Starlette
+# tự loại audio/*, image/*, text/event-stream (MP3 đã nén sẵn, SSE phải
+# stream) và bỏ qua body < 500 byte (delta rỗng 63 byte không đụng tới);
+# riêng gzip luôn thêm `Vary: Accept-Encoding` nên cache không tráo nhầm
+# bản nén/chưa nén.
+app.add_middleware(GZipMiddleware, minimum_size=500)
 
 app.include_router(health.router)
 app.include_router(geo.router)
