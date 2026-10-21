@@ -78,79 +78,129 @@ export default function OwnerApprovals() {
 
   return (
     <div className="card">
-      <h3 className="card__title">Kiểm duyệt chủ quán</h3>
+      <div className="section-header">
+        <div>
+          <h3 className="card__title">Kiểm duyệt chủ quán</h3>
+          <p className="card__subtitle">Phê duyệt hồ sơ đăng ký tài khoản chủ quán và thẩm định quán ăn mới</p>
+        </div>
+      </div>
 
-      <h4 className="card__subtitle">Đơn đăng ký ({don.length})</h4>
-      {don.length === 0 ? (
-        <p className="muted">Không có đơn chờ duyệt.</p>
-      ) : (
-        <table className="table">
-          <tbody>
-            {don.map((d) => (
-              <tr key={d.username}>
-                <td>
-                  <strong>{d.username}</strong>
-                  <div className="field">
-                    <input
-                      className="input"
-                      placeholder="Ghi chú khi từ chối"
-                      value={ghiChu[d.username] ?? ''}
-                      onChange={(e) => setGhiChu({ ...ghiChu, [d.username]: e.target.value })}
-                    />
-                  </div>
-                </td>
-                <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
-                  <button
-                    className="btn btn--sm btn--primary"
-                    type="button"
-                    onClick={() => void duyetTaiKhoan(d.username)}
-                  >
-                    Duyệt
-                  </button>{' '}
-                  <button
-                    className="btn btn--sm btn--danger"
-                    type="button"
-                    onClick={() => void tuChoi(d.username)}
-                  >
-                    Từ chối
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+      {/* 1. Hàng đợi đơn đăng ký chủ quán */}
+      <div className="approval-section mt">
+        <div className="spread">
+          <h4 className="approval-subtitle">
+            1. Đơn đăng ký tài khoản chủ quán
+          </h4>
+          <span className="badge badge--neutral">{don.length} đơn</span>
+        </div>
 
-      <h4 className="card__subtitle" style={{ marginTop: 16 }}>
-        Quán chờ duyệt ({choDuyet.length})
-      </h4>
-      {choDuyet.length === 0 ? (
-        <p className="muted">Không có quán chờ duyệt.</p>
-      ) : (
-        <table className="table">
-          <tbody>
-            {choDuyet.map((s) => (
-              <tr key={s.id}>
-                <td>
-                  <strong>{s.name}</strong>
-                  <div className="muted" style={{ fontSize: '0.82rem' }}>
-                    gửi bởi {s.username}
-                  </div>
-                </td>
-                <td style={{ textAlign: 'right' }}>
-                  <button
-                    className="btn btn--sm btn--primary"
-                    type="button"
-                    onClick={() => void duyetQuan(s.id)}
-                  >
-                    Duyệt quán
-                  </button>
-                </td>
-              </tr>
-            ))}
-          </tbody>
-        </table>
-      )}
+        {don.length === 0 ? (
+          <div className="empty-state">
+            <p className="muted">Không có đơn đăng ký nào đang chờ duyệt.</p>
+          </div>
+        ) : (
+          <div className="table-responsive mt">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Tài khoản & Ghi chú từ chối</th>
+                  <th style={{ textAlign: 'right', width: 200 }}>Xử lý</th>
+                </tr>
+              </thead>
+              <tbody>
+                {don.map((d) => (
+                  <tr key={d.username}>
+                    <td>
+                      <div className="user-approval-cell">
+                        <span className="user-avatar-tag">
+                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                            <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
+                            <circle cx="12" cy="7" r="4" />
+                          </svg>
+                          {d.username}
+                        </span>
+                        <div className="field mt-xs">
+                          <input
+                            className="input input--sm"
+                            placeholder="Ghi chú khi từ chối"
+                            value={ghiChu[d.username] ?? ''}
+                            onChange={(e) => setGhiChu({ ...ghiChu, [d.username]: e.target.value })}
+                          />
+                        </div>
+                      </div>
+                    </td>
+                    <td style={{ textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                      <button
+                        className="btn btn--sm btn--primary mr-xs"
+                        type="button"
+                        onClick={() => void duyetTaiKhoan(d.username)}
+                      >
+                        Duyệt
+                      </button>
+                      <button
+                        className="btn btn--sm btn--danger"
+                        type="button"
+                        onClick={() => void tuChoi(d.username)}
+                      >
+                        Từ chối
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
+
+      {/* 2. Hàng đợi quán chờ duyệt */}
+      <div className="approval-section mt-lg">
+        <div className="spread">
+          <h4 className="approval-subtitle">
+            2. Quán ăn gửi lên chờ duyệt tạo POI
+          </h4>
+          <span className="badge badge--neutral">{choDuyet.length} quán</span>
+        </div>
+
+        {choDuyet.length === 0 ? (
+          <div className="empty-state">
+            <p className="muted">Không có quán nào đang chờ duyệt.</p>
+          </div>
+        ) : (
+          <div className="table-responsive mt">
+            <table className="table">
+              <thead>
+                <tr>
+                  <th>Tên quán ăn đề xuất</th>
+                  <th>Chủ quán gửi</th>
+                  <th style={{ textAlign: 'right', width: 140 }}>Hành động</th>
+                </tr>
+              </thead>
+              <tbody>
+                {choDuyet.map((s) => (
+                  <tr key={s.id}>
+                    <td>
+                      <strong className="poi-title-cell">{s.name}</strong>
+                    </td>
+                    <td>
+                      <span className="badge badge--neutral">{s.username}</span>
+                    </td>
+                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                      <button
+                        className="btn btn--sm btn--primary"
+                        type="button"
+                        onClick={() => void duyetQuan(s.id)}
+                      >
+                        Duyệt quán
+                      </button>
+                    </td>
+                  </tr>
+                ))}
+              </tbody>
+            </table>
+          </div>
+        )}
+      </div>
 
       {loi !== '' && <div className="notice notice--error mt">{loi}</div>}
     </div>
