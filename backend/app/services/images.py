@@ -129,7 +129,9 @@ def kiem_tra_so_luong(hien_co: int) -> None:
         raise LoiAnh(THONG_BAO_QUA_NHIEU, 400)
 
 
-def url_cua(ten: str) -> str:
+def url_cua(ten: str, poi_id: str | None = None) -> str:
+    if poi_id:
+        return f"/static/images/{poi_id}/{ten}"
     return f"/static/images/{ten}"
 
 
