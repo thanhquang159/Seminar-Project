@@ -1,7 +1,8 @@
 import { api, apiText } from '../admin/api'
 import { speak } from '../geofence/audio'
+import { API_BASE_URL } from '../config'
 
-const API_GOC = 'http://127.0.0.1:8000'
+const API_GOC = API_BASE_URL
 
 // Hàng đợi một ô cho file audio: thay thế khi ưu tiên cao hơn.
 class FileQueue {
