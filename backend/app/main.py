@@ -138,7 +138,7 @@ app.include_router(analytics.router)
 app.include_router(runtime_observability.router)
 app.include_router(admin_analytics.router)
 
-THU_MUC_STATIC = Path(__file__).resolve().parents[2] / "static"
+THU_MUC_STATIC = Path(__file__).resolve().parents[1] / "static"
 THU_MUC_STATIC.mkdir(parents=True, exist_ok=True)
 app.mount("/static", StaticFiles(directory=str(THU_MUC_STATIC)), name="static")
 
