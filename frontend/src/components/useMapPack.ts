@@ -1,7 +1,8 @@
 import { useEffect, useRef, useState } from 'react'
 import type { StyleSpecification } from 'maplibre-gl'
+import { API_BASE_URL } from '../config'
 
-const API_GOC = 'http://127.0.0.1:8000'
+const API_GOC = API_BASE_URL
 export type CheDo = 'cloud' | 'offline' | 'hybrid'
 
 // Đăng ký giao thức một lần, tile đi qua fetch nên SW cache phục vụ offline.
@@ -33,7 +34,25 @@ async function sha256Hex(buf: ArrayBuffer): Promise<string> {
 }
 
 export function useMapPack() {
-  const [cheDo, setCheDo] = useState<CheDo>('hybrid')
+  const [cheDo, setCheDoState] = useState<CheDo>(() => {
+    try {
+      const saved = localStorage.getItem('quan4-mapmode')
+      if (saved === 'cloud' || saved === 'offline' || saved === 'hybrid') return saved
+    } catch {
+      // fallback
+    }
+    return 'hybrid'
+  })
+
+  const setCheDo = (c: CheDo) => {
+    try {
+      localStorage.setItem('quan4-mapmode', c)
+    } catch {
+      // fallback
+    }
+    setCheDoState(c)
+  }
+
   const [stylePack, setStylePack] = useState<StyleSpecification | null>(null)
   const [trangThai, setTrangThai] = useState('')
   const henGio = useRef(0)
