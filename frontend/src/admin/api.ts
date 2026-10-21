@@ -1,7 +1,9 @@
 // Gọi API admin bằng cookie, mọi request kèm credentials.
 // Gặp 401 thì thử refresh một lần, thất bại thì thôi để UI về login.
 
-const API = 'http://127.0.0.1:8000'
+import { API_BASE_URL } from '../config'
+
+const API = API_BASE_URL
 
 export async function apiText(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${API}${path}`, { ...init, credentials: 'include' })
