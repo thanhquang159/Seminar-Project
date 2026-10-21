@@ -13,6 +13,7 @@ export interface Poi {
   lang: string
   is_fallback: boolean
   audio_url: string | null
+  images?: string[]
 }
 
 export const NGON_NGU: { ma: string; ten: string }[] = [
