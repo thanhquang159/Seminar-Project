@@ -1,9 +1,10 @@
 // Đồng bộ delta: tải toàn bộ lần đầu, sau chỉ tải phần đổi.
 
 import type { Poi } from '../stores/poiStore'
+import { API_BASE_URL } from '../config'
 import { docCursor, docPois, docPoisFallback, luuCursor, luuPois } from './idb'
 
-const API_GOC = 'http://127.0.0.1:8000'
+const API_GOC = API_BASE_URL
 
 // Gộp delta vào danh sách cũ: cập nhật/thêm, xóa theo removed_poi_ids.
 export function gopDelta(cu: Poi[], capNhat: Poi[], xoaIds: string[]): Poi[] {
