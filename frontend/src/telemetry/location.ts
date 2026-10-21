@@ -5,7 +5,9 @@
 // gộp vào thì hoặc hỏng ranh giới riêng tư, hoặc biến chẩn đoán thành theo dõi.
 // File này không import analytics/service để ranh giới đó nằm ngay trong code.
 
-const API_GOC = 'http://127.0.0.1:8000'
+import { API_BASE_URL } from '../config'
+
+const API_GOC = API_BASE_URL
 
 export const CHU_KY_FLUSH_MS = 60000
 // Server chặn payload >16 KiB, nên tự cắt trước khi gửi cho đừng bị 413.
