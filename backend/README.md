@@ -78,19 +78,26 @@ Nội dung `.env.example`:
 |---|---|---|---|
 | `MONGODB_URI` | Có | `mongodb://localhost:27017` | chuỗi kết nối MongoDB |
 | `MONGODB_DB_NAME` | Có | `amds` | tên database sẽ dùng |
-| `REDIS_URL` | Chưa dùng | `redis://localhost:6379` | để sẵn cho session/cache |
-| `JWT_SECRET` | Chưa dùng | *(để trống)* | sẽ dùng ở task auth |
+| `APP_ENV` | Ngoài dev là bắt buộc | `dev` | `dev` thì nới lỏng cookie `Secure` và secret mặc định |
+| `JWT_SECRET` | Ngoài dev | *(để trống)* | ký access token; thiếu thì backend từ chối khởi động |
+| `REFRESH_TOKEN_SECRET` | Ngoài dev | *(để trống)* | ký refresh token, tách khóa riêng |
+| `ADMIN_USERNAME` / `ADMIN_PASSWORD` | Không | `admin` / `admin123` | tài khoản admin seed sẵn, **chỉ dùng cho dev** |
+| `REDIS_URL` | Không | `redis://localhost:6379` | đếm hiện diện theo cửa sổ trượt |
+| `PII_KEY` | Ngoài dev | khoá Fernet | mã hóa CCCD; để rỗng thì **không mã hóa** |
+| `AI_PROVIDER` | Không | `mock` | `mock` khi phát triển, provider khác khi có key |
+| `AI_API_KEY` / `AI_API_URL` | Không | *(để trống)* | thông tin provider AI |
+| `CORS_ORIGINS` | Không | 4 origin `localhost`/`127.0.0.1` cổng `5173` (dev) và `4173` (preview) | danh sách JSON origin được phép gọi API và gửi analytics; chặn `*` và origin sai dạng ngay lúc khởi động |
 
-### ⚠️ Giới hạn quan trọng ở Phase 0
+Biến đọc từ biến môi trường sẽ đè lên giá trị trong `.env`.
 
-**`.env` hiện chưa được nạp vào ứng dụng.** Code đọc biến môi trường bằng `os.getenv()` với giá trị mặc định hardcode, và chưa có lệnh `load_dotenv()` nào được gọi. Hệ quả:
+### `.env` có được nạp không?
 
-- Sửa `.env` **không có tác dụng** lúc này.
-- `MONGODB_URI` mặc định `mongodb://localhost:27017` — trùng với Docker Compose nên vẫn chạy được.
-- `MONGODB_DB_NAME` mặc định **`amds`** (khớp với `.env.example`). Xem [Mục 9](#9-giới-hạn-và-nợ-kỹ-thuật).
-- `JWT_SECRET` và `REDIS_URL` chưa có code đọc tới.
+Có. Toàn bộ cấu hình nằm trong `app/config.py` dùng `pydantic-settings` với `env_file=".env"`. Code nghiệp vụ chỉ đọc qua `settings`, không gọi `os.getenv` rải rác.
 
-Việc gom cấu hình vào `backend/app/config.py` (dùng `pydantic-settings`) là task kế tiếp trong backlog. Sau khi task đó hoàn thành, mục này sẽ được cập nhật lại.
+Hai điều cần nhớ:
+
+- `env_file=".env"` là đường dẫn **tương đối theo thư mục đang chạy**. Phải chạy `uvicorn` từ trong `backend/` thì mới nạp được; chạy từ thư mục gốc repo sẽ bỏ qua `.env`.
+- `settings` được tạo lúc import module, tức là `.env` chỉ có tác dụng **trước khi khởi động server**. Sửa `.env` giữa chừng cần restart.
 
 ### Không bao giờ commit `.env`
 
@@ -233,28 +240,66 @@ backend/
 ├── .env.example              # mẫu biến môi trường — được commit
 ├── .env                      # biến thật — KHÔNG commit (tạo tay)
 ├── .venv/                    # môi trường ảo Python — KHÔNG commit
-├── pyproject.toml            # cấu hình ruff (lint + format)
+├── pyproject.toml            # cấu hình ruff + marker pytest
 ├── requirements.txt          # dependency đã ghim phiên bản
+├── scripts/                  # seed dữ liệu mẫu, migrate bản dịch, build gói bản đồ
+├── static/ui/                # bản dịch giao diện (en, ja, ko, vi, zh)
+├── tests/                    # 95 test: 87 unit + 8 integration
 └── app/
-    ├── main.py               # tạo FastAPI app, lifespan, gắn router
-    ├── database.py           # kết nối Motor/MongoDB + close
-    └── routers/
-        ├── __init__.py
-        └── health.py         # GET /health
+    ├── main.py               # tạo FastAPI app, lifespan 5 tầng, gắn router
+    ├── config.py             # Settings (pydantic-settings), kiểm tra bí mật
+    ├── db.py                 # kết nối Motor/MongoDB + close
+    ├── auth.py               # ký/kiểm tra token, cookie, seed admin
+    ├── permissions.py        # bảng quyền và `require_permission`, đảm bảo role
+    ├── audit.py              # nhật ký kiểm toán
+    ├── pii.py                # mã hóa PII bằng Fernet
+    ├── redis_client.py       # kết nối Redis cho đếm hiện diện
+    ├── models/               # mô hình dữ liệu
+    ├── routers/              # 17 nhóm endpoint
+    └── services/             # nghiệp vụ: audio, i18n, AI, analytics, sync, maps, rate limit
 ```
 
-`app/` là *namespace package* — cố ý không có `__init__.py` ở đó. Nếu thêm file Python mới trong `app/`, không cần tạo `__init__.py` trừ khi bạn muốn dùng `__init__.py` để export code.
+`app/` là *namespace package* — cố ý không có `__init__.py` ở đó.
 
 ### Endpoint hiện có
 
-| Method | Path | Mô tả | Response |
-|---|---|---|---|
-| `GET` | `/` | endpoint gốc | `200` — `{"status": "ok", "service": ...}` |
-| `GET` | `/health` | ping backend + MongoDB | `200` nếu Mongo kết nối, `503` nếu không |
+Tất cả route đều **không** có tiền tố `/api/v1` (xem ADR-015: giữ nguyên để không phá client; đặt `/api/v1` là task riêng ở Phase 14).
+
+| Nhóm | Tiền tố | Nội dung |
+|---|---|---|
+| `health.py` | *(không)* | `GET /health` — 200 khi Mongo kết nối, 503 khi không |
+| `geo.py` | `/poi` | tìm quán gần vị trí, khoảng cách |
+| `poi.py` | `/poi` | danh sách, chi tiết, tạo, xoá |
+| `localizations.py` | `/localizations` | bản dịch của một POI |
+| `warmup.py` | `/localizations` | khởi động sớm tác vụ dịch/TTS nền |
+| `audio.py` | `/audio` | phát audio, tiến độ tác vụ (SSE), các tầng audio |
+| `i18n.py` | `/ui-bundles` | bản dịch giao diện theo ngôn ngữ |
+| `maps.py` | `/maps` | pack bản đồ, kiểm tra checksum |
+| `admin_auth.py` | `/admin/auth` | đăng nhập, đăng xuất, refresh |
+| `admin_pois.py` | `/admin/pois` | CRUD POI cho quản trị |
+| `admin_meta.py` | `/admin` | vai trò và quyền hiện có |
+| `owner.py` | *(không)* | đăng ký chủ quán, gửi quán, duyệt, thông báo |
+| `ai.py` | `/ai` | chatbot hỏi đáp |
+| `analytics.py` | `/analytics` | consent, ghi sự kiện, sự kiện đã chờ gửi |
+| `runtime_observability.py` | `/runtime-observability` | hiện diện theo giờ (tách khỏi analytics) |
+| `admin_analytics.py` | `/admin/analytics` | dashboard và số liệu theo giờ/ngày |
+
+### Seed dữ liệu mẫu
+
+Chạy từ trong `backend/`, theo thứ tự:
+
+```powershell
+python scripts\seed_roles.py       # vai trò và quyền
+python scripts\seed_admin.py       # tài khoản admin từ ADMIN_USERNAME/PASSWORD
+python scripts\seed_poi.py         # các quán Quận 4 (idempotent, khóa theo tên)
+python scripts\migrate_localizations.py   # tạo bản dịch rỗng để dịch/TTS nền lấp
+python scripts\seed_e2e.py         # dữ liệu dùng cho kịch bản Playwright
+python scripts\build_map_pack.py   # đóng gói bản đồ PMTiles
+```
 
 ---
 
-## 8. Lint và format
+## 8. Lint, format và kiểm thử
 
 Dùng `ruff` (đã nằm trong `requirements.txt`):
 
@@ -276,22 +321,50 @@ Cấu hình nằm trong `pyproject.toml`:
 
 **Chạy `ruff check .` và `ruff format .` trước khi commit.** Import được sắp xếp tự động theo `I` (isort).
 
+### Chạy test
+
+```powershell
+pytest -q                                              # 87 unit test, mặc định loại integration
+pytest -q -m integration -o addopts="-ra"               # 8 test tích hợp, cần hạ tầng riêng
+pytest -q tests/test_ma_tran_quyen.py                  # một file cụ thể khi đang sửa ma trận quyền
+```
+
+`pyproject.toml` ghim `addopts = "-ra -m 'not integration'"`, nên `pytest -q` thường **không** chạy test tích hợp. Muốn chạy thì phải ghi đè `addopts` như trên.
+
+Test tích hợp cần Mongo **replica set một node** (transaction chỉ chạy được trên replica set) ở cổng `27018` và Redis ở `6380`:
+
+```powershell
+cd <thư mục gốc repo>
+docker compose -f docker-compose.test.yml up -d --wait
+```
+
+Nếu không bật hạ tầng, pytest dừng với `Không kết nối được MongoDB tại mongodb://localhost:27017`.
+
+Có thể kiểm chứng cả hai vế repo bằng một lệnh ở thư mục gốc:
+
+```powershell
+python scripts\verify.py          # ruff + pytest + ESLint + tsc + Vitest
+```
+
 ---
 
 ## 9. Giới hạn và nợ kỹ thuật
 
-Những thứ **chưa** có ở Phase 0, để bạn không tìm nhầm:
+Những thứ **chưa** có, để bạn không tìm nhầm:
 
 | Vấn đề | Chi tiết | Nên sửa ở |
 |---|---|---|
-| `.env` chưa được nạp | xem [Mục 3](#3-cấu-hình-biến-môi-trường) | task `config.py` |
-| Tên DB không nhất quán | `db.py` hardcode `amds`, trùng với `.env.example` | không cần sửa nữa |
-| `.env` chưa nằm trong `.gitignore` | `.gitignore` chỉ có `.env.local` và `.env.docker`; nếu bạn tạo `.env` thật thì file đó **sẽ bị commit** | nên sửa ngay — thêm dòng `.env` |
-| Chưa có test | không có thư mục `tests/`, chưa cài `pytest` | task test đầu tiên |
-| Chưa có CORS | không có middleware CORS; frontend gọi `localhost:5173` sẽ bị chặn trình duyệt | khi frontend bắt đầu gọi API |
-| Chưa dùng Redis | service chạy nhưng code chưa import `redis` | khi làm session/cache |
+| Backend vẫn start khi Mongo chưa lên | in `[startup] MongoDB chưa sẵn sàng` rồi chạy tiếp | dùng `/health` làm tín hiệu; chặn cứng thuộc PROD-003 |
+| `PII_KEY` để rỗng thì **không mã hóa** PII | `app/pii.py` trả về giá trị gốc khi không có khoá | bắt buộc đặt khi triển khai thật (SEC-005) |
+| `ADMIN_PASSWORD` mặc định `admin123` | chỉ dành cho dev; đổi trước khi lên môi trường thật | checklist Phase 14 |
+| Redis tắt thì không đếm được hiện diện | `presence.py` trả `None` thay vì chặn | ADR-010 đã chốt fail-open cho hiện diện |
+| Route chưa có tiền tố `/api/v1` | tài liệu 07 ghi `/api/v1`, code không có | task riêng ở Phase 14 (ADR-015) |
+| Ảnh POI chưa hiển thị trên giao diện | API trả trường `images`, không có component React nào đọc | task riêng, xem README gốc |
+| `/ai/enhance-description` gửi mô tả quán ra nhà cung cấp AI ngoài | dev dùng `AI_PROVIDER=mock` nên chưa lộ; đổi `http` là lộ | quyết định sản phẩm |
+| Người có quyền `user:update` duyệt được đơn của người khác | `username` lấy từ URL, chỉ kiểm quyền không kiểm chủ sở hữu | cần bỏ `username` khỏi URL |
+| `health.py` trả chi tiết lỗi | trường `mongo_error` có thể lộ host/port (SEC-013 đã có test khoá nhưng chưa che hết) | task hardening |
 | `ruff` nằm trong `requirements.txt` | công cụ dev lẫn vào dependency runtime | tách `requirements-dev.txt` |
-| `health.py` trả chi tiết lỗi | trường `mongo_error` có thể lộ host/port; xem lại khi lên production | task hardening |
+| Chưa có Dockerfile, chưa có reverse proxy | chạy native + Mongo/Redis qua Compose | Phase 14 (PROD-005..007) |
 
 ---
 
@@ -391,6 +464,9 @@ Trước khi commit:
 ```powershell
 ruff check .
 ruff format .
+pytest -q
 git status
 git add backend/ && git commit
 ```
+
+Hoặc chạy một lệnh cho cả repo ở thư mục gốc: `python scripts\verify.py`.
