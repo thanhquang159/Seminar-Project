@@ -1,4 +1,4 @@
-﻿// AnalyticsService: consent là điều kiện tiên quyết, không phải lựa chọn.
+// AnalyticsService: consent là điều kiện tiên quyết, không phải lựa chọn.
 //
 // Ràng buộc cứng của ANA-001: **chưa đồng ý thì không có một request analytics
 // nào được gửi** (kiểm được bằng tab Network). Vì vậy `ghiSuKien` kiểm tra
@@ -7,8 +7,9 @@
 
 import { laySuKien, themSuKien, xoaSuKien, type SuKienOutbox } from './outbox'
 import { damBaoAnonymousId, daDongY, laySessionId, useConsentStore } from '../stores/consentStore'
+import { API_BASE_URL } from '../config'
 
-const API_GOC = 'http://127.0.0.1:8000'
+const API_GOC = API_BASE_URL
 
 // Nhịp gửi: 15s gộp lô, 20s nhịp tim. Lấy từ sơ đồ luồng analytics.
 export const CHU_KY_FLUSH_MS = 15000
