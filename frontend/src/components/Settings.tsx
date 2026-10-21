@@ -1,60 +1,145 @@
 import { useState } from 'react'
 import { NGON_NGU, usePoiStore } from '../stores/poiStore'
+import { useConsentStore } from '../stores/consentStore'
+import { xinDongY, thuHoiDongY } from '../analytics/service'
+import { type PackHook, type CheDo } from './useMapPack'
 
-export default function Settings() {
+const MA_NGON_NGU: Record<string, string> = {
+  vi: 'VI',
+  en: 'EN',
+  zh: 'ZH',
+  ja: 'JA',
+  ko: 'KO',
+}
+
+interface SettingsProps {
+  pack?: PackHook
+}
+
+export default function Settings({ pack }: SettingsProps) {
   const { lang, setLang } = usePoiStore()
-  const [cheDoBanDo, setCheDoBanDo] = useState(localStorage.getItem('quan4-mapmode') ?? 'hybrid')
-  const [riengTu, setRiengTu] = useState(localStorage.getItem('quan4-privacy') ?? 'co-ban')
+  const trangThaiConsent = useConsentStore((s) => s.trangThai)
+  const [dangCapNhatConsent, setDangCapNhatConsent] = useState(false)
 
-  const doiBanDo = (cheDo: string) => {
-    localStorage.setItem('quan4-mapmode', cheDo)
-    setCheDoBanDo(cheDo)
+  const cheDoBanDo = pack ? pack.cheDo : (localStorage.getItem('quan4-mapmode') as CheDo) ?? 'hybrid'
+
+  const doiBanDo = (c: CheDo) => {
+    localStorage.setItem('quan4-mapmode', c)
+    if (pack) {
+      pack.setCheDo(c)
+    }
   }
-  const doiRiengTu = (muc: string) => {
-    localStorage.setItem('quan4-privacy', muc)
-    setRiengTu(muc)
+
+  const doiRiengTu = async (muc: 'granted' | 'revoked') => {
+    setDangCapNhatConsent(true)
+    try {
+      if (muc === 'granted') {
+        await xinDongY()
+      } else {
+        await thuHoiDongY()
+      }
+    } finally {
+      setDangCapNhatConsent(false)
+    }
   }
 
   return (
-    <div>
-      <h3 className="section-title">Cài đặt</h3>
-
-      <div className="card">
-        <div className="field">
-          <span className="field__label">Ngôn ngữ</span>
-          <div className="row">
-            {NGON_NGU.map((n) => (
-              <button key={n.ma} type="button" className={`btn btn--sm${n.ma === lang ? ' btn--primary' : ''}`} disabled={n.ma === lang} onClick={() => setLang(n.ma)}>
-                {n.ten}
-              </button>
-            ))}
-          </div>
+    <div className="settings-container">
+      <div className="section-header">
+        <div>
+          <h2 className="section-title">Cài đặt Ứng dụng</h2>
+          <p className="card__subtitle">Tùy chỉnh ngôn ngữ hiển thị, phương thức tải bản đồ và quyền riêng tư</p>
         </div>
       </div>
 
-      <div className="card">
-        <div className="field">
-          <span className="field__label">Bản đồ: {cheDoBanDo}</span>
-          <div className="row">
-            {['cloud', 'offline', 'hybrid'].map((c) => (
-              <button key={c} type="button" className={`btn btn--sm${c === cheDoBanDo ? ' btn--primary' : ''}`} disabled={c === cheDoBanDo} onClick={() => doiBanDo(c)}>
-                {c}
+      {/* 1. Ngôn ngữ nội dung */}
+      <div className="card mt">
+        <h3 className="card__title">Ngôn ngữ thuyết minh & Hiển thị</h3>
+        <p className="card__subtitle">Ứng dụng sẽ đồng bộ bản dịch và âm thanh theo ngôn ngữ bạn chọn</p>
+
+        <div className="settings-pill-group mt">
+          {NGON_NGU.map((n) => {
+            const isSelected = n.ma === lang
+            return (
+              <button
+                key={n.ma}
+                type="button"
+                className={`settings-pill${isSelected ? ' settings-pill--active' : ''}`}
+                disabled={isSelected}
+                onClick={() => setLang(n.ma)}
+              >
+                <span className="settings-pill__code">
+                  {MA_NGON_NGU[n.ma] || n.ma.toUpperCase()}
+                </span>
+                <span>{n.ten}</span>
               </button>
-            ))}
-          </div>
+            )
+          })}
         </div>
       </div>
 
-      <div className="card">
-        <div className="field">
-          <span className="field__label">Riêng tư: {riengTu}</span>
-          <div className="row">
-            {['co-ban', 'khong-theo-doi'].map((m) => (
-              <button key={m} type="button" className={`btn btn--sm${m === riengTu ? ' btn--primary' : ''}`} disabled={m === riengTu} onClick={() => doiRiengTu(m)}>
-                {m}
+      {/* 2. Chế độ bản đồ */}
+      <div className="card mt">
+        <h3 className="card__title">Cấu hình bản đồ số</h3>
+        <p className="card__subtitle">
+          Chế độ hiện tại: <strong>{cheDoBanDo.toUpperCase()}</strong>
+          {pack?.trangThai && ` · ${pack.trangThai}`}
+        </p>
+
+        <div className="settings-pill-group mt">
+          {([
+            { ma: 'cloud', ten: 'Cloud Trực tuyến', desc: 'Dùng MapTiler Cloud' },
+            { ma: 'hybrid', ten: 'Lai (Hybrid)', desc: 'Tự động chuyển khi mất mạng' },
+            { ma: 'offline', ten: 'Ngoại tuyến (Offline)', desc: 'Chỉ dùng gói tải sẵn' },
+          ] as const).map((c) => {
+            const isSelected = c.ma === cheDoBanDo
+            return (
+              <button
+                key={c.ma}
+                type="button"
+                className={`settings-pill${isSelected ? ' settings-pill--active' : ''}`}
+                disabled={isSelected}
+                onClick={() => doiBanDo(c.ma)}
+              >
+                <span>{c.ten}</span>
               </button>
-            ))}
-          </div>
+            )
+          })}
+        </div>
+      </div>
+
+      {/* 3. Chính sách quyền riêng tư */}
+      <div className="card mt">
+        <h3 className="card__title">Chính sách Riêng tư & Đo lường</h3>
+        <p className="card__subtitle">
+          Mức độ hiện tại:{' '}
+          <strong>
+            {trangThaiConsent === 'granted'
+              ? 'Tiêu chuẩn ẩn danh (Đang chia sẻ)'
+              : trangThaiConsent === 'revoked'
+              ? 'Chặn hoàn toàn (Không chia sẻ)'
+              : 'Chưa thiết lập'}
+          </strong>
+        </p>
+
+        <div className="settings-pill-group mt">
+          {[
+            { ma: 'granted', ten: 'Tiêu chuẩn (Góp phần cải thiện chất lượng)' },
+            { ma: 'revoked', ten: 'Chặn hoàn toàn (Không chia sẻ)' },
+          ].map((m) => {
+            const isSelected = m.ma === trangThaiConsent
+            return (
+              <button
+                key={m.ma}
+                type="button"
+                className={`settings-pill${isSelected ? ' settings-pill--active' : ''}`}
+                disabled={isSelected || dangCapNhatConsent}
+                onClick={() => void doiRiengTu(m.ma as 'granted' | 'revoked')}
+              >
+                <span>{m.ten}</span>
+              </button>
+            )
+          })}
         </div>
       </div>
     </div>
