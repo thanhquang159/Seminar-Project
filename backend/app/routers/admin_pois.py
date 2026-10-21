@@ -140,7 +140,7 @@ async def tai_anh(poi_id: str, file: UploadFile, user: dict = DuocSuaPoi) -> dic
     tep.parent.mkdir(parents=True, exist_ok=True)
     tep.write_bytes(du_lieu)
 
-    duong_dan = images.url_cua(ten)
+    duong_dan = images.url_cua(ten, poi_id)
     await db["pois"].update_one(
         {"_id": oid}, {"$push": {"images": duong_dan}, "$set": {"updated_at": datetime.now(UTC)}}
     )
@@ -156,9 +156,13 @@ async def xoa_anh(poi_id: str, ten: str, user: dict = DuocSuaPoi) -> dict:
     if doc is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy POI")
     hien_co = doc.get("images") or []
-    duong_dan = images.url_cua(ten)
+    duong_dan = images.url_cua(ten, poi_id)
     if duong_dan not in hien_co:
-        raise HTTPException(status_code=404, detail="Không tìm thấy ảnh")
+        duong_dan_cu = images.url_cua(ten)
+        if duong_dan_cu in hien_co:
+            duong_dan = duong_dan_cu
+        else:
+            raise HTTPException(status_code=404, detail="Không tìm thấy ảnh")
 
     ket_qua = await db["pois"].update_one(
         {"_id": oid}, {"$pull": {"images": duong_dan}, "$set": {"updated_at": datetime.now(UTC)}}
