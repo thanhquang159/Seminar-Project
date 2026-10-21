@@ -1,9 +1,10 @@
 import { useEffect, useState } from 'react'
+import { API_BASE_URL } from './config'
 import { thamDoBackend } from './offline/net'
 import { usePoiStore } from './stores/poiStore'
 import { useUiBundle } from './i18n/bundles'
 
-const API_GOC = 'http://127.0.0.1:8000'
+const API_GOC = API_BASE_URL
 
 // Điều phối khởi động: tách readiness nội dung và UI bundle (REF-5).
 // FE-004: tiếng Anh khởi động nhanh, đích đến khi cả hai làn sẵn sàng.
