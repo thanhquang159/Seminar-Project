@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react'
+import { API_BASE_URL } from '../config'
 
-const API_GOC = 'http://127.0.0.1:8000'
+const API_GOC = API_BASE_URL
 
 // Bundle UI tĩnh trong `backend/static/ui/*.json`, 5 ngôn ngữ, không dịch máy.
 // Trước SEC-010 hàm này poll mỗi 3s tối đa 10 lần chờ trạng thái `ready` vì
