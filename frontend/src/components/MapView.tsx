@@ -1,7 +1,10 @@
 import { useEffect, useRef, useState } from 'react'
 import * as maplibregl from 'maplibre-gl'
 import 'maplibre-gl/dist/maplibre-gl.css'
+import workerUrl from 'maplibre-gl/dist/maplibre-gl-worker.mjs?worker&url'
 import type { Poi } from '../stores/poiStore'
+
+maplibregl.setWorkerUrl(workerUrl)
 
 // Tâm Quận 4, khu Vĩnh Khánh ăn uống.
 const TAM_Q4: [number, number] = [106.7641, 10.7569]

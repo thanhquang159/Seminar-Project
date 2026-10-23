@@ -34,8 +34,8 @@ async def connect_db() -> None:
         settings.mongodb_uri,
         # serverSelectionTimeoutMS: giới hạn thời gian chờ chọn server,
         # giúp fail nhanh khi MongoDB chưa sẵn sàng thay vì treo mãi.
-        serverSelectionTimeoutMS=2000,
-        connectTimeoutMS=2000,
+        serverSelectionTimeoutMS=5000,
+        connectTimeoutMS=5000,
     )
     await _client.admin.command("ping")
 
