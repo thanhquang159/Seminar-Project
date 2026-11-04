@@ -1,12 +1,70 @@
+# Task/planning
 plan-task/
 
-.env
+# Agent / runtime
+.omo/
+.pi/
 
+# Environment
+.env
+.env.local
+.env.*.local
+
+# Khoá riêng tư / bí mật (SEC-005): các định dạng này không bao giờ có lý do để
+# commit — nếu đã lỡ commit thì xoá file KHÔNG gỡ được khỏi lịch sử, phải đổi khoá.
+*.pem
+*.key
+*.pfx
+*.p12
+*.keystore
+secrets/
+*.jks
+
+# Python
 .venv/
+venv/
 __pycache__/
 *.pyc
+*.pyo
+*.pyd
+.pytest_cache/
+.ruff_cache/
+.mypy_cache/
+.coverage
+htmlcov/
+
+# Node / Frontend
+node_modules/
+dist/
+dist-ssr/
+test-results/
+playwright-report/
+*.local
+npm-debug.log*
+yarn-debug.log*
+yarn-error.log*
+pnpm-debug.log*
+lerna-debug.log*
+.vite/
 
 # Docker
-.env.local
 .env.docker
 docker-compose.override.yml
+
+# Editor directories and files
+.vscode/*
+!.vscode/extensions.json
+.idea
+.DS_Store
+*.suo
+*.ntvs*
+*.njsproj
+*.sln
+*.sw?
+
+# Logs
+logs
+*.log
+
+# Ảnh POI tải lên lúc chạy (SEC-012) — không commit dữ liệu người dùng
+backend/static/images/

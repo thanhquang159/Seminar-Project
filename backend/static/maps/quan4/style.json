@@ -1,0 +1,22 @@
+{
+  "version": 8,
+  "name": "Bản đồ Offline Quận 4",
+  "metadata": {
+    "description": "Gói bản đồ số ngoại tuyến Quận 4"
+  },
+  "sources": {
+    "quan4-offline": {
+      "type": "vector",
+      "url": "pmtiles://http://127.0.0.1:8000/maps/pack/quan4/quan4.pmtiles"
+    }
+  },
+  "layers": [
+    {
+      "id": "background",
+      "type": "background",
+      "paint": {
+        "background-color": "#f8fafc"
+      }
+    }
+  ]
+}

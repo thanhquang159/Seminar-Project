@@ -1,111 +1,2869 @@
+/* =========================================================================
+   AMDS — Minimalist Design Tokens (Mục 2 UI_REQUIREMENTS.md)
+   Tông màu Slate/Zinc trung tính (#F8FAFC, #FFFFFF, #0F172A, #64748B, #E2E8F0, #EA580C)
+   ========================================================================= */
+
 :root {
-  --text: #6b6375;
-  --text-h: #08060d;
-  --bg: #fff;
-  --border: #e5e4e7;
-  --code-bg: #f4f3ec;
-  --accent: #aa3bff;
-  --accent-bg: rgba(170, 59, 255, 0.1);
-  --accent-border: rgba(170, 59, 255, 0.5);
-  --social-bg: rgba(244, 243, 236, 0.5);
-  --shadow:
-    rgba(0, 0, 0, 0.1) 0 10px 15px -3px, rgba(0, 0, 0, 0.05) 0 4px 6px -2px;
+  /* Backgrounds */
+  --amds-bg: #f8fafc;
+  --bg-app: #f8fafc;
+  --amds-surface: #ffffff;
+  --bg-surface: #ffffff;
+  --amds-surface-subtle: #f1f5f9;
+  --amds-surface-hover: #f8fafc;
+  --amds-glass: rgba(255, 255, 255, 0.85);
+  --bg-glass: rgba(255, 255, 255, 0.85);
 
-  --sans: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --heading: system-ui, 'Segoe UI', Roboto, sans-serif;
-  --mono: ui-monospace, Consolas, monospace;
+  /* Typography / Text */
+  --amds-text: #0f172a;
+  --amds-text-primary: #0f172a;
+  --text-primary: #0f172a;
+  --amds-text-secondary: #64748b;
+  --amds-text-muted: #64748b;
+  --text-secondary: #64748b;
+  --amds-text-faint: #94a3b8;
 
-  font: 18px/145% var(--sans);
-  letter-spacing: 0.18px;
-  color-scheme: light dark;
-  color: var(--text);
-  background: var(--bg);
-  font-synthesis: none;
-  text-rendering: optimizeLegibility;
+  /* Brand & Semantic */
+  --amds-primary: #ea580c;
+  --primary: #ea580c;
+  --amds-primary-hover: #c2410c;
+  --primary-hover: #c2410c;
+  --amds-primary-active: #9a3412;
+  --amds-primary-light: #fff7ed;
+  --amds-primary-glow: rgba(234, 88, 12, 0.12);
+
+  --amds-accent: #0f766e;
+  --map-default: #0f766e;
+  --amds-accent-hover: #115e59;
+  --amds-accent-light: #f0fdfa;
+  --amds-accent-glow: rgba(15, 118, 110, 0.12);
+
+  --amds-border: #e2e8f0;
+  --amds-border-subtle: #e2e8f0;
+  --border-subtle: #e2e8f0;
+  --amds-border-strong: #cbd5e1;
+  --amds-border-focus: #ea580c;
+
+  /* Status Colors */
+  --amds-success: #16a34a;
+  --status-success: #16a34a;
+  --amds-success-bg: #f0fdf4;
+  --amds-success-border: #bbf7d0;
+
+  --amds-warning: #d97706;
+  --status-warning: #d97706;
+  --amds-warning-bg: #fffbeb;
+  --amds-warning-border: #fde68a;
+
+  --amds-danger: #dc2626;
+  --status-error: #dc2626;
+  --amds-danger-bg: #fef2f2;
+  --amds-danger-border: #fecaca;
+
+  --amds-info: #2563eb;
+  --amds-info-bg: #eff6ff;
+  --amds-info-border: #bfdbfe;
+
+  /* Shadows (Minimalist: chỉ dùng shadow cực nhẹ hoặc floating) */
+  --amds-shadow-xs: 0 1px 2px 0 rgba(0, 0, 0, 0.04);
+  --amds-shadow-sm: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  --amds-shadow: 0 1px 3px 0 rgba(0, 0, 0, 0.05);
+  --amds-shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.05);
+  --amds-shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.05);
+  --amds-shadow-float: 0 10px 25px -5px rgba(0, 0, 0, 0.08);
+
+  /* Radius (8px nút/input, 12px Card/Modal) */
+  --amds-radius-sm: 6px;
+  --amds-radius: 8px;
+  --amds-radius-card: 12px;
+  --amds-radius-lg: 12px;
+  --amds-radius-xl: 16px;
+  --amds-radius-full: 9999px;
+
+  /* Touch Targets */
+  --amds-touch-target: 44px;
+
+  /* Font */
+  --amds-font-sans: 'Inter', -apple-system, BlinkMacSystemFont, 'Segoe UI', Roboto, sans-serif;
+
+  font-family: var(--amds-font-sans);
+  font-size: 15px;
+  line-height: 1.5;
+  color: var(--amds-text);
+  background-color: var(--amds-bg);
   -webkit-font-smoothing: antialiased;
   -moz-osx-font-smoothing: grayscale;
-
-  @media (max-width: 1024px) {
-    font-size: 16px;
-  }
 }
 
-@media (prefers-color-scheme: dark) {
-  :root {
-    --text: #9ca3af;
-    --text-h: #f3f4f6;
-    --bg: #16171d;
-    --border: #2e303a;
-    --code-bg: #1f2028;
-    --accent: #c084fc;
-    --accent-bg: rgba(192, 132, 252, 0.15);
-    --accent-border: rgba(192, 132, 252, 0.5);
-    --social-bg: rgba(47, 48, 58, 0.5);
-    --shadow:
-      rgba(0, 0, 0, 0.4) 0 10px 15px -3px, rgba(0, 0, 0, 0.25) 0 4px 6px -2px;
-  }
-
-  #social .button-icon {
-    filter: invert(1) brightness(2);
-  }
-}
-
-#root {
-  width: 1126px;
-  max-width: 100%;
-  margin: 0 auto;
-  text-align: center;
-  border-inline: 1px solid var(--border);
-  min-height: 100svh;
-  display: flex;
-  flex-direction: column;
+*,
+*::before,
+*::after {
   box-sizing: border-box;
 }
 
+html,
 body {
   margin: 0;
+  padding: 0;
+  background-color: var(--amds-bg);
+  color: var(--amds-text);
+  min-height: 100vh;
+  width: 100%;
+  overflow-x: hidden;
 }
 
-h1,
-h2 {
-  font-family: var(--heading);
+/* Tiện ích ẩn nội dung nhưng giữ cho Screen Reader & Accessible Tests */
+.sr-only {
+  position: absolute;
+  width: 1px;
+  height: 1px;
+  padding: 0;
+  margin: -1px;
+  overflow: hidden;
+  clip: rect(0, 0, 0, 0);
+  white-space: nowrap;
+  border-width: 0;
+}
+
+/* =========================================================================
+   Bố cục Layout Chính & Header (56px)
+   ========================================================================= */
+
+.app-layout {
+  min-height: 100vh;
+  display: flex;
+  flex-direction: column;
+  width: 100%;
+  overflow-x: hidden;
+}
+
+/* Header thương hiệu tối giản: 56px, cố định, kính mờ */
+.app-header {
+  position: sticky;
+  top: 0;
+  z-index: 40;
+  height: 56px;
+  max-height: 56px;
+  background-color: var(--amds-glass);
+  backdrop-filter: blur(12px);
+  -webkit-backdrop-filter: blur(12px);
+  border-bottom: 1px solid var(--amds-border);
+}
+
+.app-header__container {
+  max-width: 1240px;
+  height: 100%;
+  margin: 0 auto;
+  padding: 0 16px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.brand-badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 10px;
+  text-decoration: none;
+  cursor: pointer;
+  user-select: none;
+}
+
+.brand-badge:focus-visible {
+  outline: 2px solid var(--amds-primary);
+  outline-offset: 2px;
+  border-radius: var(--amds-radius);
+}
+
+.brand-badge__icon {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--amds-radius);
+  background-color: var(--amds-primary-light);
+  color: var(--amds-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+.brand-badge__title {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  letter-spacing: -0.015em;
+  color: var(--amds-text);
+  line-height: 1.2;
+}
+
+.brand-badge__subtitle {
+  margin: 0;
+  font-size: 0.72rem;
+  font-weight: 400;
+  color: var(--amds-text-secondary);
+  line-height: 1.2;
+}
+
+@media (max-width: 640px) {
+  .brand-badge__subtitle {
+    display: none;
+  }
+}
+
+.app-header__right {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+/* Chỉ báo trạng thái mạng tinh tế */
+.network-status {
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font-size: 0.72rem;
   font-weight: 500;
-  color: var(--text-h);
+  color: var(--amds-text-secondary);
+  padding: 3px 8px;
+  border-radius: var(--amds-radius-full);
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
 }
 
-h1 {
-  font-size: 56px;
-  letter-spacing: -1.68px;
-  margin: 32px 0;
-  @media (max-width: 1024px) {
-    font-size: 36px;
-    margin: 20px 0;
+.network-status__dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--amds-success);
+}
+
+/* =========================================================================
+   Thanh điều hướng Tabs (Laptop: Ngang tinh gọn / Mobile <= 768px: Fixed Bottom Bar)
+   ========================================================================= */
+
+.nav-container {
+  background-color: var(--amds-surface);
+  border-bottom: 1px solid var(--amds-border);
+}
+
+/* Trên Laptop (> 768px): Thanh tab ngang tinh gọn */
+@media (min-width: 769px) {
+  .nav-container {
+    position: sticky;
+    top: 56px;
+    z-index: 30;
+    padding: 0 16px;
+  }
+
+  .nav-tabs {
+    max-width: 1240px;
+    margin: 0 auto;
+    display: flex;
+    gap: 4px;
+    padding: 6px 0;
+    overflow-x: auto;
+    scrollbar-width: none;
+  }
+
+  .nav-tabs::-webkit-scrollbar {
+    display: none;
+  }
+
+  .nav-tab-item {
+    appearance: none;
+    border: 1px solid transparent;
+    background: transparent;
+    display: inline-flex;
+    align-items: center;
+    gap: 8px;
+    padding: 8px 14px;
+    border-radius: var(--amds-radius);
+    font: inherit;
+    font-weight: 500;
+    font-size: 0.88rem;
+    color: var(--amds-text-secondary);
+    cursor: pointer;
+    white-space: nowrap;
+    transition: all 0.15s ease-in-out;
+    min-height: 38px;
+  }
+
+  .nav-tab-item:hover {
+    background-color: var(--amds-surface-subtle);
+    color: var(--amds-text);
+  }
+
+  .nav-tab-item--active {
+    background-color: var(--amds-surface-subtle);
+    color: var(--amds-primary) !important;
+    font-weight: 600;
+    border-color: var(--amds-border);
+  }
+
+  .nav-tab-item__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
   }
 }
-h2 {
-  font-size: 24px;
-  line-height: 118%;
-  letter-spacing: -0.24px;
-  margin: 0 0 8px;
-  @media (max-width: 1024px) {
-    font-size: 20px;
+
+/* Trên Mobile (<= 768px): Fixed Bottom Navigation Bar & Chống che khuất nội dung */
+@media (max-width: 768px) {
+  .app-layout {
+    padding-bottom: calc(68px + env(safe-area-inset-bottom, 8px));
+    overflow-x: hidden;
+  }
+
+  .app-main-content {
+    padding: 10px 12px calc(92px + env(safe-area-inset-bottom, 16px)) !important;
+    overflow-x: hidden;
+    width: 100%;
+  }
+
+  .app-footer {
+    padding-bottom: calc(76px + env(safe-area-inset-bottom, 16px));
+  }
+
+  .nav-container {
+    position: fixed;
+    bottom: 0;
+    left: 0;
+    right: 0;
+    z-index: 45;
+    height: 60px;
+    background-color: rgba(255, 255, 255, 0.92);
+    backdrop-filter: blur(16px);
+    -webkit-backdrop-filter: blur(16px);
+    border-top: 1px solid var(--amds-border);
+    border-bottom: none;
+    padding: 0 4px calc(env(safe-area-inset-bottom, 0px));
+    box-shadow: 0 -2px 10px rgba(0, 0, 0, 0.03);
+  }
+
+  .nav-tabs {
+    height: 100%;
+    display: flex;
+    align-items: center;
+    justify-content: space-around;
+    gap: 2px;
+    margin: 0;
+    padding: 0;
+    overflow: hidden;
+  }
+
+  .nav-tab-item {
+    appearance: none;
+    border: none;
+    background: transparent;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 2px;
+    border-radius: var(--amds-radius);
+    font: inherit;
+    color: var(--amds-text-secondary);
+    cursor: pointer;
+    transition: all 0.15s ease-in-out;
+    user-select: none;
+  }
+
+  .nav-tab-item:active {
+    transform: scale(0.95);
+  }
+
+  .nav-tab-item--active {
+    color: var(--amds-primary) !important;
+  }
+
+  .nav-tab-item__icon {
+    display: flex;
+    align-items: center;
+    justify-content: center;
+  }
+
+  .nav-tab-item__label {
+    font-size: 10px;
+    font-weight: 500;
+    line-height: 1;
+    white-space: nowrap;
+    overflow: hidden;
+    text-overflow: ellipsis;
+    max-width: 100%;
+  }
+
+  .nav-tab-item--active .nav-tab-item__label {
+    font-weight: 700;
   }
 }
-p {
+
+/* Khung nội dung chính */
+.app-main-content {
+  flex: 1;
+  max-width: 1240px;
+  width: 100%;
+  margin: 0 auto;
+  padding: 16px 16px 40px;
+}
+
+/* Footer tối giản */
+.app-footer {
+  border-top: 1px solid var(--amds-border);
+  background-color: var(--amds-surface);
+  padding: 14px 16px;
+  text-align: center;
+  color: var(--amds-text-secondary);
+  font-size: 0.78rem;
+}
+
+/* =========================================================================
+   Lưới trang Khám phá (Laptop: Split 2 cột cố định chiều cao / Mobile: Dễ thao tác)
+   ========================================================================= */
+
+.kham-pha-layout {
+  width: 100%;
+}
+
+@media (min-width: 1024px) {
+  .app-main-content {
+    padding: 16px 20px 24px;
+    max-width: 1400px;
+  }
+
+  .kham-pha-grid {
+    display: flex;
+    gap: 20px;
+    height: calc(100vh - 56px - 49px - 44px);
+    min-height: 540px;
+    max-height: 860px;
+    overflow: hidden;
+  }
+
+  .kham-pha-grid__map-col {
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kham-pha-grid__map-col .map-view-card {
+    flex: 1;
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kham-pha-grid__map-col .map-frame {
+    flex: 1;
+    height: 100%;
+    position: relative;
+    min-height: 0;
+  }
+
+  .kham-pha-grid__map-col .map-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .kham-pha-grid__list-col {
+    width: 400px;
+    flex-shrink: 0;
+    height: 100%;
+    overflow-y: auto;
+    padding-right: 6px;
+    scrollbar-width: thin;
+    scrollbar-color: var(--amds-border) transparent;
+  }
+
+  .kham-pha-grid__list-col::-webkit-scrollbar {
+    width: 6px;
+  }
+
+  .kham-pha-grid__list-col::-webkit-scrollbar-thumb {
+    background-color: var(--amds-border);
+    border-radius: 9999px;
+  }
+}
+
+@media (max-width: 1023px) {
+  .app-main-content {
+    padding: 8px 12px 24px;
+  }
+
+  .kham-pha-grid {
+    display: flex;
+    flex-direction: column;
+    gap: 16px;
+  }
+
+  .kham-pha-grid__map-col {
+    width: 100%;
+    height: 48vh;
+    min-height: 280px;
+    position: relative;
+  }
+
+  .kham-pha-grid__map-col .map-view-card {
+    height: 100%;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .kham-pha-grid__map-col .map-frame {
+    flex: 1;
+    position: relative;
+    min-height: 220px;
+  }
+
+  .kham-pha-grid__map-col .map-canvas {
+    position: absolute;
+    inset: 0;
+    width: 100%;
+    height: 100%;
+  }
+
+  .kham-pha-grid__list-col {
+    width: 100%;
+    max-height: 44vh;
+    overflow-y: auto;
+    padding: 14px;
+    background-color: var(--amds-surface);
+    border: 1px solid var(--amds-border);
+    border-radius: var(--amds-radius-card);
+    box-shadow: var(--amds-shadow-sm);
+  }
+
+  .kham-pha-detail-wrap {
+    animation: slide-up-card 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@keyframes slide-up-card {
+  from {
+    opacity: 0;
+    transform: translateY(12px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+/* =========================================================================
+   Hệ thống Thẻ Card & Layout helpers
+   ========================================================================= */
+
+.card {
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-card);
+  box-shadow: var(--amds-shadow-xs);
+  padding: 20px;
+  transition: border-color 0.15s ease-in-out;
+}
+
+.card:hover {
+  border-color: var(--amds-border-strong);
+}
+
+.card__title {
+  margin: 0 0 4px 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--amds-text);
+  letter-spacing: -0.015em;
+}
+
+.card__subtitle {
+  margin: 0 0 12px 0;
+  font-size: 0.86rem;
+  color: var(--amds-text-secondary);
+}
+
+.section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  margin-bottom: 14px;
+  gap: 12px;
+}
+
+.section-title {
+  margin: 0;
+  font-size: 1.15rem;
+  font-weight: 700;
+  color: var(--amds-text);
+  letter-spacing: -0.01em;
+}
+
+.spread {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+}
+
+.row {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+}
+
+.button-group {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.muted {
+  color: var(--amds-text-muted);
+}
+
+.mt { margin-top: 16px; }
+.mt-xs { margin-top: 6px; }
+.mt-lg { margin-top: 24px; }
+.mb { margin-bottom: 16px; }
+.ml { margin-left: 8px; }
+.mr { margin-right: 8px; }
+.mr-xs { margin-right: 6px; }
+
+/* =========================================================================
+   Hệ thống Nút (Buttons: Tối giản, Border mảnh 1px, Bỏ đổ bóng đậm, Min-height 44px)
+   ========================================================================= */
+
+.btn {
+  appearance: none;
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  padding: 10px 18px;
+  min-height: var(--amds-touch-target);
+  border-radius: var(--amds-radius);
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  line-height: 1.35;
+  cursor: pointer;
+  border: 1px solid transparent;
+  transition: all 0.15s ease-in-out;
+  user-select: none;
+  box-shadow: none;
+}
+
+.btn:active {
+  transform: scale(0.98);
+}
+
+.btn:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+  pointer-events: none;
+}
+
+.btn--primary {
+  background-color: var(--amds-primary);
+  color: #ffffff;
+  border-color: var(--amds-primary);
+}
+
+.btn--primary:hover {
+  background-color: var(--amds-primary-hover);
+  border-color: var(--amds-primary-hover);
+}
+
+.btn--accent {
+  background-color: var(--amds-accent);
+  color: #ffffff;
+  border-color: var(--amds-accent);
+}
+
+.btn--accent:hover {
+  background-color: var(--amds-accent-hover);
+  border-color: var(--amds-accent-hover);
+}
+
+.btn--secondary {
+  background-color: #ffffff;
+  border-color: var(--amds-border);
+  color: var(--amds-text);
+}
+
+.btn--secondary:hover {
+  background-color: var(--amds-surface-subtle);
+  border-color: var(--amds-border-strong);
+}
+
+.btn--danger {
+  background-color: #ffffff;
+  border-color: var(--amds-danger-border);
+  color: var(--amds-danger);
+}
+
+.btn--danger:hover {
+  background-color: var(--amds-danger-bg);
+  border-color: var(--amds-danger);
+}
+
+.btn--ghost {
+  background-color: transparent;
+  color: var(--amds-text-secondary);
+  border-color: transparent;
+}
+
+.btn--ghost:hover {
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-text);
+}
+
+.btn--sm {
+  min-height: 36px;
+  padding: 6px 12px;
+  font-size: 0.82rem;
+  border-radius: var(--amds-radius);
+}
+
+.btn--lg {
+  min-height: 48px;
+  padding: 12px 24px;
+  font-size: 0.95rem;
+  border-radius: var(--amds-radius);
+}
+
+.btn--block {
+  width: 100%;
+}
+
+.btn__icon {
+  width: 16px;
+  height: 16px;
+}
+
+.btn-icon {
+  appearance: none;
+  border: 1px solid var(--amds-border);
+  background-color: #ffffff;
+  color: var(--amds-text-secondary);
+  min-width: 44px;
+  min-height: 44px;
+  width: 44px;
+  height: 44px;
+  border-radius: var(--amds-radius);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+}
+
+.btn-icon:hover {
+  color: var(--amds-text);
+  border-color: var(--amds-border-strong);
+  background-color: var(--amds-surface-subtle);
+}
+
+.btn-icon--danger:hover {
+  color: var(--amds-danger);
+  border-color: var(--amds-danger-border);
+  background-color: var(--amds-danger-bg);
+}
+
+.btn-icon--sm {
+  min-width: 32px;
+  min-height: 32px;
+  width: 32px;
+  height: 32px;
+  font-size: 0.8rem;
+}
+
+/* =========================================================================
+   Hệ thống Biểu mẫu (Form Controls: 1px Border, 8px Radius, 44px Target)
+   ========================================================================= */
+
+.field {
+  margin-bottom: 14px;
+}
+
+.field__label {
+  display: block;
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--amds-text-secondary);
+  margin-bottom: 6px;
+}
+
+.field__helper {
+  display: block;
+  font-size: 0.78rem;
+  color: var(--amds-text-muted);
+  margin-top: 5px;
+}
+
+.input {
+  width: 100%;
+  min-height: var(--amds-touch-target);
+  appearance: none;
+  background-color: #ffffff;
+  border: 1px solid var(--amds-border-strong);
+  border-radius: var(--amds-radius);
+  padding: 9px 14px;
+  font: inherit;
+  font-size: 0.9rem;
+  color: var(--amds-text);
+  transition: border-color 0.15s ease-in-out, box-shadow 0.15s ease-in-out;
+}
+
+.input:focus {
+  outline: none;
+  border-color: var(--amds-primary);
+  box-shadow: 0 0 0 2px var(--amds-primary-glow);
+}
+
+.input::placeholder {
+  color: var(--amds-text-faint);
+}
+
+.input:disabled {
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-text-muted);
+  cursor: not-allowed;
+}
+
+.input--sm {
+  min-height: 36px;
+  padding: 6px 10px;
+  font-size: 0.84rem;
+}
+
+.textarea {
+  min-height: 88px;
+  resize: vertical;
+  line-height: 1.5;
+}
+
+/* =========================================================================
+   Huy hiệu (Badges) & Thông báo (Notices)
+   ========================================================================= */
+
+.badge {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  padding: 3px 8px;
+  border-radius: var(--amds-radius-full);
+  font-size: 0.75rem;
+  font-weight: 500;
+  line-height: 1.25;
+  border: 1px solid transparent;
+}
+
+.badge--ok {
+  background-color: var(--amds-success-bg);
+  color: var(--amds-success);
+  border-color: var(--amds-success-border);
+}
+
+.badge--warn {
+  background-color: var(--amds-warning-bg);
+  color: var(--amds-warning);
+  border-color: var(--amds-warning-border);
+}
+
+.badge--error {
+  background-color: var(--amds-danger-bg);
+  color: var(--amds-danger);
+  border-color: var(--amds-danger-border);
+}
+
+.badge--info {
+  background-color: var(--amds-info-bg);
+  color: var(--amds-info);
+  border-color: var(--amds-info-border);
+}
+
+.badge--neutral {
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-text-secondary);
+  border-color: var(--amds-border);
+}
+
+.badge--accent {
+  background-color: var(--amds-accent-light);
+  color: var(--amds-accent);
+  border-color: rgba(15, 118, 110, 0.2);
+}
+
+.notice {
+  padding: 12px 16px;
+  border-radius: var(--amds-radius);
+  font-size: 0.88rem;
+  line-height: 1.5;
+  border: 1px solid var(--amds-border);
+  border-left-width: 4px;
+}
+
+.notice--ok {
+  background-color: var(--amds-success-bg);
+  color: #166534;
+  border-color: var(--amds-success-border);
+  border-left-color: var(--amds-success);
+}
+
+.notice--warn {
+  background-color: var(--amds-warning-bg);
+  color: #92400e;
+  border-color: var(--amds-warning-border);
+  border-left-color: var(--amds-warning);
+}
+
+.notice--error {
+  background-color: var(--amds-danger-bg);
+  color: #991b1b;
+  border-color: var(--amds-danger-border);
+  border-left-color: var(--amds-danger);
+}
+
+.notice--info {
+  background-color: var(--amds-info-bg);
+  color: #1e40af;
+  border-color: var(--amds-info-border);
+  border-left-color: var(--amds-info);
+}
+
+/* =========================================================================
+   Bảng Dữ liệu (Tables)
+   ========================================================================= */
+
+.table-responsive {
+  width: 100%;
+  overflow-x: auto;
+  border-radius: var(--amds-radius);
+  border: 1px solid var(--amds-border);
+}
+
+.table {
+  width: 100%;
+  border-collapse: collapse;
+  text-align: left;
+  font-size: 0.88rem;
+}
+
+.table th {
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-text-muted);
+  font-weight: 600;
+  font-size: 0.8rem;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--amds-border);
+}
+
+.table td {
+  padding: 12px 14px;
+  border-bottom: 1px solid var(--amds-border);
+  color: var(--amds-text);
+}
+
+.table tr:last-child td {
+  border-bottom: none;
+}
+
+.table tbody tr:hover {
+  background-color: var(--amds-surface-hover);
+}
+
+.table--compact td,
+.table--compact th {
+  padding: 8px 10px;
+}
+
+/* =========================================================================
+   Thanh chọn Ngôn ngữ (Language Chips)
+   ========================================================================= */
+
+.language-bar {
+  display: flex;
+  align-items: center;
+  gap: 6px;
+}
+
+.language-bar__scroll {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  overflow-x: auto;
+  scrollbar-width: none;
+}
+
+.language-bar__scroll::-webkit-scrollbar {
+  display: none;
+}
+
+.lang-chip {
+  appearance: none;
+  border: 1px solid var(--amds-border);
+  background-color: #ffffff;
+  border-radius: var(--amds-radius);
+  padding: 4px 8px;
+  min-height: 32px;
+  display: inline-flex;
+  align-items: center;
+  gap: 5px;
+  font: inherit;
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--amds-text-secondary);
+  cursor: pointer;
+  white-space: nowrap;
+  transition: all 0.15s ease-in-out;
+}
+
+.lang-chip:hover:not(:disabled) {
+  border-color: var(--amds-border-strong);
+  color: var(--amds-text);
+  background-color: var(--amds-surface-subtle);
+}
+
+.lang-chip--active {
+  background-color: var(--amds-surface-subtle);
+  border-color: var(--amds-primary);
+  color: var(--amds-primary) !important;
+  font-weight: 600;
+}
+
+.lang-chip__code {
+  font-weight: 700;
+  font-size: 0.72rem;
+  letter-spacing: 0.02em;
+}
+
+.lang-chip__label {
+  font-size: 0.78rem;
+}
+
+@media (max-width: 640px) {
+  .lang-chip__label {
+    display: none;
+  }
+}
+
+.language-fallback-hint {
+  display: flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.72rem;
+  color: var(--amds-warning);
+  padding: 2px 4px;
+}
+
+.language-fallback-icon {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* =========================================================================
+   Thẻ Consent Banner
+   ========================================================================= */
+
+.consent-status-bar {
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 8px 14px;
+  box-shadow: var(--amds-shadow-xs);
+}
+
+.consent-status-info {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  font-size: 0.84rem;
+  color: var(--amds-text-secondary);
+}
+
+.consent-status-dot {
+  width: 7px;
+  height: 7px;
+  border-radius: 50%;
+  display: inline-block;
+  flex-shrink: 0;
+}
+
+.consent-card {
+  border-left: 3px solid var(--amds-accent);
+}
+
+.consent-card__header {
+  display: flex;
+  gap: 12px;
+  align-items: flex-start;
+}
+
+.consent-card__icon-box {
+  width: 32px;
+  height: 32px;
+  border-radius: var(--amds-radius);
+  background-color: var(--amds-accent-light);
+  color: var(--amds-accent);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+}
+
+/* =========================================================================
+   Bản đồ (MapView) & Pulse vị trí người dùng
+   ========================================================================= */
+
+.map-view-card {
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-lg);
+  overflow: hidden;
+  box-shadow: var(--amds-shadow-sm);
+}
+
+.map-frame {
+  width: 100%;
+  position: relative;
+}
+
+.map-canvas {
+  width: 100%;
+  height: 380px;
+}
+
+@media (min-width: 1024px) {
+  .map-canvas {
+    height: 440px;
+  }
+}
+
+.map-footer-bar {
+  padding: 8px 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  background-color: var(--amds-surface-subtle);
+  border-top: 1px solid var(--amds-border);
+  font-size: 0.8rem;
+  color: var(--amds-text-muted);
+}
+
+.user-location-pulse {
+  width: 16px;
+  height: 16px;
+  background-color: #22c55e;
+  border: 3px solid #ffffff;
+  border-radius: 50%;
+  box-shadow: 0 0 0 4px rgba(34, 197, 94, 0.35);
+  animation: pulse-ring 2s infinite cubic-bezier(0.455, 0.03, 0.515, 0.955);
+}
+
+@keyframes pulse-ring {
+  0% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0.6); }
+  70% { box-shadow: 0 0 0 10px rgba(34, 197, 94, 0); }
+  100% { box-shadow: 0 0 0 0 rgba(34, 197, 94, 0); }
+}
+
+/* =========================================================================
+   Danh sách POI (PoiList) & Thẻ POI (PoiCard)
+   ========================================================================= */
+
+.poi-list-section {
+  display: flex;
+  flex-direction: column;
+}
+
+.poi-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.poi-card {
+  appearance: none;
+  width: 100%;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-lg);
+  padding: 12px;
+  display: flex;
+  align-items: stretch;
+  gap: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  box-shadow: var(--amds-shadow-xs);
+}
+
+.poi-card:hover {
+  transform: translateY(-2px);
+  border-color: var(--amds-primary);
+  box-shadow: var(--amds-shadow);
+}
+
+.poi-card--selected {
+  border-color: #ea580c !important;
+  background-color: #fff7ed !important;
+  box-shadow: 0 0 0 1px #ea580c, var(--amds-shadow-sm);
+}
+
+.poi-card--selected .poi-card__name {
+  color: #ea580c;
+}
+
+.poi-card__media {
+  width: 82px;
+  height: 82px;
+  border-radius: var(--amds-radius);
+  overflow: hidden;
+  flex-shrink: 0;
+  position: relative;
+  background-color: var(--amds-surface-subtle);
+}
+
+.poi-card__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.poi-card__media-placeholder {
+  width: 100%;
+  height: 100%;
+  background: linear-gradient(135deg, #fff7ed 0%, #fed7aa 100%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amds-primary);
+}
+
+.poi-card__media-icon {
+  width: 32px;
+  height: 32px;
+  opacity: 0.75;
+}
+
+.poi-card__img-count {
+  position: absolute;
+  bottom: 4px;
+  right: 4px;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 0.68rem;
+  font-weight: 700;
+  padding: 1px 5px;
+  border-radius: 4px;
+}
+
+.poi-card__content {
+  flex: 1;
+  min-width: 0;
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+}
+
+.poi-card__top {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.poi-card__name {
+  margin: 0;
+  font-size: 1rem;
+  font-weight: 700;
+  color: var(--amds-text);
+  line-height: 1.35;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.poi-card__arrow {
+  color: var(--amds-text-faint);
+  font-size: 1.25rem;
+  line-height: 1;
+  transition: transform 0.15s ease;
+}
+
+.poi-card:hover .poi-card__arrow {
+  color: var(--amds-primary);
+  transform: translateX(3px);
+}
+
+.poi-card__desc {
+  margin: 4px 0 8px 0;
+  font-size: 0.83rem;
+  color: var(--amds-text-muted);
+  line-height: 1.4;
+  display: -webkit-box;
+  -webkit-line-clamp: 2;
+  -webkit-box-orient: vertical;
+  overflow: hidden;
+}
+
+.poi-card__meta {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.poi-card__tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 4px;
+  font-size: 0.74rem;
+  color: var(--amds-text-muted);
+  background-color: var(--amds-surface-subtle);
+  padding: 2px 6px;
+  border-radius: 4px;
+}
+
+.poi-card__tag--audio {
+  color: var(--amds-accent);
+  background-color: var(--amds-accent-light);
+  font-weight: 600;
+}
+
+.poi-card__tag-icon {
+  width: 12px;
+  height: 12px;
+}
+
+/* =========================================================================
+   Thư viện Ảnh (PoiGallery) & Chi tiết quán (PoiDetail)
+   ========================================================================= */
+
+.poi-detail-card {
+  position: relative;
+  padding: 0;
+  overflow: hidden;
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-card);
+  box-shadow: var(--amds-shadow-sm);
+  background-color: var(--amds-surface);
+}
+
+.poi-detail__close-btn {
+  position: absolute;
+  top: 10px;
+  right: 10px;
+  z-index: 20;
+  background-color: rgba(255, 255, 255, 0.88);
+  backdrop-filter: blur(8px);
+  -webkit-backdrop-filter: blur(8px);
+  border: 1px solid var(--amds-border);
+  color: var(--amds-text-secondary);
+  border-radius: var(--amds-radius-full);
+}
+
+.poi-detail__close-btn:hover {
+  background-color: #ffffff;
+  color: var(--amds-text);
+  border-color: var(--amds-border-strong);
+}
+
+.poi-gallery {
+  width: 100%;
+  position: relative;
+  background-color: #0f172a;
+}
+
+.poi-gallery--empty {
+  background-color: var(--amds-surface-subtle);
+}
+
+.poi-gallery__main {
+  width: 100%;
+  height: 250px;
+  position: relative;
+  overflow: hidden;
+  background-color: #0f172a;
+}
+
+.poi-gallery__img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+  transition: opacity 0.2s ease;
+}
+
+.poi-gallery__placeholder {
+  width: 100%;
+  height: 160px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  color: var(--amds-text-faint);
+  background: linear-gradient(135deg, #f8fafc 0%, #e2e8f0 100%);
+}
+
+.poi-gallery__placeholder-icon {
+  width: 42px;
+  height: 42px;
+  stroke: var(--amds-text-faint);
+}
+
+.poi-gallery__placeholder-text {
+  font-size: 0.85rem;
+  font-weight: 500;
+}
+
+.poi-gallery__nav-btn {
+  appearance: none;
+  border: none;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  width: 36px;
+  height: 36px;
+  border-radius: 50%;
+  position: absolute;
+  top: 50%;
+  transform: translateY(-50%);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  z-index: 10;
+}
+
+.poi-gallery__nav-btn:hover {
+  background-color: rgba(234, 88, 12, 0.9);
+  transform: translateY(-50%) scale(1.08);
+}
+
+.poi-gallery__nav-btn--prev { left: 12px; }
+.poi-gallery__nav-btn--next { right: 12px; }
+
+.poi-gallery__counter {
+  position: absolute;
+  bottom: 10px;
+  right: 12px;
+  background-color: rgba(15, 23, 42, 0.75);
+  backdrop-filter: blur(4px);
+  color: #ffffff;
+  font-size: 0.75rem;
+  font-weight: 600;
+  padding: 3px 8px;
+  border-radius: var(--amds-radius-full);
+}
+
+.poi-gallery__thumbs {
+  padding: 8px 12px;
+  display: flex;
+  gap: 8px;
+  overflow-x: auto;
+  background-color: #0b1120;
+}
+
+.poi-gallery__thumb {
+  appearance: none;
+  border: 2px solid transparent;
+  padding: 0;
+  width: 58px;
+  height: 42px;
+  border-radius: 6px;
+  overflow: hidden;
+  cursor: pointer;
+  opacity: 0.65;
+  transition: all 0.15s ease;
+  flex-shrink: 0;
+}
+
+.poi-gallery__thumb:hover {
+  opacity: 1;
+}
+
+.poi-gallery__thumb--active {
+  opacity: 1;
+  border-color: var(--amds-primary);
+  box-shadow: 0 0 0 2px var(--amds-primary-glow);
+}
+
+.poi-gallery__thumb-img {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.poi-detail__header {
+  padding: 16px 20px 0;
+}
+
+.poi-detail__title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 800;
+  color: var(--amds-text);
+  letter-spacing: -0.015em;
+}
+
+.poi-detail__badges {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-top: 8px;
+}
+
+.poi-detail__body {
+  padding: 12px 20px;
+}
+
+.poi-detail__section-heading {
+  margin: 0 0 6px 0;
+  font-size: 0.86rem;
+  font-weight: 700;
+  color: var(--amds-text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.03em;
+}
+
+.poi-detail__description {
+  margin: 0;
+  font-size: 0.92rem;
+  color: var(--amds-text-secondary);
+  line-height: 1.6;
+}
+
+.poi-detail__actions {
+  padding: 0 20px 20px;
+}
+
+.poi-detail__audio-box {
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 14px;
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.poi-detail__audio-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.poi-detail__audio-label {
+  font-size: 0.8rem;
+  font-weight: 600;
+  color: var(--amds-text);
+}
+
+/* =========================================================================
+   Thanh Audio đang phát (Floating Glass Pill)
+   ========================================================================= */
+
+.audio-playing-bar {
+  position: fixed;
+  z-index: 50;
+  display: inline-flex;
+  align-items: center;
+  gap: 12px;
+  background-color: var(--amds-glass);
+  backdrop-filter: blur(16px);
+  -webkit-backdrop-filter: blur(16px);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-full);
+  box-shadow: var(--amds-shadow-float);
+  padding: 8px 16px;
+  min-height: 44px;
+  transition: all 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+  animation: slide-up-pill 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+@keyframes slide-up-pill {
+  from {
+    opacity: 0;
+    transform: translateY(10px);
+  }
+  to {
+    opacity: 1;
+    transform: translateY(0);
+  }
+}
+
+@media (min-width: 769px) {
+  .audio-playing-bar {
+    bottom: 24px;
+    right: 24px;
+    max-width: 440px;
+  }
+}
+
+@media (max-width: 768px) {
+  .audio-playing-bar {
+    bottom: calc(68px + env(safe-area-inset-bottom, 0px));
+    left: 12px;
+    right: 12px;
+    max-width: calc(100% - 24px);
+    margin: 0 auto;
+  }
+}
+
+.audio-playing-bar__wave {
+  display: flex;
+  align-items: flex-end;
+  gap: 3px;
+  height: 16px;
+  flex-shrink: 0;
+}
+
+.wave-bar {
+  width: 3px;
+  background-color: var(--amds-primary);
+  border-radius: 2px;
+  animation: wave-bounce 1.2s infinite ease-in-out;
+}
+
+.wave-bar:nth-child(1) { height: 8px; animation-delay: 0s; }
+.wave-bar:nth-child(2) { height: 16px; animation-delay: 0.2s; }
+.wave-bar:nth-child(3) { height: 10px; animation-delay: 0.4s; }
+
+@keyframes wave-bounce {
+  0%, 100% { transform: scaleY(0.4); }
+  50% { transform: scaleY(1); }
+}
+
+.audio-playing-bar__text {
+  flex: 1;
+  min-width: 0;
+  font-size: 0.84rem;
+  color: var(--amds-text);
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.audio-playing-bar__text strong {
+  color: var(--amds-primary);
+  font-weight: 600;
+}
+
+.audio-playing-bar .btn-icon {
+  width: 32px;
+  height: 32px;
+  min-width: 32px;
+  min-height: 32px;
+  border-radius: var(--amds-radius-full);
+  border: 1px solid var(--amds-border);
+  background-color: transparent;
+  color: var(--amds-text-secondary);
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  padding: 0;
+  flex-shrink: 0;
+}
+
+.audio-playing-bar .btn-icon:hover {
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-text);
+  border-color: var(--amds-border-strong);
+}
+
+/* =========================================================================
+   Màn hình Đăng nhập (Login Card)
+   ========================================================================= */
+
+.login-card-wrapper {
+  max-width: 400px;
+  width: 100%;
+  margin: 32px auto;
+  padding: 0 4px;
+}
+
+.login-card {
+  padding: 28px;
+}
+
+.login-card__header {
+  text-align: center;
+  margin-bottom: 24px;
+}
+
+.login-card__icon-wrap {
+  width: 52px;
+  height: 52px;
+  margin: 0 auto 12px;
+  border-radius: 50%;
+  background-color: var(--amds-primary-light);
+  color: var(--amds-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+}
+
+.login-card__icon-wrap--owner {
+  background-color: var(--amds-accent-light);
+  color: var(--amds-accent);
+}
+
+.login-card__icon {
+  width: 26px;
+  height: 26px;
+}
+
+/* =========================================================================
+   Giao diện Quản trị & Tab nội bộ
+   ========================================================================= */
+
+.admin-container,
+.owner-container {
+  display: flex;
+  flex-direction: column;
+  max-width: 1080px;
+  margin: 0 auto;
+  width: 100%;
+}
+
+.admin-header-card {
+  background-color: var(--amds-surface);
+}
+
+.admin-user-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.admin-user-avatar {
+  width: 40px;
+  height: 40px;
+  border-radius: 50%;
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amds-text-secondary);
+  flex-shrink: 0;
+}
+
+.admin-user-title {
+  margin: 0;
+  font-size: 0.95rem;
+  color: var(--amds-text);
+}
+
+.admin-tabs-nav {
+  display: flex;
+  gap: 6px;
+  overflow-x: auto;
+  border-bottom: 1px solid var(--amds-border);
+  padding-bottom: 0px;
+}
+
+.admin-tab-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 10px 16px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 500;
+  color: var(--amds-text-secondary);
+  cursor: pointer;
+  border-bottom: 2px solid transparent;
+  margin-bottom: -1px;
+  transition: all 0.15s ease;
+  white-space: nowrap;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.admin-tab-btn:hover {
+  color: var(--amds-text);
+}
+
+.admin-tab-btn--active {
+  color: var(--amds-primary);
+  border-bottom-color: var(--amds-primary);
+  font-weight: 600;
+}
+
+.form-grid-2 {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 16px;
+}
+
+@media (max-width: 640px) {
+  .form-grid-2 {
+    grid-template-columns: 1fr;
+    gap: 12px;
+  }
+}
+
+.admin-table-thumb {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--amds-radius-sm);
+  object-fit: cover;
+}
+
+.admin-table-thumb-placeholder {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--amds-radius-sm);
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amds-text-muted);
+}
+
+/* =========================================================================
+   Modal Quản lý Ảnh (PoiImageManager)
+   ========================================================================= */
+
+.modal-overlay {
+  position: fixed;
+  inset: 0;
+  background-color: rgba(15, 23, 42, 0.65);
+  backdrop-filter: blur(4px);
+  z-index: 100;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 16px;
+}
+
+.modal-content {
+  background-color: var(--amds-surface);
+  border-radius: var(--amds-radius-xl);
+  padding: 24px;
+  width: 100%;
+  max-width: 600px;
+  max-height: 90vh;
+  overflow-y: auto;
+  box-shadow: var(--amds-shadow-lg);
+  animation: modal-pop 0.2s cubic-bezier(0.16, 1, 0.3, 1);
+}
+
+.modal-content--wide {
+  max-width: 680px;
+}
+
+@keyframes modal-pop {
+  from { opacity: 0; transform: scale(0.96); }
+  to { opacity: 1; transform: scale(1); }
+}
+
+.modal-header {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  margin-bottom: 16px;
+}
+
+.modal-title {
+  margin: 0;
+  font-size: 1.25rem;
+  font-weight: 700;
+  color: var(--amds-text);
+}
+
+.modal-subtitle {
+  margin: 4px 0 0 0;
+  font-size: 0.85rem;
+  color: var(--amds-text-muted);
+}
+
+.modal-footer {
+  display: flex;
+  justify-content: flex-end;
+  gap: 10px;
+  border-top: 1px solid var(--amds-border);
+  padding-top: 16px;
+}
+
+.image-uploader-box {
+  border: 2px dashed var(--amds-border-strong);
+  border-radius: var(--amds-radius-lg);
+  padding: 20px;
+  text-align: center;
+  background-color: var(--amds-bg);
+  transition: border-color 0.15s ease;
+}
+
+.image-uploader-box:hover {
+  border-color: var(--amds-primary);
+}
+
+.image-uploader-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 8px;
+}
+
+.image-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(115px, 1fr));
+  gap: 12px;
+}
+
+.image-grid__item {
+  aspect-ratio: 1 / 1;
+  border-radius: var(--amds-radius);
+  overflow: hidden;
+  position: relative;
+  border: 1px solid var(--amds-border);
+  box-shadow: var(--amds-shadow-xs);
+}
+
+.image-grid__thumb {
+  width: 100%;
+  height: 100%;
+  object-fit: cover;
+}
+
+.image-grid__overlay {
+  position: absolute;
+  inset: 0;
+  background: linear-gradient(to top, rgba(15, 23, 42, 0.75) 0%, transparent 60%);
+  display: flex;
+  align-items: flex-end;
+  justify-content: space-between;
+  padding: 6px;
+}
+
+.image-grid__badge {
+  color: #ffffff;
+  font-size: 0.72rem;
+  font-weight: 700;
+}
+
+/* =========================================================================
+   Analytics Stat Cards & Charts
+   ========================================================================= */
+
+.stat-cards-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 14px;
+}
+
+.stat-card {
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-lg);
+  padding: 16px;
+  display: flex;
+  align-items: center;
+  gap: 14px;
+  box-shadow: var(--amds-shadow-xs);
+}
+
+.stat-card__icon {
+  width: 44px;
+  height: 44px;
+  border-radius: var(--amds-radius);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  font-size: 1.4rem;
+  flex-shrink: 0;
+}
+
+.stat-card__icon--views { background-color: var(--amds-primary-light); }
+.stat-card__icon--audio { background-color: var(--amds-accent-light); }
+.stat-card__icon--devices { background-color: var(--amds-info-bg); }
+.stat-card__icon--online { background-color: var(--amds-success-bg); }
+
+.stat-card__info {
+  display: flex;
+  flex-direction: column;
+}
+
+.stat-card__label {
+  font-size: 0.8rem;
+  color: var(--amds-text-muted);
+  font-weight: 500;
+}
+
+.stat-card__value {
+  font-size: 1.45rem;
+  font-weight: 800;
+  color: var(--amds-text);
+  line-height: 1.2;
+}
+
+.stat-card__sub {
+  font-size: 0.75rem;
+  color: var(--amds-text-faint);
+  margin-top: 2px;
+}
+
+.chart-bar-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.chart-bar-row {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.chart-bar-date {
+  min-width: 68px;
+  font-size: 0.82rem;
+  color: var(--amds-text-muted);
+}
+
+.chart-bar-track {
+  flex: 1;
+  height: 12px;
+  background-color: var(--amds-surface-subtle);
+  border-radius: var(--amds-radius-full);
+  overflow: hidden;
+}
+
+.chart-bar-fill {
+  height: 100%;
+  background: linear-gradient(90deg, var(--amds-primary) 0%, #f97316 100%);
+  border-radius: var(--amds-radius-full);
+  transition: width 0.3s ease;
+}
+
+.chart-bar-value {
+  min-width: 36px;
+  text-align: right;
+  font-size: 0.82rem;
+  font-weight: 700;
+}
+
+.rank-badge {
+  display: inline-block;
+  min-width: 28px;
+  font-weight: 700;
+  color: var(--amds-primary);
+}
+
+.tags-cloud {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.tag-pill {
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  padding: 5px 12px;
+  border-radius: var(--amds-radius-full);
+  font-size: 0.82rem;
+  color: var(--amds-text-secondary);
+}
+
+.tag-count {
+  color: var(--amds-primary);
+}
+
+.segmented-control {
+  display: inline-flex;
+  background-color: var(--amds-surface-subtle);
+  border-radius: var(--amds-radius);
+  padding: 3px;
+  gap: 2px;
+}
+
+.segmented-btn {
+  appearance: none;
+  border: none;
+  background: transparent;
+  padding: 5px 12px;
+  border-radius: var(--amds-radius-sm);
+  font: inherit;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--amds-text-muted);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.segmented-btn--active {
+  background-color: var(--amds-surface);
+  color: var(--amds-text);
+  box-shadow: var(--amds-shadow-xs);
+}
+
+.runtime-metric-badge {
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  padding: 6px 12px;
+  border-radius: var(--amds-radius);
+  font-size: 0.84rem;
+}
+
+/* =========================================================================
+   Tác vụ Audio (AudioTasks) & Tiến trình
+   ========================================================================= */
+
+.audio-task-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.audio-task-item {
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 12px;
+  background-color: var(--amds-surface);
+}
+
+.audio-task-meta {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.audio-task-icon {
+  width: 36px;
+  height: 36px;
+  border-radius: var(--amds-radius);
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amds-primary);
+  flex-shrink: 0;
+}
+
+.audio-task-title {
+  font-size: 0.95rem;
+  color: var(--amds-text);
+}
+
+.progress {
+  width: 100%;
+  height: 6px;
+  background-color: var(--amds-surface-subtle);
+  border-radius: var(--amds-radius-full);
+  overflow: hidden;
+}
+
+.progress__bar {
+  height: 100%;
+  background-color: var(--amds-primary);
+  border-radius: var(--amds-radius-full);
+  transition: width 0.3s ease;
+}
+
+.progress__bar--success {
+  background-color: var(--amds-success);
+}
+
+/* =========================================================================
+   Gói Offline & Settings
+   ========================================================================= */
+
+.offline-packs-container,
+.settings-container {
+  max-width: 768px;
+  margin: 0 auto;
+  padding: 24px 16px;
+  width: 100%;
+}
+
+.mode-selector-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
+  gap: 12px;
+}
+
+.mode-card {
+  appearance: none;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 14px;
+  text-align: left;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.mode-card:hover {
+  border-color: var(--amds-primary);
+}
+
+.mode-card--active {
+  border-color: var(--amds-primary);
+  background-color: var(--amds-primary-light);
+  box-shadow: 0 0 0 1px var(--amds-primary);
+}
+
+.mode-card__radio {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.radio-dot {
+  width: 14px;
+  height: 14px;
+  border-radius: 50%;
+  border: 2px solid var(--amds-border-strong);
+  display: inline-block;
+}
+
+.radio-dot--checked {
+  border-color: var(--amds-primary);
+  background-color: var(--amds-primary);
+}
+
+.mode-card__name {
+  font-size: 0.88rem;
+  color: var(--amds-text);
+}
+
+.mode-card__desc {
+  margin: 6px 0 0 0;
+  font-size: 0.78rem;
+  color: var(--amds-text-muted);
+  line-height: 1.4;
+}
+
+.pack-list {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+}
+
+.pack-item {
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 14px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 12px;
+  flex-wrap: wrap;
+  background-color: var(--amds-surface);
+}
+
+.pack-info {
+  display: flex;
+  align-items: center;
+  gap: 12px;
+}
+
+.pack-icon {
+  width: 40px;
+  height: 40px;
+  border-radius: var(--amds-radius);
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--amds-primary);
+  flex-shrink: 0;
+}
+
+.pack-name {
+  font-size: 0.95rem;
+  color: var(--amds-text);
+}
+
+.pack-sub {
+  margin: 2px 0 0 0;
+  font-size: 0.8rem;
+  color: var(--amds-text-muted);
+}
+
+.pack-actions {
+  display: flex;
+  gap: 8px;
+}
+
+.audio-pack-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fill, minmax(110px, 1fr));
+  gap: 10px;
+}
+
+.audio-pack-btn {
+  appearance: none;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 12px 8px;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.audio-pack-btn:hover {
+  border-color: var(--amds-primary);
+  background-color: var(--amds-primary-light);
+}
+
+.audio-pack-btn--installed {
+  border-color: var(--amds-success);
+  background-color: var(--amds-success-bg);
+}
+
+.audio-pack-flag {
+  font-size: 0.8rem;
+  font-weight: 700;
+  padding: 2px 8px;
+  border-radius: var(--amds-radius-sm);
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  color: var(--amds-text-secondary);
+}
+
+.audio-pack-name {
+  font-size: 0.85rem;
+  font-weight: 600;
+  color: var(--amds-text);
+}
+
+.audio-pack-status {
+  font-size: 0.75rem;
+  color: var(--amds-text-muted);
+}
+
+.settings-pill-group {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.settings-pill {
+  appearance: none;
+  background-color: var(--amds-surface-subtle);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-full);
+  padding: 8px 16px;
+  display: inline-flex;
+  align-items: center;
+  gap: 8px;
+  font: inherit;
+  font-size: 0.88rem;
+  font-weight: 600;
+  color: var(--amds-text-secondary);
+  cursor: pointer;
+  transition: all 0.15s ease;
+}
+
+.settings-pill:hover {
+  border-color: var(--amds-primary);
+  color: var(--amds-primary);
+}
+
+.settings-pill--active {
+  background-color: var(--amds-primary-light);
+  border-color: var(--amds-primary);
+  color: var(--amds-primary);
+  cursor: default;
+}
+
+.settings-pill__code {
+  font-size: 0.75rem;
+  font-weight: 700;
+  padding: 2px 6px;
+  border-radius: 4px;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  color: var(--amds-text-muted);
+}
+
+.settings-pill--active .settings-pill__code {
+  background-color: var(--amds-primary);
+  color: #ffffff;
+  border-color: var(--amds-primary);
+}
+
+/* =========================================================================
+   Thông báo Chủ quán (Owner Notifications)
+   ========================================================================= */
+
+.notification-list {
+  list-style: none;
+  padding: 0;
+  margin: 0;
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+}
+
+.notification-item {
+  padding: 12px;
+  border-radius: var(--amds-radius);
+  border: 1px solid var(--amds-border);
+  background-color: var(--amds-surface);
+  font-size: 0.88rem;
+}
+
+.notification-item--unread {
+  background-color: var(--amds-primary-light);
+  border-color: #fed7aa;
+}
+
+.notification-item__content {
+  display: flex;
+  align-items: center;
+}
+
+.user-avatar-tag {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--amds-text);
+}
+
+.status-indicator-dot {
+  width: 10px;
+  height: 10px;
+  border-radius: 50%;
+  background-color: var(--amds-success);
+  box-shadow: 0 0 0 3px rgba(34, 197, 94, 0.2);
+}
+
+.empty-state {
+  padding: 36px 20px;
+  text-align: center;
+  background-color: var(--amds-surface-subtle);
+  border: 1px dashed var(--amds-border-strong);
+  border-radius: var(--amds-radius-card);
+  margin: 14px 0;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+}
+
+.empty-state p {
+  margin: 0;
+  font-size: 0.88rem;
+  color: var(--amds-text-secondary);
+}
+
+/* =========================================================================
+   Màn hình Trang chủ (HomeSplash - Centered Minimalist Hero)
+   ========================================================================= */
+
+.home-hero-container {
+  min-height: calc(100vh - 56px - 60px);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 24px 16px 48px;
+}
+
+.home-hero-card {
+  width: 100%;
+  max-width: 580px;
+  margin: 0 auto;
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.home-hero-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+  flex-wrap: wrap;
+}
+
+.pulse-dot {
+  width: 6px;
+  height: 6px;
+  border-radius: 50%;
+  background-color: var(--amds-text-faint);
+  display: inline-block;
+  margin-right: 5px;
+}
+
+.pulse-dot--active {
+  background-color: var(--amds-success);
+  box-shadow: 0 0 0 2px rgba(22, 163, 74, 0.2);
+}
+
+.home-hero-brand {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  text-align: center;
+  gap: 10px;
+}
+
+.home-hero-logo {
+  width: 58px;
+  height: 58px;
+  border-radius: 14px;
+  background-color: var(--amds-primary-light);
+  color: var(--amds-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  margin-bottom: 2px;
+  border: 1px solid rgba(234, 88, 12, 0.16);
+}
+
+.home-hero-title {
+  font-size: 1.85rem;
+  font-weight: 800;
+  color: var(--amds-text);
+  letter-spacing: -0.025em;
+  margin: 0;
+  line-height: 1.25;
+}
+
+.home-hero-desc {
+  font-size: 0.92rem;
+  color: var(--amds-text-secondary);
+  line-height: 1.55;
+  margin: 0;
+  max-width: 480px;
+}
+
+.home-hero-features {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius-card);
+  padding: 14px 16px;
+  box-shadow: var(--amds-shadow-xs);
+}
+
+.home-feature-item {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  text-align: left;
+}
+
+.home-feature-icon {
+  width: 34px;
+  height: 34px;
+  border-radius: 8px;
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-primary);
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex-shrink: 0;
+  border: 1px solid var(--amds-border);
+}
+
+.home-feature-text {
+  display: flex;
+  flex-direction: column;
+  font-size: 0.85rem;
+}
+
+.home-feature-text strong {
+  color: var(--amds-text);
+  font-weight: 600;
+}
+
+.home-feature-text span {
+  color: var(--amds-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.4;
+}
+
+.home-hero-languages {
+  display: flex;
+  flex-direction: column;
+  gap: 8px;
+  text-align: left;
+}
+
+.home-section-label {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  font-size: 0.82rem;
+  font-weight: 600;
+  color: var(--amds-text);
+}
+
+.home-lang-grid {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 8px;
+}
+
+.home-lang-grid button:nth-child(5) {
+  grid-column: span 2;
+}
+
+.home-lang-btn {
+  appearance: none;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 8px 12px;
+  min-height: 44px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  cursor: pointer;
+  transition: all 0.15s ease-in-out;
+  text-align: left;
+}
+
+.home-lang-btn:hover {
+  border-color: var(--amds-border-strong);
+  background-color: var(--amds-surface-subtle);
+}
+
+.home-lang-btn--active {
+  border-color: var(--amds-primary) !important;
+  background-color: #fff7ed !important;
+  color: var(--amds-primary);
+}
+
+.home-lang-btn__left {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+}
+
+.home-lang-btn__code {
+  font-size: 0.72rem;
+  font-weight: 700;
+  letter-spacing: 0.04em;
+  padding: 2px 5px;
+  border-radius: 4px;
+  background-color: var(--amds-surface-subtle);
+  color: var(--amds-text);
+}
+
+.home-lang-btn--active .home-lang-btn__code {
+  background-color: rgba(234, 88, 12, 0.15);
+  color: var(--amds-primary);
+}
+
+.home-lang-btn__name {
+  font-size: 0.84rem;
+  font-weight: 600;
+}
+
+.home-lang-btn__check {
+  color: var(--amds-primary);
+  display: flex;
+  align-items: center;
+}
+
+.home-warmup-status {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  background-color: var(--amds-surface);
+  border: 1px solid var(--amds-border);
+  border-radius: var(--amds-radius);
+  padding: 10px 14px;
+}
+
+.home-warmup-bar {
+  width: 100%;
+  height: 5px;
+  background-color: var(--amds-surface-subtle);
+  border-radius: 9999px;
+  overflow: hidden;
+}
+
+.home-warmup-fill {
+  height: 100%;
+  background-color: var(--amds-primary);
+  border-radius: 9999px;
+  transition: width 0.3s ease;
+}
+
+.home-warmup-info {
+  display: flex;
+  justify-content: space-between;
+  font-size: 0.74rem;
+  color: var(--amds-text-secondary);
+}
+
+.home-hero-actions {
+  display: flex;
+  flex-direction: column;
+  gap: 10px;
+  width: 100%;
+}
+
+.home-secondary-nav {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 10px;
+  font-size: 0.8rem;
+  color: var(--amds-text-secondary);
+  padding-top: 4px;
+}
+
+.home-nav-link {
+  appearance: none;
+  border: none;
+  background: transparent;
+  color: var(--amds-text-secondary);
+  font: inherit;
+  font-size: 0.8rem;
+  cursor: pointer;
+  transition: color 0.15s;
+  padding: 4px 6px;
+}
+
+.home-nav-link:hover {
+  color: var(--amds-primary);
+}
+
+.home-nav-divider {
+  color: var(--amds-border-strong);
+}
+
+/* =========================================================================
+   Utility Classes & Component Helpers (Offline Native CSS)
+   ========================================================================= */
+
+.inline-flex {
+  display: inline-flex;
+}
+
+.items-center {
+  align-items: center;
+}
+
+.gap-1 {
+  gap: 4px;
+}
+
+.admin-poi-layout {
+  display: flex;
+  flex-direction: column;
+  gap: 20px;
+}
+
+.admin-form-card,
+.admin-table-card {
+  width: 100%;
+}
+
+.analytics-container {
+  width: 100%;
+  max-width: 1240px;
+  margin: 0 auto;
+}
+
+.approval-section {
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+}
+
+.approval-subtitle {
+  font-size: 0.95rem;
+  font-weight: 600;
+  color: var(--amds-text);
   margin: 0;
 }
 
-code,
-.counter {
-  font-family: var(--mono);
-  display: inline-flex;
-  border-radius: 4px;
-  color: var(--text-h);
+.brand-badge__text {
+  display: flex;
+  flex-direction: column;
+  line-height: 1.2;
 }
 
-code {
-  font-size: 15px;
-  line-height: 135%;
-  padding: 4px 8px;
-  background: var(--code-bg);
+.consent-status-text {
+  font-size: 0.85rem;
+  color: var(--amds-text-secondary);
+}
+
+.home-hero-tagline {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  margin-bottom: 12px;
+}
+
+.map-hint {
+  display: inline-flex;
+  align-items: center;
+  font-size: 0.82rem;
+  color: var(--amds-text-secondary);
+}
+
+.network-status__label {
+  font-size: 0.78rem;
+  font-weight: 500;
+  color: var(--amds-text-secondary);
+}
+
+.poi-item {
+  list-style: none;
+  margin-bottom: 8px;
+}
+
+.poi-btn {
+  width: 100%;
+  text-align: left;
+}
+
+.poi-title-cell,
+.user-approval-cell {
+  display: flex;
+  flex-direction: column;
+  gap: 2px;
+}
+
+.runtime-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
 }

@@ -69,7 +69,7 @@ Output mong đợi:
 
 | Địa chỉ | Nội dung |
 |---|---|
-| <http://localhost:5173> | trang đăng nhập dev |
+| <http://localhost:5173> | ứng dụng: tab Khám phá, Quản trị, Chủ quán, Gói offline, Cài đặt |
 
 Dừng server bằng `Ctrl+C`.
 
@@ -85,11 +85,14 @@ Sửa bất kỳ file nào trong `src/` và trình duyệt tự cập nhật —
 | `npm run build` | kiểm tra kiểu rồi build ra `dist/` | trước khi commit hoặc deploy |
 | `npm run preview` | phục vụ bản build trong `dist/` ở cổng 4173 | kiểm tra bản build |
 | `npm run lint` | chạy ESLint trên toàn bộ project | trước khi commit |
+| `npm test` | chạy Vitest (34 test logic thuần) | trước khi commit |
+| `npm run test:e2e` | chạy Playwright (4 kịch bản, tự bật backend và frontend) | khi sửa luồng chính |
 
 ### Kiểm tra trước khi commit
 
 ```powershell
 npm run lint
+npm test
 npm run build
 ```
 
@@ -97,7 +100,7 @@ npm run build
 
 ### Deploy
 
-`npm run build` tạo ra `dist/` — thư mục tĩnh, có thể đưa lên Azure Static Web Apps hoặc bất kỳ host tĩnh nào. `dist/` không được commit.
+`npm run build` tạo ra `dist/` — thư mục tĩnh kèm service worker, có thể đưa lên bất kỳ host tĩnh nào phục vụ qua HTTPS. `dist/` không được commit.
 
 ---
 
@@ -105,23 +108,38 @@ npm run build
 
 ```text
 frontend/
-├── .gitignore               # loại node_modules, dist, file log
+├── .env.example             # mẫu VITE_MAPTILER_KEY — được commit
+├── .gitignore               # loại node_modules, dist, test-results, file log
 ├── eslint.config.js         # ESLint flat config
 ├── index.html               # entrypoint HTML, khai báo <title>
 ├── package.json             # scripts + dependency
 ├── package-lock.json        # ghim phiên bản chính xác — ĐƯỢC commit
+├── playwright.config.ts     # E2E: tự bật backend + frontend, seed dữ liệu riêng
 ├── tsconfig.json            # file gốc, tham chiếu 2 file con
 ├── tsconfig.app.json        # cấu hình TS cho mã nguồn ứng dụng
 ├── tsconfig.node.json       # cấu hình TS cho mã nguồn build tool
-├── vite.config.ts           # cấu hình Vite
+├── vite.config.ts           # Vite + PWA plugin + cấu hình Vitest
+├── e2e/                     # kịch bản Playwright: khám phá, offline, chủ quán, thực địa
 └── src/
     ├── main.tsx             # điểm vào: mount React vào #root
-    ├── App.tsx              # component gốc
-    ├── App.css              # style của App
-    └── index.css            # style toàn cục
+    ├── App.tsx              # khung app, chuyển tab bằng state (không dùng router)
+    ├── startup.ts           # điều phối lúc khởi động: sẵn sàng rồi mới bật geofence
+    ├── sw.ts                # service worker (injectManifest của Workbox)
+    ├── index.css            # style toàn cục
+    ├── admin/               # giao diện admin và chủ quán
+    ├── analytics/           # consent, outbox ghi sự kiện, dịch vụ analytics
+    ├── audio/               # phát audio theo tầng, xử lý autoplay bị chặn
+    ├── components/          # MapView, LanguagePicker, ConsentBanner, OfflinePacks, Settings
+    ├── geofence/            # engine thuần, prefetch, âm thanh tự động, đọc vị trí
+    ├── i18n/                # tải bản dịch giao diện
+    ├── offline/             # IndexedDB, nhận biết mạng, đồng bộ delta
+    ├── stores/              # zustand: POI, consent
+    └── telemetry/           # kênh quan sát vị trí, tách khỏi analytics
 ```
 
 `package-lock.json` **phải** commit — đó là thứ bảo đảm mọi người cài cùng phiên bản. Xoá nó sẽ khiến mỗi máy ra một phiên bản khác nhau.
+
+File `*.test.ts` đặt cạnh code nó kiểm thử, không gom vào một thư mục riêng. Vitest chỉ quét `src/**/*.test.ts` — không quét `e2e/*.spec.ts`, vì hai runner dùng chung đuôi `.spec.ts`.
 
 ---
 
@@ -132,13 +150,16 @@ frontend/
 | React | 19.x | thư viện giao diện |
 | TypeScript | ~6.0 | kiểu tĩnh |
 | Vite | ^8.3 | dev server + bundler |
-| `@vitejs/plugin-react` | ^6.1 | hỗ trợ Fast Refresh |
-| ESLint | ^10.x | lint |
-| `typescript-eslint` | ^8.x | lint cho TypeScript |
-| `eslint-plugin-react-hooks` | ^7.x | luật cho React Hooks |
-| `eslint-plugin-react-refresh` | ^0.5 | luật cho Fast Refresh |
+| `vite-plugin-pwa` + Workbox | ^2.0 / ^7.4 | service worker, precache, chiến lược offline |
+| MapLibre GL | ^6.12 | hiển thị bản đồ vector |
+| `pmtiles` | ^4.5 | đọc gói bản đồ dạng `.pmtiles` khi offline |
+| Zustand | ^5.0 | state của POI và consent |
+| Vitest + jsdom | ^5.0 | test logic thuần |
+| Playwright | ^1.64 | test E2E trên Chromium |
+| ESLint + typescript-eslint | ^10.x / ^8.x | lint |
+| `eslint-plugin-react-hooks` / `-refresh` | ^7.x / ^0.5 | luật cho React Hooks và Fast Refresh |
 
-Chưa cài: router, state management, CSS framework, thư viện bản đồ, HTTP client. Xem [Mục 8](#8-giới-hạn-và-nợ-kỹ-thuật).
+Chưa cài: router (đang chuyển tab bằng `useState` trong `App.tsx`), CSS framework (đang dùng CSS thuần), thư viện bản đồ Leaflet. Xem [Mục 8](#8-giới-hạn-và-nợ-kỹ-thuật).
 
 ---
 
@@ -146,34 +167,36 @@ Chưa cài: router, state management, CSS framework, thư viện bản đồ, HT
 
 ### Trạng thái hiện tại
 
-Frontend **chưa** gọi backend. Ở Phase 0, `src/App.tsx` chỉ render một tiêu đề tĩnh.
+Frontend **đã** gọi backend. Không có proxy: mã nguồn gọi thẳng `http://127.0.0.1:8000`.
 
-Khi bắt đầu tích hợp, cần làm **cả hai** việc sau — nếu thiếu một, trình duyệt sẽ chặn request:
+Hai điều phải đúng cùng lúc, nếu không trình duyệt sẽ chặn request:
 
-1. **Bật CORS phía backend** — `backend/app/main.py` hiện chưa có middleware CORS.
-2. **Thêm proxy phía frontend** trong `vite.config.ts` (khuyến nghị, giúp tránh CORS):
+1. **Backend đang chạy** ở cổng `8000`.
+2. **Origin của trang nằm trong danh sách CORS** của backend. `app/main.py` hiện cho phép đúng `http://localhost:5173` và `http://127.0.0.1:5173` — đó là lý do `npm run dev` phải để cổng mặc định `5173`.
 
-```ts
-import react from '@vitejs/plugin-react'
-import { defineConfig } from 'vite'
+Địa chỉ API hiện được viết cứng ở nhiều chỗ (`src/startup.ts`, `src/offline/sync.ts`, `src/audio/playback.ts`, `src/i18n/bundles.ts`, `src/analytics/service.ts`, `src/telemetry/location.ts`, `src/admin/api.ts`, `src/components/useMapPack.ts`). Xem [Mục 8](#8-giới-hạn-và-nợ-kỹ-thuật).
 
-export default defineConfig({
-  plugins: [react()],
-  server: {
-    proxy: {
-      '/api': { target: 'http://127.0.0.1:8000', changeOrigin: true },
-    },
-  },
-})
-```
-
-Rồi gọi `/api/...` trong code thay vì ghi cứng `http://localhost:8000`.
+Cookie phiên admin được backend đặt với `SameSite=Lax`; hai origin cùng site nên vẫn gửi kèm.
 
 ### Biến môi trường
 
-Hiện **chưa** có biến `VITE_*` nào. Khi cần, tạo file `frontend/.env.local` — file này đã được `.gitignore` loại (dòng `*.local`), nên secret không bị commit.
+Chỉ có một biến: `VITE_MAPTILER_KEY`.
 
-Quy tắc của Vite: chỉ biến có tiền tố `VITE_` mới được đọc trong mã nguồn, và **giá trị đó được nhúng vào bundle gửi tới trình duyệt** — tức là ai cũng thấy. Không bao giờ đặt secret thật vào biến `VITE_`.
+```powershell
+Copy-Item .env.example .env.local
+```
+
+Để trống thì bản đồ dùng nền demo miễn phí; có key thì `MapView` dùng style cloud của MapTiler.
+
+Quy tắc của Vite: chỉ biến có tiền tố `VITE_` mới được đọc trong mã nguồn, và **giá trị đó được nhúng vào bundle gửi tới trình duyệt** — tức là ai cũng thấy. Key MapTiler vốn dĩ là công khai phía client, nên phải giới hạn theo domain ở phía MapTiler (task SEC-005). Không bao giờ đặt secret thật vào biến `VITE_`.
+
+### Chạy E2E
+
+```powershell
+npm run test:e2e
+```
+
+`playwright.config.ts` tự bật backend (`uvicorn`) và dev server, rồi `e2e/global-setup.ts` nạp dữ liệu vào database riêng `amds_e2e` bằng `backend/scripts/seed_e2e.py`. Đặt `E2E_SKIP_WEBSERVER=1` khi hai server đã chạy sẵn (CI làm vậy).
 
 ---
 
@@ -181,13 +204,14 @@ Quy tắc của Vite: chỉ biến có tiền tố `VITE_` mới được đọc
 
 | Vấn đề | Chi tiết | Nên sửa ở |
 |---|---|---|
-| Chưa có proxy sang backend | xem [Mục 7](#7-kết-nối-với-backend) | task tích hợp API đầu tiên |
-| Chưa có test | không có test runner, chưa cài Vitest | task test đầu tiên |
+| Địa chỉ API viết cứng ở 8 chỗ | đổi cổng hoặc deploy thật thì phải sửa từng file | gom vào một module cấu hình, đọc `VITE_API_BASE` |
+| Không có proxy | phụ thuộc CORS của backend đúng danh sách origin | thu hẹp/thu rộng CORS khi có domain thật (SEC-003) |
+| Không có router | 5 tab dùng `useState` trong `App.tsx` | khi cần điều hướng có URL, ví dụ gửi link sâu vào một quán |
+| CSS thuần | style nằm trong `index.css`, không có CSS framework | khi giao diện phức tạp hơn |
 | ESLint chưa bật type-aware rules | đang dùng `tseslint.configs.recommended`; bản nâng cao cần `parserOptions.project` | khi codebase lớn dần |
-| Không có prettier | format hiện do ESLint lo phần logic, style chưa thống nhất | khi nhiều người cùng code |
-| Không có path alias | đang import tương đối (`../components/...`); dự án lớn sẽ cần alias `@/` | khi cấu trúc thư mục sâu hơn |
-| Không có CI | `npm run lint` và `npm run build` phải chạy tay | khi có GitHub Actions |
-| Không có router | mới chỉ 1 trang, chưa có định tuyến | khi bắt đầu làm nhiều màn hình |
+| Không có path alias | đang import tương đối (`../components/...`) | khi cấu trúc thư mục sâu hơn |
+| Chưa có hình minh hoạ POI | `icons: []` trong manifest PWA | trước khi demo trước giám khảo |
+| E2E chỉ chạy Chromium | `playwright.config.ts` khai báo một project | khi cần kiểm trên Safari/Firefox |
 
 ---
 
@@ -291,7 +315,10 @@ Trước khi commit:
 
 ```powershell
 npm run lint
+npm test
 npm run build
 git status
 git add frontend/ && git commit
 ```
+
+Hoặc chạy một lệnh cho cả repo ở thư mục gốc: `python scripts\verify.py`.

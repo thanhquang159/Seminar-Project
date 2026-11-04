@@ -1,0 +1,53 @@
+{
+  "poi_load_all": {
+    "status": 200,
+    "n": 50,
+    "p50": 367.1,
+    "p95": 504.0,
+    "min": 177.7,
+    "max": 567.5
+  },
+  "poi_load_all_en": {
+    "status": 200,
+    "n": 50,
+    "p50": 424.4,
+    "p95": 556.3,
+    "min": 333.7,
+    "max": 609.2
+  },
+  "poi_nearby": {
+    "status": 200,
+    "n": 50,
+    "p50": 235.8,
+    "p95": 514.7,
+    "min": 209.3,
+    "max": 586.9
+  },
+  "health": {
+    "status": 200,
+    "n": 50,
+    "p50": 220.9,
+    "p95": 297.2,
+    "min": 198.3,
+    "max": 320.5
+  },
+  "i18n_bundle_vi": {
+    "status": 404,
+    "ms": 283.2256000256166
+  },
+  "openapi": {
+    "status": 200,
+    "n": 20,
+    "p50": 219.3,
+    "p95": 266.4,
+    "min": 201.2,
+    "max": 266.4
+  },
+  "load_all_etag": {
+    "full_bytes": 820,
+    "etag": "\"3-vi\"",
+    "not_modified": true,
+    "second_bytes": 0
+  },
+  "so_poi": 3
+}
