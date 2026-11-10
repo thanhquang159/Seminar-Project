@@ -1,23 +1,28 @@
-"""Route xác thực: login, me, refresh, logout, đổi mật khẩu (SEC-011)."""
+"""PostgreSQL-backed login, session management and password change routes."""
 
-from datetime import UTC, datetime
+from uuid import UUID, uuid4
 
 from fastapi import APIRouter, HTTPException, Request, Response
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.audit import ghi_audit
 from app.auth import (
     ACCESS_PHUT,
     REFRESH_NGAY,
     SO_PHIEN_MAC_DINH,
+    DbSession,
     YeuCauDangNhap,
     YeuCauRefresh,
     bam_mat_khau,
+    doc_token,
     dung_mat_khau,
     lay_user_theo_ten,
+    tao_auth_session,
     tao_token,
 )
-from app.config import la_dev
+from app.core.config import la_dev
 from app.limits import MatKhau, MatKhauDangKy
 from app.services import login_guard
 
@@ -27,14 +32,12 @@ THONG_BAO_SAI = "Sai tên đăng nhập hoặc mật khẩu"
 
 
 class DangNhap(BaseModel):
-    # SEC-001: bcrypt cắt cứng ở 72 byte, nên mật khẩu dài hơn phải bị từ chối
-    # thay vì bị cắt âm thầm (xem app/limits.py:_mat_khau_trong_gioi_han).
     username: str = Field(min_length=1, max_length=50)
     password: MatKhau
 
 
 def dat_cookie(response: Response, ten: str, token: str, tuoi_giay: int) -> None:
-    """Cookie httpOnly, JS không đọc được để chống XSS lấy phiên."""
+    """Set an httpOnly cookie with the legacy secure/same-site behavior."""
     response.set_cookie(
         ten,
         token,
@@ -46,116 +49,101 @@ def dat_cookie(response: Response, ten: str, token: str, tuoi_giay: int) -> None
     )
 
 
-@router.post("/login", summary="Đăng nhập admin")
-async def dang_nhap(body: DangNhap, request: Request, response: Response) -> dict:
-    from app.db import get_database
+def _ip(request: Request) -> str:
+    return request.client.host if request.client else "127.0.0.1"
 
-    db = get_database()
-    ip = request.client.host if request.client else "la"
-    # SEC-002: hỏi bộ đếm TRƯỚC khi băm bcrypt, để đoán sai không tốn CPU nữa.
+
+@router.post("/login", summary="Đăng nhập admin")
+async def dang_nhap(
+    body: DangNhap,
+    request: Request,
+    response: Response,
+    db: AsyncSession = DbSession,
+) -> dict:
+    ip = _ip(request)
     await login_guard.kiem_tra(db, body.username, ip)
-    user = await lay_user_theo_ten(body.username)
-    # Sai tên và sai mật khẩu trả cùng một thông báo để chống dò tài khoản.
-    dung = (
+    user = await lay_user_theo_ten(body.username, db)
+    valid_password = (
         dung_mat_khau(body.password, user["password_hash"])
         if user
         else dung_mat_khau("gia", bam_mat_khau("gia"))
     )
-    if user is None or not dung:
+    if user is None or user["account_status"] != "active" or not valid_password:
         await login_guard.ghi_nhan_that_bai(db, body.username, ip)
         raise HTTPException(status_code=401, detail=THONG_BAO_SAI)
-    await login_guard.xoa_that_bai(db, body.username, ip)
-    role = user.get("role", "admin")
-    from app.permissions import quyen_cua_role
 
-    quyen = await quyen_cua_role(get_database(), role)
-    so_phien = user.get("phi_en_ver", SO_PHIEN_MAC_DINH)
-    dat_cookie(
-        response,
-        "access_token",
-        tao_token(user["username"], role, "access", quyen, so_phien),
-        ACCESS_PHUT * 60,
-    )
-    dat_cookie(
-        response,
-        "refresh_token",
-        tao_token(user["username"], role, "refresh", quyen, so_phien),
-        REFRESH_NGAY * 86400,
-    )
-    return {"ok": True, "username": user["username"], "role": role}
+    await login_guard.xoa_that_bai(db, body.username, ip)
+    session_id = uuid4()
+    session_version = int(user.get("phi_en_ver", SO_PHIEN_MAC_DINH))
+    refresh = tao_token(user["username"], user["role"], "refresh", [], session_version, session_id)
+    access = tao_token(user["username"], user["role"], "access", [], session_version, session_id)
+    await tao_auth_session(db, user["id"], refresh, ip, session_id)
+    await db.commit()
+    dat_cookie(response, "access_token", access, ACCESS_PHUT * 60)
+    dat_cookie(response, "refresh_token", refresh, REFRESH_NGAY * 86400)
+    return {"ok": True, "username": user["username"], "role": user["role"]}
 
 
 class DoiMatKhau(BaseModel):
-    """Bắt buộc có mật khẩu cũ: chỉ cần phiên hợp lệ thì kẻ cướp token phiên
-    cũng đổi được mật khẩu, tức là chiếm tài khoản vĩnh viễn."""
-
     mat_khau_cu: MatKhau
     mat_khau_moi: MatKhauDangKy
 
 
 @router.post("/change-password", summary="Đổi mật khẩu và thu hồi mọi phiên khác")
 async def doi_mat_khau(
-    body: DoiMatKhau, request: Request, response: Response, user: dict = YeuCauDangNhap
+    body: DoiMatKhau,
+    request: Request,
+    response: Response,
+    user: dict = YeuCauDangNhap,
+    db: AsyncSession = DbSession,
 ) -> dict:
-    """Sau khi đổi, mọi token cũ chết; chỉ máy đang đổi được cấp token mới.
-
-    Vì sao không huỷ phiên của chính máy này: người dùng đang sửa mật khẩu vì
-    nghi ngờ lộ — bắt họ đăng nhập lại cũng được, nhưng thêm một bước vô ích.
-    Cookie mới gửi kèm trong cùng response nên trải nghiệm liền mạch.
-    """
-    from app.db import get_database
-
-    db = get_database()
-    doc = await lay_user_theo_ten(user["username"])
-    if doc is None:
-        raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
-    ip = request.client.host if request.client else "la"
-    # SEC-013 (A07): hỏi bộ đếm TRƯỚC khi băm, như `/admin/auth/login` đã làm.
-    await login_guard.kiem_tra(db, user["username"], ip)
-    if not dung_mat_khau(body.mat_khau_cu, doc.get("password_hash", "")):
-        # SEC-013 (A07): SEC-002 chỉ bọc `/admin/auth/login` nên route này trước
-        # đó KHÔNG đếm lần sai — 1000 lượt đoán mật khẩu cũ trong 15 phút không
-        # bị chặn. Đếm cả lần sai ở đây nữa, cùng bộ đếm với đăng nhập.
+    doc = await lay_user_theo_ten(user["username"], db)
+    if doc is None or not dung_mat_khau(body.mat_khau_cu, doc["password_hash"]):
+        ip = _ip(request)
+        await login_guard.kiem_tra(db, user["username"], ip)
         await login_guard.ghi_nhan_that_bai(db, user["username"], ip)
         raise HTTPException(status_code=401, detail="Mật khẩu cũ không đúng")
     if body.mat_khau_cu == body.mat_khau_moi:
         raise HTTPException(status_code=400, detail="Mật khẩu mới phải khác mật khẩu cũ")
 
-    ket_qua = await db["admin_users"].update_one(
-        {"username": user["username"]},
-        {
-            "$set": {
-                "password_hash": bam_mat_khau(body.mat_khau_moi),
-                "password_changed_at": datetime.now(UTC),
-            },
-            "$inc": {"phi_en_ver": 1},
-        },
-    )
-    if ket_qua.matched_count == 0:
-        raise HTTPException(status_code=401, detail="Phiên không hợp lệ")
-    so_phien = doc.get("phi_en_ver", SO_PHIEN_MAC_DINH) + 1
-
-    # Đổi mật khẩu thường đi kèm lần đăng nhập sai bị khoá tạm — dù xong thì
-    # phải mở khoá, nếu không người dùng vừa sửa xong lại bị chặn 15 phút.
-    ip = request.client.host if request.client else "la"
+    ip = _ip(request)
     await login_guard.xoa_that_bai(db, user["username"], ip)
-
+    await login_guard.kiem_tra(db, user["username"], ip)
+    await db.execute(
+        text(
+            """
+            UPDATE users
+            SET password_hash = :password_hash, updated_at = now()
+            WHERE id = CAST(:user_id AS uuid)
+            """
+        ),
+        {"password_hash": bam_mat_khau(body.mat_khau_moi), "user_id": str(doc["id"])},
+    )
+    await db.execute(
+        text(
+            """
+            UPDATE auth_sessions
+            SET revoked_at = COALESCE(revoked_at, now())
+            WHERE user_id = CAST(:user_id AS uuid) AND revoked_at IS NULL
+            """
+        ),
+        {"user_id": str(doc["id"])},
+    )
+    version = int(doc.get("phi_en_ver", SO_PHIEN_MAC_DINH))
+    session_id = uuid4()
+    refresh = tao_token(
+        user["username"], user["role"], "refresh", user["permissions"], version, session_id
+    )
+    access = tao_token(
+        user["username"], user["role"], "access", user["permissions"], version, session_id
+    )
+    await tao_auth_session(db, doc["id"], refresh, ip, session_id)
     await ghi_audit(db, user["username"], "auth:change_password", f"user:{user['username']}")
+    await db.commit()
 
-    quyen = user.get("permissions", [])
-    dat_cookie(
-        response,
-        "access_token",
-        tao_token(user["username"], user["role"], "access", quyen, so_phien),
-        ACCESS_PHUT * 60,
-    )
-    dat_cookie(
-        response,
-        "refresh_token",
-        tao_token(user["username"], user["role"], "refresh", quyen, so_phien),
-        REFRESH_NGAY * 86400,
-    )
-    return {"ok": True, "so_phien": so_phien}
+    dat_cookie(response, "access_token", access, ACCESS_PHUT * 60)
+    dat_cookie(response, "refresh_token", refresh, REFRESH_NGAY * 86400)
+    return {"ok": True, "so_phien": version + 1}
 
 
 @router.get("/me", summary="Xem phiên hiện tại")
@@ -165,25 +153,47 @@ async def xem_toi(user: dict = YeuCauDangNhap) -> dict:
 
 @router.post("/refresh", summary="Cấp access mới từ refresh cookie")
 async def lam_moi(response: Response, user: dict = YeuCauRefresh) -> dict:
-    # SEC-011: quyền lấy từ DB chứ không từ token refresh cũ — token cũ có quyền
-    # lúc nó được cấp, đã lỗi thời nếu role của tài khoản đã đổi.
-    dat_cookie(
-        response,
-        "access_token",
-        tao_token(
-            user["username"],
-            user["role"],
-            "access",
-            user.get("permissions", []),
-            user.get("phi_en_ver", SO_PHIEN_MAC_DINH),
-        ),
-        ACCESS_PHUT * 60,
+    access = tao_token(
+        user["username"],
+        user["role"],
+        "access",
+        user.get("permissions", []),
+        user.get("phi_en_ver", SO_PHIEN_MAC_DINH),
+        user["session_id"],
     )
+    dat_cookie(response, "access_token", access, ACCESS_PHUT * 60)
     return {"ok": True}
 
 
 @router.post("/logout", summary="Đăng xuất")
-async def dang_xuat(response: Response) -> dict:
+async def dang_xuat(
+    request: Request,
+    response: Response,
+    db: AsyncSession = DbSession,
+) -> dict:
+    token = request.cookies.get("access_token")
+    token_type = "access"
+    if token is None:
+        token = request.cookies.get("refresh_token")
+        token_type = "refresh"
+    if token is not None:
+        try:
+            data = doc_token(token, token_type)
+            session_id = UUID(str(data["sid"]))
+        except (HTTPException, KeyError, ValueError, TypeError):
+            pass
+        else:
+            await db.execute(
+                text(
+                    """
+                    UPDATE auth_sessions
+                    SET revoked_at = COALESCE(revoked_at, now())
+                    WHERE id = CAST(:session_id AS uuid)
+                    """
+                ),
+                {"session_id": str(session_id)},
+            )
+            await db.commit()
     response.delete_cookie("access_token", path="/")
     response.delete_cookie("refresh_token", path="/")
     return {"ok": True}

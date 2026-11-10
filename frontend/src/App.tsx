@@ -434,7 +434,7 @@ function App() {
               )}
               {!loading && error === '' && pois.length === 0 && (
                 <div className="notice notice--warn mb">
-                  Chưa có dữ liệu quán ăn. Vui lòng kiểm tra cơ sở dữ liệu MongoDB.
+                  Chưa có POI công khai trong PostgreSQL. Hãy tạo địa điểm trong Quản trị hoặc nạp dữ liệu mẫu.
                 </div>
               )}
 

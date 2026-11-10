@@ -1,4 +1,4 @@
-﻿"""Kênh quan sát vị trí runtime — TÁCH RIÊNG khỏi analytics (ANA-005).
+"""Kênh quan sát vị trí runtime — TÁCH RIÊNG khỏi analytics (ANA-005).
 
 Route công khai, không đòi consent: mục đích là chẩn đoán vận hành (GPS có
 chạy không, độ chính xác bao nhiêu) chứ không phải đo hành vi khách. Đây là
@@ -9,12 +9,13 @@ Bốn ràng buộc được kiểm soát ở đây, không tin client: origin, r
 client gửi kèm bị loại bỏ trước khi ghi.
 """
 
-from typing import Any
+from typing import Annotated, Any
 
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.db import get_database
+from app.postgres import get_db
 from app.services import runtime_observability as ro
 from app.services.presence import origin_duoc_phep
 
@@ -32,7 +33,11 @@ class LocationYeuCau(BaseModel):
 
 
 @router.post("/location", summary="Gửi mẫu vị trí, không phụ thuộc consent analytics")
-async def gui_vi_tri(body: LocationYeuCau, request: Request) -> dict:
+async def gui_vi_tri(
+    body: LocationYeuCau,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
     if not await origin_duoc_phep(request.headers.get("origin")):
         raise HTTPException(status_code=403, detail="Origin không được phép")
     # Đo payload thô trước khi parse để chặn vụ dồn dữ liệu.
@@ -42,7 +47,6 @@ async def gui_vi_tri(body: LocationYeuCau, request: Request) -> dict:
     if kich_thuoc > ro.KICH_THUOC_TOI_DA:
         raise HTTPException(status_code=413, detail="Payload vượt 16 KiB")
 
-    db = get_database()
     await ro.dam_bao_index(db)
     ip = request.client.host if request.client else "la"
     ok, cho = await ro.kiem_tra_tan_suat(db, ip, body.session_id)

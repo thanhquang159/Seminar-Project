@@ -1,0 +1,50 @@
+project:
+  scope_path: "."
+  loc: 16295
+  languages: [Python, JavaScript/TypeScript]
+  git: true
+  structure:
+    backend: "Python application and PostgreSQL migration work"
+    frontend: "JavaScript/TypeScript client application"
+    docs: "Project documentation and product requirements"
+    scripts: "Project support scripts"
+  notes: "Repository cleanup and runtime rearchitecture aligned with PRODUCT_REQUIREMENTS_DOCUMENT_PRD.md; preserve existing uncommitted PostgreSQL migration changes and user data."
+
+assessment:
+  change_type: upgrade
+  rationale: |
+    The requested work is an in-place runtime and dependency migration/cleanup:
+    PostgreSQL is already the active migration direction, and the task removes
+    obsolete MongoDB/Motor implementation where it is genuinely superseded,
+    while preserving product behavior and stable routes/contracts.
+  transformations:
+    - fromStack: "MongoDB/Motor persistence"
+      fromStackVersion: "existing versions to be confirmed by workers"
+      toStack: "PostgreSQL"
+      toStackVersion: "existing target configuration; preserve verbatim"
+    - fromStack: "MapTiler-key-dependent map rendering"
+      fromStackVersion: "current implementation to be verified"
+      toStack: "OpenFreeMap Liberty online basemap with required attribution"
+      toStackVersion: "existing local MapView.tsx change to be verified"
+  grouping_needed: false
+  deep_planning: undecided
+
+progress_sync:
+  run_id: "4b4447d3-0e17-4971-b3f1-6f6356933798"
+  grouping_mode: none
+  execution_mode: undecided
+  plan_start_time: "2026-11-10T09:17:33Z"
+  plan_completed_time: null
+  execution_start_time: null
+  execution_completed_time: null
+  validation_start_time: null
+  validation_completed_time: null
+  total_phases: null
+  completed_phases: 0
+  total_modules: 4
+  completed_modules: 0
+  total_tasks: null
+  completed_tasks: 0
+  total_commits: null
+  build_verified: false
+  test_verified: false

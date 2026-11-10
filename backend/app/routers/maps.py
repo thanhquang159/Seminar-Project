@@ -1,10 +1,13 @@
 """Tùy chọn bản đồ offline: manifest no-cache, tải tệp an toàn."""
 
-from fastapi import APIRouter, HTTPException
-from fastapi.responses import FileResponse, JSONResponse
+from typing import Annotated
 
-from app.db import get_database
+from fastapi import APIRouter, Depends, HTTPException
+from fastapi.responses import FileResponse, JSONResponse
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.limits import LangQuery
+from app.postgres import get_db
 from app.services.maps import (
     SCOPES,
     THU_MUC_MAPS,
@@ -42,8 +45,8 @@ async def tai_pack(scope: str, ten_tep: str) -> FileResponse:
 
 
 @router.get("/audio-pack", summary="Manifest gói audio theo ngôn ngữ")
-async def audio_pack(lang: LangQuery = "vi") -> dict:
-    return await manifest_audio_pack(get_database(), lang)
+async def audio_pack(db: Annotated[AsyncSession, Depends(get_db)], lang: LangQuery = "vi") -> dict:
+    return await manifest_audio_pack(db, lang)
 
 
 @router.get("/thu-muc", summary="Kiểm tra thư mục maps")

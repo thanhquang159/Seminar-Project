@@ -22,9 +22,9 @@ phải bản mẫu chung trên mạng):
 - `script-src 'self'` — Vite xuất bundle tĩnh, không có script inline.
 - `worker-src blob:` — MapLibre nạp tile qua Web Worker.
 - `style-src 'self' 'unsafe-inline'` — React đặt style cục bộ (geofence).
-- `img-src 'self' data: blob: https://*.maptiler.com` — tile bản đồ.
+- `img-src` — ảnh tile MapTiler hoặc OpenFreeMap.
 - `connect-src` — API + style bản đồ cloud; danh sách suy ra từ
-  `settings.cors_origins` để không trở thành chỗ cấu hình trôi lệch nhau lần
+  `settings.CORS_ORIGINS` để không trở thành chỗ cấu hình trôi lệch nhau lần
   thứ ba (lần trước là analytics, lần trước nữa là CORS).
 """
 
@@ -49,8 +49,8 @@ class HeaderBaoMat:
                 # React đặt style cục bộ (vòng tròn, thanh tiến trình) — không
                 # có cách nào tránh inline style trong JSX.
                 "style-src 'self' 'unsafe-inline'",
-                "img-src 'self' data: blob: https://*.maptiler.com",
-                f"connect-src {self.connect_src} https://*.maptiler.com https://demotiles.maplibre.org",
+                "img-src 'self' data: blob: https://*.maptiler.com https://tiles.openfreemap.org",
+                f"connect-src {self.connect_src} https://*.maptiler.com https://demotiles.maplibre.org https://tiles.openfreemap.org",
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
@@ -88,6 +88,6 @@ class HeaderBaoMat:
 
 
 def _la_dev() -> bool:
-    from app.config import la_dev
+    from app.core.config import la_dev
 
     return la_dev()

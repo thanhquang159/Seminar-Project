@@ -1,32 +1,28 @@
-"""Phiên bản dataset cho delta sync: mọi ghi POI đều chạm phiên bản."""
+"""Cursor đồng bộ POI được cấp phát trong transaction PostgreSQL."""
 
-from datetime import UTC, datetime
-
-
-async def lay_phien_ban(db) -> int:
-    """Token phiên bản hiện tại, chưa có thì 0."""
-    doc = await db["meta"].find_one({"_id": "dataset"})
-    return int(doc.get("version", 0)) if doc else 0
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 
-async def cham_dataset(db) -> int:
-    """Tăng phiên bản sau mỗi thêm/sửa/xóa POI, trả số mới."""
-    doc = await db["meta"].find_one_and_update(
-        {"_id": "dataset"},
-        {"$inc": {"version": 1}, "$set": {"updated_at": datetime.now(UTC)}},
-        upsert=True,
-        return_document=True,
+async def lay_phien_ban(db: AsyncSession) -> int:
+    """Đọc cursor bền vững, đơn điệu từ bảng trạng thái đồng bộ."""
+    result = await db.execute(
+        text(
+            """
+            SELECT last_cursor
+            FROM poi_sync_state
+            WHERE singleton IS TRUE
+            """
+        )
     )
-    return int(doc["version"])
+    return int(result.scalar_one())
+
+
+async def cham_dataset(db: AsyncSession) -> int:
+    """Trả cursor sau khi trigger ghi nhận thay đổi POI trong transaction."""
+    return await lay_phien_ban(db)
 
 
 def etag_cho(version: int, lang: str) -> str:
-    """Dấu vân tay dữ liệu theo phiên bản và ngôn ngữ."""
+    """Dấu vân tay dữ liệu theo cursor và ngôn ngữ."""
     return f'"{version}-{lang}"'
-
-
-async def ghi_mo_xoa(db, poi_id, version: int) -> None:
-    """Tombstone để delta báo máy khách xóa POI đã lưu."""
-    await db["deleted_pois"].insert_one(
-        {"poi_id": poi_id, "version": version, "at": datetime.now(UTC)}
-    )

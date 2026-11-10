@@ -1,28 +1,37 @@
-"""Quản lý tác vụ sinh audio: tối đa 3 song song, bền trong Mongo, SSE, phục hồi."""
+"""Quản lý tác vụ sinh audio bằng bảng PostgreSQL ``audio_tasks``."""
 
 import asyncio
 import uuid
-from datetime import UTC, datetime
+from datetime import UTC, datetime, timedelta
+from uuid import UUID
+
+from sqlalchemy import text
+
+from app.postgres import AsyncSessionLocal
+
+_API_STATUS = {
+    "queued": "queued",
+    "processing": "running",
+    "completed": "done",
+    "failed": "error",
+    "paused": "paused",
+    "cancelled": "canceled",
+}
+_DB_STATUS = {value: key for key, value in _API_STATUS.items()}
 
 
 class QuanLyTasks:
-    """Hàng đợi trong tiến trình + snapshot Mongo để restart không mất."""
+    """Hàng đợi trong tiến trình, trạng thái bền trong PostgreSQL, SSE, phục hồi."""
 
     def __init__(self, toi_da: int = 3) -> None:
         self.toi_da = toi_da
         self._sem: asyncio.Semaphore | None = None
         self._sem_loop: asyncio.AbstractEventLoop | None = None
-        self.db = None
+        self.db = AsyncSessionLocal
         self.nguoi_nghe: set[asyncio.Queue] = set()
 
     def _lay_sem(self) -> asyncio.Semaphore:
-        """Semaphore gắn với event loop đang chạy, dựng lại khi loop đổi.
-
-        `asyncio.Semaphore` khóa vào loop đã tạo nó. Tạo ở `__init__` thì loop
-        đầu tiên chiếm mãi semaphore, và mọi loop sau sẽ ném
-        `bound to a different event loop` — app còn chạy được nhưng test suite
-        thì hỏng, vì mỗi TestClient là một loop mới.
-        """
+        """Semaphore thuộc event loop đang chạy và được dựng lại nếu loop đổi."""
         loop = asyncio.get_running_loop()
         if self._sem is None or self._sem_loop is not loop:
             self._sem = asyncio.Semaphore(self.toi_da)
@@ -30,86 +39,206 @@ class QuanLyTasks:
         return self._sem
 
     def gan_db(self, db) -> None:
-        self.db = db
+        """Thiết lập session factory; database handle cũ không được giữ lại."""
+        if callable(db):
+            self.db = db
 
-    async def dam_bao_index(self) -> None:
-        await self.db["audio_tasks"].create_index("updated_at", expireAfterSeconds=14 * 86400)
+    @staticmethod
+    def _uuid(task_id: str) -> UUID | None:
+        try:
+            return UUID(str(task_id))
+        except (ValueError, AttributeError):
+            return None
 
     async def xep_viec(self, poi_id: str, lang: str) -> str:
-        task_id = uuid.uuid4().hex
-        await self.db["audio_tasks"].insert_one(
-            {
-                "task_id": task_id,
-                "poi_id": poi_id,
-                "lang": lang,
-                "status": "queued",
-                "progress": 0,
-                "updated_at": datetime.now(UTC),
-            }
-        )
+        poi_uuid = UUID(str(poi_id))
+        task_uuid = uuid.uuid4()
+        async with self.db() as session:
+            localization = await session.execute(
+                text(
+                    """
+                    SELECT id
+                    FROM poi_localizations
+                    WHERE poi_id = :poi_id AND language_code = :lang
+                    """
+                ),
+                {"poi_id": poi_uuid, "lang": lang},
+            )
+            localization_id = localization.scalar_one_or_none()
+            if localization_id is None:
+                raise LookupError(f"Không có bản dịch '{lang}' cho POI {poi_id}")
+            await session.execute(
+                text(
+                    """
+                    INSERT INTO audio_tasks
+                        (id, poi_id, localization_id, language_code, task_status,
+                         progress_percent, created_at, updated_at)
+                    VALUES
+                        (:id, :poi_id, :localization_id, :lang, 'queued', 0, now(), now())
+                    """
+                ),
+                {
+                    "id": task_uuid,
+                    "poi_id": poi_uuid,
+                    "localization_id": localization_id,
+                    "lang": lang,
+                },
+            )
+            await session.commit()
+        task_id = task_uuid.hex
         asyncio.create_task(self._chay(task_id))
         return task_id
 
+    async def _doc(self, task_id: str) -> dict:
+        task_uuid = self._uuid(task_id)
+        if task_uuid is None:
+            return {}
+        async with self.db() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT id::text AS task_id,
+                           poi_id::text AS poi_id,
+                           language_code AS lang,
+                           task_status,
+                           progress_percent AS progress,
+                           error_message AS loi,
+                           updated_at
+                    FROM audio_tasks
+                    WHERE id = :task_id
+                    """
+                ),
+                {"task_id": task_uuid},
+            )
+            row = result.mappings().first()
+        if row is None:
+            return {}
+        doc = dict(row)
+        doc["status"] = _API_STATUS[doc.pop("task_status")]
+        return doc
+
+    async def _noi_dung(self, task_id: str) -> dict | None:
+        task_uuid = self._uuid(task_id)
+        if task_uuid is None:
+            return None
+        async with self.db() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT t.poi_id::text AS poi_id,
+                           t.language_code AS lang,
+                           l.localized_name AS name,
+                           l.localized_description AS description
+                    FROM audio_tasks AS t
+                    JOIN poi_localizations AS l ON l.id = t.localization_id
+                    WHERE t.id = :task_id
+                    """
+                ),
+                {"task_id": task_uuid},
+            )
+            row = result.mappings().first()
+        return dict(row) if row is not None else None
+
     async def _chay(self, task_id: str) -> None:
         async with self._lay_sem():
-            await self._doi_trang_thai(task_id, "running", 10)
-            doc = await self.db["audio_tasks"].find_one({"task_id": task_id})
+            doc = await self._doc(task_id)
             if not doc:
                 return
-            from bson import ObjectId
-
-            from app.services.audio_svc import hoan_tat_audio, tao_mp3_cached
-
+            await self._doi_trang_thai(task_id, "running", 10)
             try:
                 while (await self._doc(task_id)).get("status") == "paused":
                     await self._cham(task_id)
                     await asyncio.sleep(1)
                 if (await self._doc(task_id)).get("status") == "canceled":
                     return
-                poi_id = ObjectId(doc["poi_id"])
-                ban_dich = await self.db["poi_localizations"].find_one(
-                    {"poi_id": poi_id, "lang": doc["lang"]}
-                )
-                if not ban_dich:
-                    # Không còn dịch máy (SEC-010): task hỏng vì thiếu bản dịch
-                    # thì báo rõ, để admin nhập tay rồi kích hoạt lại. Im lặng
-                    # tự dịch sẽ sinh ra audio sai ngôn ngữ.
-                    raise RuntimeError(
-                        f"POI {doc['poi_id']} chưa có bản dịch '{doc['lang']}' — cần nhập tay trước"
-                    )
-                await self._doi_trang_thai(task_id, "running", 50)
-                tep, _hit = await tao_mp3_cached(ban_dich["description"] or ban_dich["name"], doc["lang"])
-                from app.services.audio_svc import duong_audio_url
 
-                url = duong_audio_url(tep.name, doc["lang"])
-                await hoan_tat_audio(self.db, poi_id, doc["lang"], url)
+                content = await self._noi_dung(task_id)
+                if not content:
+                    raise RuntimeError("Không tìm thấy bản dịch cho tác vụ audio")
+                text_to_speak = content.get("description") or content.get("name") or ""
+                if not text_to_speak.strip():
+                    raise RuntimeError("Bản dịch không có nội dung để tạo audio")
+
+                from app.services.audio_svc import (
+                    duong_audio_url,
+                    hoan_tat_audio,
+                    tao_mp3_cached,
+                )
+
+                await self._doi_trang_thai(task_id, "running", 50)
+                tep, _hit = await tao_mp3_cached(text_to_speak, content["lang"])
+                url = duong_audio_url(tep.name, content["lang"])
+                async with self.db() as session:
+                    await hoan_tat_audio(session, UUID(content["poi_id"]), content["lang"], url)
                 await self._doi_trang_thai(task_id, "done", 100)
             except Exception as exc:
-                await self.db["audio_tasks"].update_one(
-                    {"task_id": task_id},
-                    {"$set": {"status": "error", "loi": str(exc)[:300], "updated_at": datetime.now(UTC)}},
-                )
+                task_uuid = self._uuid(task_id)
+                if task_uuid is not None:
+                    async with self.db() as session:
+                        await session.execute(
+                            text(
+                                """
+                                UPDATE audio_tasks
+                                SET task_status = 'failed',
+                                    error_message = :error,
+                                    updated_at = now(),
+                                    completed_at = now()
+                                WHERE id = :task_id
+                                """
+                            ),
+                            {"task_id": task_uuid, "error": str(exc)[:300]},
+                        )
+                        await session.commit()
                 await self._dang("error", task_id)
 
-    async def _doc(self, task_id: str) -> dict:
-        return await self.db["audio_tasks"].find_one({"task_id": task_id}) or {}
-
     async def _cham(self, task_id: str) -> None:
-        await self.db["audio_tasks"].update_one(
-            {"task_id": task_id}, {"$set": {"updated_at": datetime.now(UTC)}}
-        )
+        task_uuid = self._uuid(task_id)
+        if task_uuid is None:
+            return
+        async with self.db() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE audio_tasks
+                    SET heartbeat_at = now(), updated_at = now()
+                    WHERE id = :task_id
+                    """
+                ),
+                {"task_id": task_uuid},
+            )
+            await session.commit()
 
     async def _doi_trang_thai(self, task_id: str, status: str, progress: int) -> None:
-        await self.db["audio_tasks"].update_one(
-            {"task_id": task_id},
-            {"$set": {"status": status, "progress": progress, "updated_at": datetime.now(UTC)}},
-        )
+        task_uuid = self._uuid(task_id)
+        db_status = _DB_STATUS.get(status)
+        if task_uuid is None or db_status is None:
+            return
+        async with self.db() as session:
+            await session.execute(
+                text(
+                    """
+                    UPDATE audio_tasks
+                    SET task_status = :status,
+                        progress_percent = :progress,
+                        heartbeat_at = CASE WHEN :status = 'processing'
+                                            THEN now() ELSE heartbeat_at END,
+                        started_at = CASE WHEN :status = 'processing'
+                                          THEN COALESCE(started_at, now()) ELSE started_at END,
+                        completed_at = CASE WHEN :status IN ('completed', 'failed', 'cancelled')
+                                            THEN now() ELSE completed_at END,
+                        updated_at = now()
+                    WHERE id = :task_id
+                    """
+                ),
+                {"task_id": task_uuid, "status": db_status, "progress": progress},
+            )
+            await session.commit()
         await self._dang(status, task_id)
 
     async def _dang(self, status: str, task_id: str) -> None:
-        for q in list(self.nguoi_nghe):
+        for queue in list(self.nguoi_nghe):
             try:
-                q.put_nowait({"task_id": task_id, "status": status})
+                queue.put_nowait({"task_id": task_id, "status": status})
             except asyncio.QueueFull:
                 pass
 
@@ -117,26 +246,37 @@ class QuanLyTasks:
         doc = await self._doc(task_id)
         if not doc:
             return False
-        if lenh == "pause" and doc["status"] in ("queued", "running"):
+        status = doc["status"]
+        if lenh == "pause" and status in ("queued", "running"):
             await self._doi_trang_thai(task_id, "paused", doc.get("progress", 0))
-        elif lenh == "resume" and doc["status"] == "paused":
+        elif lenh == "resume" and status == "paused":
             await self._doi_trang_thai(task_id, "queued", doc.get("progress", 0))
             asyncio.create_task(self._chay(task_id))
-        elif lenh == "cancel":
+        elif lenh == "cancel" and status not in ("done", "error", "canceled"):
             await self._doi_trang_thai(task_id, "canceled", doc.get("progress", 0))
         return True
 
     async def khoi_phuc(self) -> int:
-        """Restart thì xếp lại việc treo quá 5 phút, coi như retryable."""
-        nguong = datetime.now(UTC).timestamp() - 5 * 60
-        dem = 0
-        async for doc in self.db["audio_tasks"].find({"status": {"$in": ["running", "paused", "queued"]}}):
-            ts = doc.get("updated_at")
-            if ts and ts.timestamp() < nguong:
-                await self._doi_trang_thai(doc["task_id"], "queued", 0)
-                asyncio.create_task(self._chay(doc["task_id"]))
-                dem += 1
-        return dem
+        """Phục hồi tác vụ chưa terminal nếu nhịp cuối đã cũ hơn năm phút."""
+        threshold = datetime.now(UTC) - timedelta(minutes=5)
+        async with self.db() as session:
+            result = await session.execute(
+                text(
+                    """
+                    SELECT id::text AS task_id
+                    FROM audio_tasks
+                    WHERE task_status IN ('running', 'paused', 'queued')
+                      AND COALESCE(heartbeat_at, updated_at, created_at) < :threshold
+                    ORDER BY created_at
+                    """
+                ),
+                {"threshold": threshold},
+            )
+            task_ids = [row["task_id"] for row in result.mappings().all()]
+        for task_id in task_ids:
+            await self._doi_trang_thai(task_id, "queued", 0)
+            asyncio.create_task(self._chay(task_id))
+        return len(task_ids)
 
 
 quan_ly_tasks = QuanLyTasks()

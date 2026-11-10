@@ -196,7 +196,7 @@ Quy tắc của Vite: chỉ biến có tiền tố `VITE_` mới được đọc
 npm run test:e2e
 ```
 
-`playwright.config.ts` tự bật backend (`uvicorn`) và dev server, rồi `e2e/global-setup.ts` nạp dữ liệu vào database riêng `amds_e2e` bằng `backend/scripts/seed_e2e.py`. Đặt `E2E_SKIP_WEBSERVER=1` khi hai server đã chạy sẵn (CI làm vậy).
+`playwright.config.ts` tự bật backend (`uvicorn`) và dev server, rồi `e2e/global-setup.ts` nạp dữ liệu vào PostgreSQL database riêng `quan4_culinary_tourism_e2e` bằng `backend/scripts/seed_e2e.py`. Database này phải được tạo và provision schema/role `ADMIN` trước. Có thể chọn tên khác qua `E2E_DB_NAME`; seed script chỉ chạy với tên kết thúc bằng `_e2e` và xóa dữ liệu trong database đó. Đặt `E2E_SKIP_WEBSERVER=1` khi hai server đã chạy sẵn (CI làm vậy).
 
 ---
 

@@ -1,22 +1,29 @@
-"""Seed 4 role mặc định, chạy lại không nhân đôi."""
+"""Xác nhận các role nghiệp vụ đã được provision trong PostgreSQL."""
 
 import asyncio
 import sys
 from pathlib import Path
 
+from sqlalchemy import text
+
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
-from motor.motor_asyncio import AsyncIOMotorClient
-
-from app.config import settings
-from app.permissions import dam_bao_roles
+from app.postgres import AsyncSessionLocal, close_db
 
 
 async def main() -> None:
-    client = AsyncIOMotorClient(settings.mongodb_uri, serverSelectionTimeoutMS=5000)
-    await dam_bao_roles(client[settings.mongodb_db_name])
-    print("Seed roles xong: super_admin, admin, poi_owner, user.")
-    client.close()
+    try:
+        async with AsyncSessionLocal() as db:
+            result = await db.execute(
+                text("SELECT upper(code) FROM roles WHERE upper(code) IN ('ADMIN', 'OWNER')")
+            )
+            roles = set(result.scalars().all())
+        missing = {"ADMIN", "OWNER"} - roles
+        if missing:
+            raise RuntimeError("PostgreSQL chưa provision role: " + ", ".join(sorted(missing)))
+        print("Verified PostgreSQL roles ADMIN and OWNER; schema unchanged.")
+    finally:
+        await close_db()
 
 
 if __name__ == "__main__":

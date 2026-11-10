@@ -5,6 +5,8 @@ from pathlib import Path
 from urllib.parse import unquote
 
 from fastapi import HTTPException
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 THU_MUC_MAPS = Path(__file__).resolve().parents[2] / "static" / "maps"
 
@@ -43,18 +45,35 @@ def manifest_scope(scope: str) -> dict:
                     "bytes": tep.stat().st_size,
                 }
             )
-    fingerprint = hashlib.sha256(str([(t["file"], t["sha256"]) for t in tep_list]).encode()).hexdigest()
+    fingerprint = hashlib.sha256(
+        str([(t["file"], t["sha256"]) for t in tep_list]).encode()
+    ).hexdigest()
     return {"scope": scope, "files": tep_list, "fingerprint": fingerprint}
 
 
-async def manifest_audio_pack(db, lang: str) -> dict:
-    """Manifest gói audio theo ngôn ngữ từ audio_url local đã có."""
-    ds = []
-    async for ban in db["poi_localizations"].find({"lang": lang, "audio_url": {"$ne": None}}):
-        url = str(ban["audio_url"]).split("?")[0]
-        if not url.startswith("/static/audio/"):
-            continue
-        tep = THU_MUC_MAPS.parent / "audio" / Path(url).name
-        if tep.is_file():
-            ds.append({"url": url, "sha256": sha256_tep(tep), "bytes": tep.stat().st_size})
-    return {"lang": lang, "files": ds}
+async def manifest_audio_pack(db: AsyncSession, lang: str) -> dict:
+    """Manifest các audio asset thuộc pack đã publish trong PostgreSQL."""
+    result = await db.execute(
+        text(
+            """
+            SELECT a.storage_key AS url,
+                   rtrim(a.checksum_sha256::text) AS sha256,
+                   a.size_bytes AS bytes
+            FROM offline_pack_assets AS a
+            JOIN offline_packs AS p ON p.id = a.offline_pack_id
+            WHERE a.asset_type = 'audio'
+              AND (
+                  a.language_code = :lang
+                  OR (
+                      a.language_code IS NULL
+                      AND (p.language_code IS NULL OR p.language_code = :lang)
+                  )
+              )
+              AND p.status = 'published'
+              AND (p.language_code IS NULL OR p.language_code = :lang)
+            ORDER BY p.pack_code, a.storage_key
+            """
+        ),
+        {"lang": lang},
+    )
+    return {"lang": lang, "files": [dict(row) for row in result.mappings().all()]}

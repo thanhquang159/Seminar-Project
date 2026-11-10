@@ -10,6 +10,7 @@ const channel = process.env.PW_CHANNEL
 // Đường dẫn python trong venv khác nhau giữa Windows và Linux.
 const pythonBackend =
   process.platform === 'win32' ? '.venv\\Scripts\\python.exe' : '.venv/bin/python'
+const e2eDatabase = process.env.E2E_DB_NAME ?? 'quan4_culinary_tourism_e2e'
 
 export default defineConfig({
   testDir: './e2e',
@@ -37,11 +38,11 @@ export default defineConfig({
       // DB riêng cho E2E để không đụng dữ liệu dev (app, admin).
       command: `${pythonBackend} -m uvicorn app.main:app --port 8000`,
       cwd: '../backend',
-      url: 'http://127.0.0.1:8000/health',
+      url: 'http://127.0.0.1:8000/api/v1/health/database',
       reuseExistingServer: !process.env.CI,
       timeout: 60_000,
       env: {
-        MONGODB_DB_NAME: 'amds_e2e',
+        DB_NAME: e2eDatabase,
         // Không có key thì `ma_hoa_pii` trả None và POST /owner/register trả
         // 500 "Chưa cấu hình mã hóa PII" → luồng chủ quán không test được.
         // Đây là key tạm cho test, không phải bí mật thật.

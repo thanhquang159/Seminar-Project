@@ -1,32 +1,12 @@
-"""SEC-002: chặn đoán mật khẩu ở `POST /admin/auth/login`.
+"""Persistent login throttling backed by the existing PostgreSQL audit log."""
 
-Mật khẩu admin được băm bằng bcrypt nên khó bị đoán mù, nhưng "khó bằng CPU"
-không phải là hạn chế truy cập: kẻ tấn công chỉ cần chạy nhiều tiến trình song
-song là có vô hạn lượt đoán. Ở đây ta chặn theo **hai chiều** cùng lúc:
-
-- theo **tài khoản** (`ten:<username>`): đoán trúng một tài khoản nào đó;
-- theo **IP** (`ip:<ip>`): quét nhiều tài khoản, hoặc xoay nhiều IP để đẩy lượt
-  đoán lên một tài khoản.
-
-Chỉ lần **thất bại** mới được tính, và đăng nhập đúng sẽ xoá sạch bộ đếm —
-nếu tính cả lần thành công thì người dùng thật đăng nhập hằng ngày sẽ bị
-khoá oan, mà khoá oan admin lúc cần gấp còn tệ hơn là chậm vài giây.
-
-Cả hai bộ đếm dùng chung collection `rate_limits` (đã có chỉ mục TTL) nên không
-thêm schema, không thêm bảng dọn dẹp: hết cửa sổ thì chính Mongo xoá. Khoá là
-**tạm thời**, không có trạng thái "đã khoá" lưu vĩnh viễn — đó là đánh đổi có
-ý thức: khoá theo tài khoản tiết kiệm CPU cho server nhưng lợi dụng được để
-DoS admin (đẩy admin ra khỏi hệ thống 15 phút bằng 5 lần gõ sai). Cửa sổ 15
-phút ngắn và đăng nhập đúng sẽ xoá bộ đếm nên hậu quả bị giới hạn; nếu sau này
-cần chịu đựng nhiều hơn thì phải thêm bằng chứng (sự cố thật), không thêm suy
-đoán.
-"""
-
+import json
+import math
 from datetime import UTC, datetime, timedelta
 
 from fastapi import HTTPException
-
-from app.services.ratelimit import cho_phep
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 DUONG_DAN = "/admin/auth/login"
 CUA_SO_PHUT = 15
@@ -39,39 +19,107 @@ TIEN_TO_IP = "ip:"
 
 
 def moc_cu_thoi_diem(phut: int) -> datetime:
-    """Mốc thời gian lùi `phut` phút — dùng cho cửa sổ trượt và cho test."""
+    """Return a UTC cutoff; retained for callers/tests of the former helper."""
     return datetime.now(UTC) - timedelta(minutes=phut)
 
 
-async def _con(db, khoa: str, gioi_han: int) -> tuple[bool, int]:
-    """Hỏi bộ đếm mà KHÔNG ghi nhận lượt này."""
-    return await cho_phep(db, khoa, DUONG_DAN, gioi_han, CUA_SO_PHUT, ghi_nhan=False)
+def _dimension(khoa: str) -> tuple[str, dict[str, str]]:
+    if khoa.startswith(TIEN_TO_TEN):
+        return "username", {"username": khoa[len(TIEN_TO_TEN) :].casefold()}
+    if khoa.startswith(TIEN_TO_IP):
+        return "ip", {"ip": khoa[len(TIEN_TO_IP) :]}
+    raise ValueError("Unsupported login throttle key")
 
 
-async def kiem_tra(db, username: str, ip: str) -> None:
-    """Chặn trước khi băm mật khẩu: đã khoá thì trả 429, không tốn CPU.
+def _predicate(kind: str) -> str:
+    if kind == "username":
+        return "lower(after_data ->> 'username') = lower(:username)"
+    return "ip_address = CAST(:ip AS inet)"
 
-    Thông báo không nhắc tên đăng nhập, nên kẻ dò tài khoản không biết tài
-    khoản nào đang bị khoá.
-    """
-    ok_ten, cho_ten = await _con(db, TIEN_TO_TEN + username, SAI_TOI_DA_TAI_KHOAN)
-    ok_ip, cho_ip = await _con(db, TIEN_TO_IP + ip, SAI_TOI_DA_MOT_IP)
-    if not (ok_ten and ok_ip):
+
+async def _con(db: AsyncSession, khoa: str, gioi_han: int) -> tuple[bool, int]:
+    """Count recent failed-login events since the most recent success marker."""
+    kind, values = _dimension(khoa)
+    predicate = _predicate(kind)
+    result = await db.execute(
+        text(
+            f"""
+            SELECT COUNT(*) AS attempts, MIN(failed.created_at) AS oldest
+            FROM audit_logs AS failed
+            WHERE failed.action = 'auth:login_failed'
+              AND failed.created_at >= now() - make_interval(mins => :window_minutes)
+              AND {predicate.replace("after_data", "failed.after_data").replace("ip_address", "failed.ip_address")}
+              AND failed.created_at > COALESCE(
+                    (
+                        SELECT MAX(succeeded.created_at)
+                        FROM audit_logs AS succeeded
+                        WHERE succeeded.action = 'auth:login_succeeded'
+                          AND {predicate.replace("after_data", "succeeded.after_data").replace("ip_address", "succeeded.ip_address")}
+                    ),
+                    '-infinity'::timestamptz
+              )
+            """
+        ),
+        {**values, "window_minutes": CUA_SO_PHUT},
+    )
+    row = result.mappings().one()
+    attempts = int(row["attempts"])
+    oldest = row["oldest"]
+    if attempts < gioi_han:
+        return True, 0
+    if oldest is None:
+        return False, CUA_SO_PHUT * 60
+    if oldest.tzinfo is None:
+        oldest = oldest.replace(tzinfo=UTC)
+    wait_seconds = math.ceil(
+        (oldest + timedelta(minutes=CUA_SO_PHUT) - datetime.now(UTC)).total_seconds()
+    )
+    return False, max(1, wait_seconds)
+
+
+async def kiem_tra(db: AsyncSession, username: str, ip: str) -> None:
+    """Block before bcrypt when either the username or address reached its limit."""
+    ok_name, wait_name = await _con(db, TIEN_TO_TEN + username, SAI_TOI_DA_TAI_KHOAN)
+    ok_ip, wait_ip = await _con(db, TIEN_TO_IP + ip, SAI_TOI_DA_MOT_IP)
+    if not (ok_name and ok_ip):
         raise HTTPException(
             status_code=429,
             detail=THONG_BAO_KHOA,
-            headers={"Retry-After": str(max(cho_ten, cho_ip))},
+            headers={"Retry-After": str(max(wait_name, wait_ip))},
         )
 
 
-async def ghi_nhan_that_bai(db, username: str, ip: str) -> None:
-    """Ghi một lần đoán sai vào cả hai bộ đếm."""
-    await cho_phep(db, TIEN_TO_TEN + username, DUONG_DAN, SAI_TOI_DA_TAI_KHOAN, CUA_SO_PHUT)
-    await cho_phep(db, TIEN_TO_IP + ip, DUONG_DAN, SAI_TOI_DA_MOT_IP, CUA_SO_PHUT)
-
-
-async def xoa_that_bai(db, username: str, ip: str) -> None:
-    """Đăng nhập đúng: xoá lịch sử sai của tài khoản đó (và của IP này)."""
-    await db["rate_limits"].delete_many(
-        {"duong_dan": DUONG_DAN, "khoa": {"$in": [TIEN_TO_TEN + username, TIEN_TO_IP + ip]}}
+async def _ghi_su_kien(db: AsyncSession, action: str, username: str, ip: str) -> None:
+    await db.execute(
+        text(
+            """
+            INSERT INTO audit_logs
+                (actor_user_id, action, resource_type, ip_address, after_data)
+            VALUES (
+                (SELECT id FROM users WHERE lower(email) = lower(:username) LIMIT 1),
+                :action,
+                'auth_user',
+                CAST(:ip AS inet),
+                CAST(:after_data AS jsonb)
+            )
+            """
+        ),
+        {
+            "action": action,
+            "username": username,
+            "ip": ip,
+            "after_data": json.dumps({"username": username.casefold()}),
+        },
     )
+
+
+async def ghi_nhan_that_bai(db: AsyncSession, username: str, ip: str) -> None:
+    """Append one failed-attempt audit event and commit it before login returns 401."""
+    await _ghi_su_kien(db, "auth:login_failed", username, ip)
+    await db.commit()
+
+
+async def xoa_that_bai(db: AsyncSession, username: str, ip: str) -> None:
+    """Append a success marker that resets both sliding-window counters."""
+    await _ghi_su_kien(db, "auth:login_succeeded", username, ip)
+    await db.commit()

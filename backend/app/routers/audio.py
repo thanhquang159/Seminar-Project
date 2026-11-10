@@ -1,16 +1,18 @@
 """API audio: TTS stream, on-demand dịch+TTS, tác vụ nền + SSE."""
 
 import asyncio
+from typing import Annotated
+from uuid import UUID
 
-from bson import ObjectId
-from bson.errors import InvalidId
-from fastapi import APIRouter, HTTPException, Request
+from fastapi import APIRouter, Depends, HTTPException, Request
 from fastapi.responses import Response, StreamingResponse
 from pydantic import BaseModel, Field
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.auth import YeuCauDangNhap
-from app.db import get_database
 from app.limits import MAX_TEXT_TTS, LangField
+from app.postgres import get_db
 from app.services.audio_svc import (
     NGON_NGU_AUDIO,
     THU_MUC_AUDIO,
@@ -18,7 +20,6 @@ from app.services.audio_svc import (
     hoan_tat_audio,
     tao_mp3_cached,
 )
-from app.services.localization import dam_bao_index
 from app.services.ratelimit import khoa_cho, kiem_tra
 from app.services.tasks import quan_ly_tasks
 
@@ -33,15 +34,20 @@ class TtsYeuCau(BaseModel):
 
 
 class OnDemandYeuCau(BaseModel):
-    # Xem `localizations.DichYeuCau`: độ dài có chặn, hình dạng id để `ObjectId()`
+    # Xem `localizations.DichYeuCau`: độ dài có chặn, hình dạng id để `UUID()`
     # lo, để mã 400 cũ của route giữ nguyên.
     poi_id: str = Field(min_length=1, max_length=64)
     lang: LangField
 
 
 @router.post("/tts", summary="Văn bản thành MP3 stream (Tier 2)")
-async def tts(body: TtsYeuCau, request: Request, user: dict = YeuCauDangNhap) -> Response:
-    await kiem_tra(get_database(), khoa_cho(request, user), "/audio/tts")
+async def tts(
+    body: TtsYeuCau,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = YeuCauDangNhap,
+) -> Response:
+    await kiem_tra(db, khoa_cho(request, user), "/audio/tts")
     try:
         tep, hit = await tao_mp3_cached(body.text, body.lang)
     except RuntimeError as exc:
@@ -54,15 +60,35 @@ async def tts(body: TtsYeuCau, request: Request, user: dict = YeuCauDangNhap) ->
 
 
 @router.post("/on-demand", summary="TTS cho POI đã có bản dịch (Tier 1.5)")
-async def on_demand(body: OnDemandYeuCau, request: Request, user: dict = YeuCauDangNhap) -> dict:
+async def on_demand(
+    body: OnDemandYeuCau,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = YeuCauDangNhap,
+) -> dict:
     try:
-        oid = ObjectId(body.poi_id)
-    except InvalidId:
+        oid = UUID(body.poi_id)
+    except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Id không đúng định dạng") from None
-    db = get_database()
     await kiem_tra(db, khoa_cho(request, user), "/audio/on-demand")
-    await dam_bao_index(db)
-    ban_dich = await db["poi_localizations"].find_one({"poi_id": oid, "lang": body.lang})
+    ban_dich = (
+        (
+            await db.execute(
+                text(
+                    """
+                SELECT localized_name AS name,
+                       localized_description AS description,
+                       language_code AS lang
+                FROM poi_localizations
+                WHERE poi_id = :poi_id AND language_code = :lang
+                """
+                ),
+                {"poi_id": oid, "lang": body.lang},
+            )
+        )
+        .mappings()
+        .first()
+    )
     if not ban_dich:
         # Trước đây chỗ này tự dịch bằng Google Translate; deep-translator đã
         # bị gỡ ở SEC-010. Không có bản dịch thì không nên đọc nội dung tiếng
@@ -72,7 +98,9 @@ async def on_demand(body: OnDemandYeuCau, request: Request, user: dict = YeuCauD
             detail=f"POI chưa có bản dịch '{body.lang}' — cần admin nhập tay trước",
         )
     try:
-        tep, _hit = await tao_mp3_cached(ban_dich["description"] or ban_dich["name"], body.lang)
+        tep, _hit = await tao_mp3_cached(
+            ban_dich["description"] or ban_dich["name"] or "", body.lang
+        )
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from None
     url = duong_audio_url(tep.name, body.lang)
@@ -81,12 +109,36 @@ async def on_demand(body: OnDemandYeuCau, request: Request, user: dict = YeuCauD
 
 
 @router.get("/tasks", summary="Liệt kê tác vụ audio")
-async def liet_ke_tasks(_user: dict = YeuCauDangNhap) -> list[dict]:
-    docs = await get_database()["audio_tasks"].find().sort("updated_at", -1).to_list(length=100)
-    for d in docs:
-        d.pop("_id", None)
-        ts = d.get("updated_at")
-        d["updated_at"] = ts.isoformat() if ts else None
+async def liet_ke_tasks(
+    db: Annotated[AsyncSession, Depends(get_db)], _user: dict = YeuCauDangNhap
+) -> list[dict]:
+    result = await db.execute(
+        text(
+            """
+            SELECT id::text AS task_id,
+                   poi_id::text AS poi_id,
+                   language_code AS lang,
+                   CASE task_status
+                       WHEN 'processing' THEN 'running'
+                       WHEN 'completed' THEN 'done'
+                       WHEN 'failed' THEN 'error'
+                       WHEN 'cancelled' THEN 'canceled'
+                       ELSE task_status
+                   END AS status,
+                   progress_percent AS progress,
+                   error_message AS loi,
+                   updated_at
+            FROM audio_tasks
+            ORDER BY updated_at DESC
+            LIMIT 100
+            """
+        )
+    )
+    docs = [dict(row) for row in result.mappings().all()]
+    for doc in docs:
+        doc["task_id"] = UUID(doc["task_id"]).hex
+        ts = doc.get("updated_at")
+        doc["updated_at"] = ts.isoformat() if ts else None
     return docs
 
 

@@ -1,4 +1,4 @@
-﻿"""API thu thập analytics: cổng consent, heartbeat, lô sự kiện.
+"""API thu thập analytics: cổng consent, heartbeat, lô sự kiện.
 
 Đây là route công khai (khách không đăng nhập) nên không có `doi_quyen`.
 Thay vào đó nó tự bảo vệ bằng cổng consent: không có receipt hợp lệ + consent
@@ -6,11 +6,14 @@ còn `granted` thì **không ghi gì** và trả 403. Sự kiện từ bot bị 
 chủ đích, trả 202 chứ không phải lỗi — bot không biết mình bị lọc.
 """
 
-from fastapi import APIRouter, HTTPException, Request
-from pydantic import BaseModel, Field
+from typing import Annotated
 
-from app.db import get_database
+from fastapi import APIRouter, Depends, HTTPException, Request
+from pydantic import BaseModel, Field
+from sqlalchemy.ext.asyncio import AsyncSession
+
 from app.limits import MAX_THUOC_TINH
+from app.postgres import get_db
 from app.services import analytics_svc as an
 from app.services.presence import dem_online, heartbeat, origin_duoc_phep, xoa_thiet_bi
 
@@ -39,21 +42,26 @@ class CollectYeuCau(BaseModel):
 
 
 @router.get("/consent", summary="Trạng thái consent của thiết bị ẩn danh")
-async def xem_consent(anonymous_id: str) -> dict:
+async def xem_consent(
+    anonymous_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
     if not an.hop_le(anonymous_id):
         raise HTTPException(status_code=400, detail="anonymous_id không hợp lệ")
-    db = get_database()
     await an.dam_bao_index(db)
     return {"anonymous_id": anonymous_id, "status": await an.trang_thai_consent(db, anonymous_id)}
 
 
 @router.post("/consent", summary="Ghi nhận hoặc thu hồi consent")
-async def dat_consent(body: ConsentYeuCau, request: Request) -> dict:
+async def dat_consent(
+    body: ConsentYeuCau,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
     if not an.hop_le(body.anonymous_id):
         raise HTTPException(status_code=400, detail="anonymous_id không hợp lệ")
     if not await origin_duoc_phep(request.headers.get("origin")):
         raise HTTPException(status_code=403, detail="Origin không được phép")
-    db = get_database()
     await an.dam_bao_index(db)
     await an.dat_consent(db, body.anonymous_id, body.granted)
     if not body.granted:
@@ -65,8 +73,11 @@ async def dat_consent(body: ConsentYeuCau, request: Request) -> dict:
 
 
 @router.post("/collect", summary="Heartbeat + lô sự kiện, chỉ nhận khi đã consent")
-async def thu_thap(body: CollectYeuCau, request: Request) -> dict:
-    db = get_database()
+async def thu_thap(
+    body: CollectYeuCau,
+    request: Request,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> dict:
     await an.dam_bao_index(db)
 
     if not an.hop_le(body.anonymous_id):
@@ -91,11 +102,6 @@ async def thu_thap(body: CollectYeuCau, request: Request) -> dict:
             status_code=429, detail="Quá nhiều yêu cầu analytics", headers={"Retry-After": str(cho)}
         )
 
-    await an.cap_nhat_device(db, body.anonymous_id, request.headers.get("user-agent", ""))
-    await an.cap_nhat_session(
-        db, body.anonymous_id, body.session_id, request.headers.get("user-agent", "")
-    )
-
     # Nhịp heartbeat 20s nên chỉ ghi mốc mới; lô sự kiện thì chỉ đọc số hiện diện.
     if body.heartbeat:
         online = await heartbeat(body.anonymous_id)
@@ -107,9 +113,12 @@ async def thu_thap(body: CollectYeuCau, request: Request) -> dict:
     for sk in body.events:
         if sk.name not in an.SU_KIEN_CHO_PHEP:
             continue
-        await an.ghi_su_kien(db, body.anonymous_id, body.session_id, sk.name, sk.properties, sk.at)
-        nhan += 1
-        ngay_hien_tai = an.chuan_hoa_thoi_gian(sk.at).strftime("%Y-%m-%d")
+        inserted = await an.ghi_su_kien(
+            db, body.anonymous_id, body.session_id, sk.name, sk.properties, sk.at
+        )
+        if inserted:
+            nhan += 1
+            ngay_hien_tai = an.chuan_hoa_thoi_gian(sk.at).strftime("%Y-%m-%d")
 
     if nhan > 0 and ngay_hien_tai is not None:
         await an.xep_viec_tong_hop(db, ngay_hien_tai)

@@ -3,8 +3,11 @@
 import hashlib
 import time
 from pathlib import Path
+from uuid import UUID
 
 import edge_tts
+from sqlalchemy import text
+from sqlalchemy.ext.asyncio import AsyncSession
 
 THU_MUC_AUDIO = Path(__file__).resolve().parents[2] / "static" / "audio"
 NGON_NGU_AUDIO = ("vi", "en", "zh", "ja", "ko")
@@ -56,30 +59,75 @@ def duong_audio_url(ten_tep: str, lang: str, ban: int | None = None) -> str:
 
 async def kich_hoat_sinh_audio(db, poi_id, langs: tuple[str, ...] = NGON_NGU_AUDIO) -> list[str]:
     """Mô tả đổi thì xóa audio cũ, tạm ẩn POI chờ tiếng Anh xong."""
-    await db["poi_localizations"].update_many(
-        {"poi_id": poi_id}, {"$set": {"audio_url": None}}
+    poi_uuid = poi_id if isinstance(poi_id, UUID) else UUID(str(poi_id))
+    await db.execute(
+        text(
+            """
+            UPDATE poi_localizations
+            SET audio_url = NULL,
+                audio_storage_key = NULL,
+                audio_status = 'not_generated',
+                updated_at = now()
+            WHERE poi_id = :poi_id
+            """
+        ),
+        {"poi_id": poi_uuid},
     )
-    await db["pois"].update_one(
-        {"_id": poi_id},
-        {"$set": {"audio_status": "processing", "is_active": False, "activation_requested": True}},
+    await db.execute(
+        text("UPDATE pois SET is_active = false, updated_at = now() WHERE id = :poi_id"),
+        {"poi_id": poi_uuid},
     )
+    await db.commit()
     from app.services.tasks import quan_ly_tasks
 
-    quan_ly_tasks.gan_db(db)
     ids = []
     for lang in langs:
-        ids.append(await quan_ly_tasks.xep_viec(str(poi_id), lang))
+        try:
+            ids.append(await quan_ly_tasks.xep_viec(str(poi_uuid), lang))
+        except LookupError:
+            # A PostgreSQL audio task must reference an existing localization.
+            continue
     return ids
 
 
-async def hoan_tat_audio(db, poi_id, lang: str, audio_url: str) -> None:
+async def hoan_tat_audio(db: AsyncSession, poi_id: UUID, lang: str, audio_url: str) -> None:
     """Worker gọi khi xong một ngôn ngữ, đủ tiếng Anh thì bật lại POI."""
-    await db["poi_localizations"].update_one(
-        {"poi_id": poi_id, "lang": lang}, {"$set": {"audio_url": audio_url}}
+    poi_uuid = poi_id if isinstance(poi_id, UUID) else UUID(str(poi_id))
+    audio_key = Path(audio_url.split("?", 1)[0]).name
+    await db.execute(
+        text(
+            """
+            UPDATE poi_localizations
+            SET audio_url = :audio_url,
+                audio_storage_key = :audio_storage_key,
+                audio_status = 'ready',
+                updated_at = now()
+            WHERE poi_id = :poi_id AND language_code = :lang
+            """
+        ),
+        {
+            "audio_url": audio_url,
+            "audio_storage_key": audio_key,
+            "poi_id": poi_uuid,
+            "lang": lang,
+        },
     )
-    ban_en = await db["poi_localizations"].find_one({"poi_id": poi_id, "lang": "en"})
-    if ban_en and ban_en.get("audio_url"):
-        await db["pois"].update_one(
-            {"_id": poi_id},
-            {"$set": {"audio_status": "ready", "is_active": True, "activation_requested": False}},
+    if lang == "en":
+        await db.execute(
+            text(
+                """
+                UPDATE pois
+                SET is_active = true, updated_at = now()
+                WHERE id = :poi_id
+                  AND EXISTS (
+                      SELECT 1
+                      FROM poi_localizations
+                      WHERE poi_id = :poi_id
+                        AND language_code = 'en'
+                        AND audio_url IS NOT NULL
+                  )
+                """
+            ),
+            {"poi_id": poi_uuid},
         )
+    await db.commit()

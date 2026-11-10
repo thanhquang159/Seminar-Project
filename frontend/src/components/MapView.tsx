@@ -8,7 +8,7 @@ maplibregl.setWorkerUrl(workerUrl)
 
 // Tâm Quận 4, khu Vĩnh Khánh ăn uống.
 const TAM_Q4: [number, number] = [106.7641, 10.7569]
-const STYLE_MIEN_PHI = 'https://demotiles.maplibre.org/style.json'
+const STYLE_MIEN_PHI = 'https://tiles.openfreemap.org/styles/liberty'
 
 interface Props {
   pois: Poi[]
@@ -40,6 +40,7 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
   const khungRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
   const [thongBaoViTri, setThongBaoViTri] = useState('')
+  const [loiBanDo, setLoiBanDo] = useState('')
   const [dungCloud, setDungCloud] = useState(false)
 
   // MAP-001 + MAP-006: dựng bản đồ một lần, pack tới sau thì effect dưới đổi style.
@@ -56,6 +57,12 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
       zoom: 14.5,
     })
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
+    map.on('error', () => {
+      setLoiBanDo(
+        'Không tải được dữ liệu bản đồ nền. Hãy kiểm tra Internet hoặc cài gói bản đồ Offline.',
+      )
+    })
+    map.on('style.load', () => setLoiBanDo(''))
     mapRef.current = map
     return () => {
       map.remove()
@@ -129,13 +136,18 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
       <div className="map-footer-bar">
         <span className="map-hint">
           <MapIcon />
-          {dungCloud ? 'Bản đồ số MapTiler Cloud' : 'Bản đồ số OpenStreetMap (Quận 4)'}
+          {stylePack
+            ? 'Bản đồ Offline'
+            : dungCloud
+              ? 'Bản đồ số MapTiler Cloud'
+              : 'Bản đồ số OpenFreeMap · © OpenStreetMap contributors'}
         </span>
         <span className="badge badge--neutral" style={{ fontSize: '0.78rem' }}>
           Tâm: Phố Ẩm thực Vĩnh Khánh
         </span>
       </div>
 
+      {loiBanDo !== '' && <div className="notice notice--warn mt">{loiBanDo}</div>}
       {thongBaoViTri !== '' && <div className="notice notice--warn mt">{thongBaoViTri}</div>}
     </div>
   )

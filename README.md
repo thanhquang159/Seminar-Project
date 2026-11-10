@@ -4,13 +4,15 @@
 
 Kèm theo là giao diện quản trị cho admin/staff (duyệt nội dung, quản lý quán, theo dõi số liệu) và giao diện riêng cho chủ quán (đăng ký, gửi quán, nhận thông báo duyệt).
 
+> **Database runtime:** backend và các script seed/migrate nghiệp vụ sử dụng PostgreSQL/PostGIS. MongoDB và Redis đã được loại khỏi runtime; test backend gồm bộ kiểm thử PostgreSQL và kiểm thử bảo mật độc lập.
+
 ## Chức năng chính
 
 - Hiển thị các điểm quan tâm ẩm thực (POI) trên bản đồ, kèm mô tả và thực đơn.
 - Tự động phát thuyết minh khi người dùng đi vào bán kính quanh một POI, có hàng đợi và tôn trọng tầng phát âm thanh của trình duyệt.
 - Đa ngôn ngữ `vi` / `en` / `zh` / `ja` / `ko` với chuỗi dự phòng 3 tầng (yêu cầu → tiếng Anh → tiếng Việt).
 - Dịch và sinh audio (TTS) tự động ở phía server sau khi admin cập nhật nội dung; tiến độ xem được qua SSE.
-- Gói offline (bản đồ PMTiles + dữ liệu POI + audio), dùng lại được khi mất mạng, có kiểm tra checksum.
+- PWA cache dữ liệu POI và audio để dùng khi mất mạng; gói nền bản đồ PMTiles hiện chưa có tile thực và cần được tạo/cài trước khi dùng bản đồ offline.
 - Chủ quán tự đăng ký và gửi quán mới; admin duyệt trước khi hiển thị.
 - Đăng nhập admin/staff bằng cookie `httpOnly`, phân quyền theo vai trò (RBAC).
 - Chatbot hỏi đáp về các quán (mặc định dùng provider `mock` khi phát triển).
@@ -25,8 +27,7 @@ Trình duyệt / PWA (React 19 + TypeScript + Vite + MapLibre)
     v
 Backend API: Python 3.12 + FastAPI (chạy native để hot-reload)
     |
-    +-- MongoDB 7.0     POI, bản dịch, tài khoản, chủ quán, sự kiện, số liệu
-    +-- Redis 7.2       đếm hiện diện theo cửa sổ trượt, giới hạn tần suất
+    +-- PostgreSQL + PostGIS     database quan4_culinary_tourism
 ```
 
 Đây là **modular monolith**: một tiến trình FastAPI duy nhất, chia thành module theo miền nghiệp vụ. Lý do không tách microservice được ghi ở ADR-001 của kế hoạch phát triển.
@@ -36,11 +37,10 @@ Backend API: Python 3.12 + FastAPI (chạy native để hot-reload)
 | Thành phần | Công nghệ |
 |---|---|
 | Frontend | React 19, TypeScript ~6.0, Vite 8, Zustand 5 |
-| Bản đồ | MapLibre GL 6 + PMTiles 4 (style nền MapTiler, có nền demo miễn phí khi thiếu key) |
+| Bản đồ | MapLibre GL 6 + PMTiles 4 (OpenFreeMap khi online, PMTiles khi offline) |
 | PWA | vite-plugin-pwa + Workbox (`injectManifest`) |
-| Backend | Python 3.12, FastAPI 0.141, Motor 3.7 (async), uvicorn |
-| Cơ sở dữ liệu | MongoDB 7.0 (dev chạy bằng Docker Compose; tích hợp cần replica set một node cho transaction) |
-| Cache và hiện diện | Redis 7.2 |
+| Backend | Python 3.12, FastAPI 0.141, SQLAlchemy async, asyncpg, uvicorn |
+| Cơ sở dữ liệu | PostgreSQL + PostGIS |
 | Dịch / TTS | deep-translator + edge-tts (miễn phí, đổi được qua adapter) |
 | AI | adapter provider: `mock` khi phát triển, HTTP provider khi có key |
 | Kiểm thử | pytest + Vitest + Playwright + GitHub Actions |
@@ -51,16 +51,15 @@ Backend API: Python 3.12 + FastAPI (chạy native để hot-reload)
 ```text
 AMDS/
 ├── backend/                 # API và nghiệp vụ FastAPI
-│   ├── app/                 # main.py, config.py, db.py, routers/, services/, models/
+│   ├── app/                 # main.py, api/, core/, postgres.py, routers/, services/
 │   ├── scripts/             # seed dữ liệu mẫu, build gói bản đồ, migrate bản dịch
-│   └── tests/               # 95 test (87 unit + 8 tích hợp)
+│   ├── tests/               # test bảo mật độc lập
+│   └── tests_postgres/      # test hợp đồng runtime PostgreSQL
 ├── frontend/                # web app khách tham quan + giao diện admin và chủ quán
 │   ├── src/                 # geofence/, offline/, i18n/, analytics/, admin/, telemetry/
 │   └── e2e/                 # kịch bản Playwright
 ├── scripts/verify.py        # một lệnh chạy lint + type + test cho cả hai vế
 ├── docs/system-doc/         # đặc tả yêu cầu, kiến trúc, API, dữ liệu, kiểm thử...
-├── docker-compose.yml       # hạ tầng dev: MongoDB + Redis
-├── docker-compose.test.yml  # hạ tầng test: Mongo replica set một node + Redis riêng
 └── README.md
 ```
 
@@ -68,7 +67,7 @@ AMDS/
 
 Đã hoàn thành **Phase 0 → 11** theo kế hoạch (16 phase): từ dựng môi trường tới lưới kiểm thử hợp nhất (lint, type, unit, tích hợp, ma trận quyền, ca biên, E2E, CI).
 
-- Backend: 17 router, khoảng 55 endpoint, 95 test.
+- Backend: các router nghiệp vụ runtime kết nối PostgreSQL; test PostgreSQL riêng nằm trong `backend/tests_postgres/`.
 - Frontend: PWA có geofence, audio, i18n, offline, analytics, giao diện admin và chủ quán; khoảng 34 test Vitest và 4 kịch bản Playwright.
 - Chưa làm: Phase 14 (chuẩn bị production), 15 (triển khai). Phase 12 (security hardening) đã xong. Phase 13 (hiệu năng) đang làm. Chưa có Dockerfile, chưa có reverse proxy, chưa đo hiệu năng.
 
@@ -76,21 +75,19 @@ Kế hoạch phát triển chi tiết nằm ở `docs/plan-task/` (thư mục n�
 
 ## Bắt đầu phát triển
 
-Yêu cầu: Python 3.12, Node.js 22, Docker Desktop.
+Yêu cầu: Python 3.12, Node.js 22 và PostgreSQL/PostGIS đang chạy.
 
 ```powershell
-# 1. Hạ tầng
-docker compose up -d --wait
-
-# 2. Backend
+# Backend
 cd backend
 python -m venv .venv
 .\.venv\Scripts\Activate.ps1
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
+# Cập nhật DB_HOST, DB_PORT, DB_NAME, DB_USER và DB_PASSWORD trong .env
 uvicorn app.main:app --reload
 
-# 3. Frontend (terminal khác)
+# Frontend (terminal khác, nếu cần)
 cd frontend
 npm install
 npm run dev
@@ -98,33 +95,16 @@ npm run dev
 
 Mở <http://localhost:5173>. API chạy ở <http://127.0.0.1:8000>, tài liệu endpoint ở `/docs`.
 
-Nạp dữ liệu mẫu:
-
-```powershell
-cd backend
-python scripts\seed_roles.py
-python scripts\seed_admin.py
-python scripts\seed_poi.py
-python scripts\migrate_localizations.py
-```
-
-Biến môi trường chứa secret (`JWT_SECRET`, `REFRESH_TOKEN_SECRET`, `PII_KEY`, `AI_API_KEY`) không được commit; dùng file `.env` cục bộ hoặc secret manager khi triển khai. Ngoài `dev`, thiếu `JWT_SECRET`/`REFRESH_TOKEN_SECRET` thì backend từ chối khởi động (`kiem_tra_bi_mat` trong `backend/app/config.py`).
+Kiểm tra kết nối: <http://127.0.0.1:8000/api/v1/health/database>. Schema PostgreSQL phải được provision trước; các script `seed_roles.py`, `seed_admin.py`, `seed_poi.py` và `migrate_localizations.py` hiện thao tác trên PostgreSQL. Đọc [hướng dẫn backend](backend/README.md) trước khi chạy seed vì chúng có thể thay đổi dữ liệu.
 
 ## Kiểm tra trước khi commit
 
 ```powershell
-python scripts\verify.py
-```
-
-Lệnh này chạy ruff, ESLint, `tsc -b`, pytest, Vitest theo đúng thứ tự CI và dừng ngay ở bước hỏng.
-
-Test tích hợp cần hạ tầng riêng (Mongo replica set một node + Redis cổng khác):
-
-```powershell
-docker compose -f docker-compose.test.yml up -d --wait
 cd backend
-pytest -m integration -o addopts="-ra"
+.\.venv\Scripts\python.exe -m pytest -q
 ```
+
+Lệnh trên chạy cả test độc lập và `tests_postgres/`; không kết nối hoặc sửa database thật.
 
 ## Tài liệu
 
@@ -141,7 +121,7 @@ pytest -m integration -o addopts="-ra"
 - [Kế hoạch kiểm thử](docs/system-doc/11_Test_Plan.md)
 - [Kế hoạch triển khai](docs/system-doc/12_Deployment.md)
 
-Tài liệu `01`–`12` được viết theo bản đặc tả gốc; đã đối chiếu và **giữ tên collection và tiền tố route của code** khi hai bên lệch nhau (ADR-015). Danh sách nợ kỹ thuật còn lại nằm ở mục O của kế hoạch phát triển.
+Tài liệu `01`–`12` là bộ đặc tả gốc và có thể còn mô tả công nghệ trước khi chuyển đổi. Backend hiện chạy PostgreSQL/PostGIS; hướng dẫn và mã nguồn hiện tại là nguồn chuẩn cho cách chạy. Danh sách nợ kỹ thuật còn lại nằm ở mục O của kế hoạch phát triển.
 
 ## Lộ trình phát triển
 

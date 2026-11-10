@@ -23,7 +23,7 @@ trình duyệt không bàn giao phản hồi cho script.
 from fastapi.responses import JSONResponse
 from starlette.types import ASGIApp, Receive, Scope, Send
 
-from app.config import settings
+from app.core.config import settings
 
 METHOD_GHI = frozenset({"POST", "PUT", "PATCH", "DELETE"})
 THONG_BAO = "Origin của trang không được phép thao tác ghi trên API này"
@@ -40,14 +40,10 @@ class ChanGhiOrigin:
     def __init__(self, app: ASGIApp) -> None:
         self.app = app
 
-    async def __call__(
-        self, scope: Scope, receive: Receive, send: Send
-    ) -> None:
+    async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] == "http" and scope.get("method") in METHOD_GHI:
             origin = _origin(scope)
-            if origin and origin not in settings.cors_origins:
-                await JSONResponse({"detail": THONG_BAO}, status_code=403)(
-                    scope, receive, send
-                )
+            if origin and origin not in settings.CORS_ORIGINS:
+                await JSONResponse({"detail": THONG_BAO}, status_code=403)(scope, receive, send)
                 return
         await self.app(scope, receive, send)

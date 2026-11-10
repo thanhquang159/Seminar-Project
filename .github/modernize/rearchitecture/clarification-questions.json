@@ -1,0 +1,570 @@
+{
+  "schema": "clarification-questions/v1",
+  "generated_at": "2026-11-10T09:18:06Z",
+  "user_input": "Perform the user's selected FULL cleanup/rearchitecture of this repository, following PRODUCT_REQUIREMENTS_DOCUMENT_PRD.md and preserving all required product behavior. Current working tree is already dirty with substantial ongoing PostgreSQL migration changes and user-provided untracked PRD; inspect and preserve all existing edits. Do not revert unrelated/current changes, never delete PRODUCT_REQUIREMENTS_DOCUMENT_PRD.md or other user data, and do not run destructive migrations/seeds against any DB.\n\nBounded implementation objective:\n1) Make the frontend map in the discovery page render a real readable online basemap without requiring a MapTiler API key; retain required attribution and the existing offline-pack capability/contracts. User screenshot showed uniform blue blank map. Source already has a recent local change defaulting MapView.tsx to OpenFreeMap Liberty and updating the empty-POI message to PostgreSQL; preserve these, verify/fix errors and runtime as appropriate.\n2) Align the live runtime and repository organization with PRD domains (Visitor/POI/map/offline, Owner, Admin, Auth, Analytics, Audio), keeping routes/wire contracts stable. Remove MongoDB/Motor legacy source, dependencies, and tests only where no longer needed; preserve/rewrite useful regression coverage rather than deleting useful tests blindly. Update docs/build/test configs. Do not attempt to rebuild actual offline regional PMTiles from empty placeholders or remove PMTiles product requirement; clearly identify if actual tile data unavailable.\n3) Do a complete, evidence-based check for MongoDB runtime/dependency references after changes and ensure PostgreSQL E2E config stays isolated and safe.\n\nValidation: run targeted Python PostgreSQL tests, Ruff, frontend lint/tests/build. Avoid running DB-destructive seed/E2E commands on the live database. Report precise files changed, any remaining intentional legacy references/limits, and validation outcomes. Stop when those outcomes are met; do not make unrelated style/security fixes.\n\nClassification: brownfield in-place upgrade/cleanup, preserve PostgreSQL migration already underway. Frontend and Python backend are in scope; detected languages Python and JavaScript/TypeScript, 16,295 LOC total, git repository, repo dirs backend/frontend/docs/scripts. Target is in-place; preserve existing requested stack and configuration. Feasibility: feasible; PostgreSQL migration and a keyless OpenFreeMap basemap are supported approaches. Scope is not a full frontend rewrite; only map behavior/configuration and project/runtime cleanup are requested. User explicitly requires stable routes/contracts, actual PMTiles data is unavailable from placeholders unless worker confirms otherwise, and no destructive DB operations.",
+  "title": "PostgreSQL Runtime and Map Cleanup",
+  "assessment_snapshot": {
+    "intro": "The supplied repository facts and task brief identify a brownfield cleanup spanning the frontend and Python backend:",
+    "bullets": [
+      "The task is explicitly in-place, with an ongoing PostgreSQL migration and dirty user changes to preserve.",
+      "The requested frontend change is limited to the discovery map; a keyless OpenFreeMap basemap and continued offline-pack contracts are required.",
+      "Routes and wire contracts must remain stable; regression coverage and PostgreSQL E2E isolation are required.",
+      "Detected languages are Python and JavaScript/TypeScript; PMTiles regional data may be unavailable because the current files are placeholders."
+    ]
+  },
+  "proposed_outcome": "Keep the existing application stacks and in-place PostgreSQL migration, make the discovery map readable without a MapTiler key, and reorganize/clean up only within the stated PRD boundaries while preserving routes, product behavior, regression coverage, user edits, and safe database-operation constraints. Validate with the requested Python PostgreSQL tests, Ruff, and frontend lint/tests/build; document intentional legacy references and unavailable tile data.",
+  "scope": [
+    "frontend",
+    "backend",
+    "generic"
+  ],
+  "status": "answered",
+  "questions": [
+    {
+      "id": "F1",
+      "kit": "frontend",
+      "field": "target.framework",
+      "title": "Frontend framework",
+      "question": "Which frontend framework and major version should remain the target? Please provide the exact framework and version, or confirm the current framework/version.",
+      "importance": "required",
+      "impact": 4,
+      "recommended": "Preserve current frontend framework and version (please confirm the exact name/version)",
+      "default": null,
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Preserve current frontend framework and version (please confirm the exact name/version)",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve current frontend framework and version (please confirm the exact name/version)",
+          "label": "Preserve current framework and version — confirm exact name/version"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F2",
+      "kit": "frontend",
+      "field": "target.component_library",
+      "title": "UI component library",
+      "question": "Which component/UI library should the scoped map and discovery-page changes preserve? Name and major version, or confirm that no component library is in scope.",
+      "importance": "required",
+      "impact": 4,
+      "recommended": "No component library change or selection; retain existing UI patterns",
+      "default": null,
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "No component library change or selection; retain existing UI patterns",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve the current component/UI library (please confirm name/version)",
+          "label": "Preserve current library — confirm name/version"
+        },
+        {
+          "value": "No component library change or selection; retain existing UI patterns",
+          "label": "No library change; retain existing UI patterns"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F3",
+      "kit": "frontend",
+      "field": "visual.screenshots",
+      "title": "UI reference",
+      "question": "Provide the path or URL for the screenshot/screen recording to use as the discovery-map reference. The brief mentions a screenshot of a uniformly blue map; provide its accessible location or confirm another reference.",
+      "importance": "required",
+      "impact": 3,
+      "recommended": null,
+      "default": null,
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "http://localhost:5173/",
+        "source": "user"
+      },
+      "depends_on": null,
+      "type": "text",
+      "options": []
+    },
+    {
+      "id": "F4",
+      "kit": "frontend",
+      "field": "visual.design_system",
+      "title": "Design system",
+      "question": "What design-system or design-token source should guide the map/discovery-page changes? Provide a source, or confirm matching the existing UI and its extracted CSS custom properties.",
+      "importance": "required",
+      "impact": 3,
+      "recommended": "Match existing UI pixel-by-pixel using extracted CSS custom properties",
+      "default": "match existing pixel-by-pixel using extracted CSS custom properties",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Match existing UI pixel-by-pixel using extracted CSS custom properties",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Match existing UI pixel-by-pixel using extracted CSS custom properties",
+          "label": "Match existing UI using its current CSS custom properties"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F5",
+      "kit": "frontend",
+      "field": "compliance.accessibility",
+      "title": "Accessibility target",
+      "question": "Which accessibility standard should the scoped frontend changes target?",
+      "importance": "recommended",
+      "impact": 2,
+      "recommended": "WCAG 2.1 AA",
+      "default": "WCAG 2.1 AA",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "WCAG 2.1 AA",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "WCAG 2.1 AA",
+          "label": "WCAG 2.1 AA"
+        },
+        {
+          "value": "WCAG 2.2 AA",
+          "label": "WCAG 2.2 AA"
+        },
+        {
+          "value": "Section 508",
+          "label": "Section 508"
+        },
+        {
+          "value": "None / not required",
+          "label": "None / not required"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F6",
+      "kit": "frontend",
+      "field": "compatibility.browsers",
+      "title": "Browser targets",
+      "question": "Which browser/runtime compatibility targets should be maintained?",
+      "importance": "recommended",
+      "impact": 2,
+      "recommended": "Modern evergreen browsers (Chrome, Firefox, Safari, Edge — latest 2 major versions)",
+      "default": "modern evergreen (Chrome, Firefox, Safari, Edge — latest 2 major versions)",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Modern evergreen browsers (Chrome, Firefox, Safari, Edge — latest 2 major versions)",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Modern evergreen browsers (Chrome, Firefox, Safari, Edge — latest 2 major versions)",
+          "label": "Modern evergreen — latest 2 major versions"
+        },
+        {
+          "value": "Preserve existing browser targets",
+          "label": "Preserve existing targets"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F7",
+      "kit": "frontend",
+      "field": "responsive.breakpoints",
+      "title": "Responsive behavior",
+      "question": "What responsive/breakpoint strategy should the scoped map and discovery page follow?",
+      "importance": "recommended",
+      "impact": 2,
+      "recommended": "Mobile-first using existing breakpoints detected from the codebase",
+      "default": "mobile-first using existing breakpoints detected from codebase",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Mobile-first using existing breakpoints detected from the codebase",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Mobile-first using existing breakpoints detected from the codebase",
+          "label": "Mobile-first using existing breakpoints"
+        },
+        {
+          "value": "Match current layout exactly",
+          "label": "Match current layout exactly"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F8",
+      "kit": "frontend",
+      "field": "i18n.locales",
+      "title": "Locales",
+      "question": "Which locales are in scope for the frontend cleanup?",
+      "importance": "optional",
+      "impact": 1,
+      "recommended": "Preserve current locales and existing i18n library if present",
+      "default": "preserve current locales; keep existing i18n library if present",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Preserve current locales and existing i18n library if present",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve current locales and existing i18n library if present",
+          "label": "Preserve current locales and library"
+        },
+        {
+          "value": "None",
+          "label": "None"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F9",
+      "kit": "frontend",
+      "field": "state_mgmt.preference",
+      "title": "State management",
+      "question": "What client-side state-management preference should be followed?",
+      "importance": "optional",
+      "impact": 1,
+      "recommended": "Preserve existing pattern; otherwise use minimal component state plus a server-state library",
+      "default": "preserve existing pattern if identifiable; otherwise recommend minimal (component state + server-state library)",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Preserve existing pattern; otherwise use minimal component state plus a server-state library",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve existing pattern; otherwise use minimal component state plus a server-state library",
+          "label": "Preserve existing pattern; otherwise use a minimal approach"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "F10",
+      "kit": "frontend",
+      "field": "routing.preference",
+      "title": "Routing strategy",
+      "question": "What frontend routing library/strategy should be retained for this in-place cleanup?",
+      "importance": "optional",
+      "impact": 1,
+      "recommended": "Match existing routes and use the de-facto router for the current framework",
+      "default": "use the de-facto router for the chosen target framework",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Match existing routes and use the de-facto router for the current framework",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Match existing routes and use the de-facto router for the current framework",
+          "label": "Match existing routes and current-framework routing"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "B1",
+      "kit": "backend",
+      "field": "target.framework",
+      "title": "Backend framework",
+      "question": "Which backend framework and major version should remain the target? Please provide the exact framework and version, or confirm the current framework/version.",
+      "importance": "required",
+      "impact": 4,
+      "recommended": "Preserve current Python backend framework and version (please confirm the exact name/version)",
+      "default": null,
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Preserve current Python backend framework and version (please confirm the exact name/version)",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve current Python backend framework and version (please confirm the exact name/version)",
+          "label": "Preserve current framework and version — confirm exact name/version"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "B2",
+      "kit": "backend",
+      "field": "api.contract_preservation",
+      "title": "API contract policy",
+      "question": "Confirm the external API policy for routes, payloads, and status codes. The task says routes and wire contracts must stay stable; is the policy 'must preserve' for all current contracts, or only specific routes/contracts?",
+      "importance": "required",
+      "impact": 5,
+      "recommended": "must preserve",
+      "default": "must preserve",
+      "prefilled": true,
+      "prefilled_value": "must preserve",
+      "answer": {
+        "value": "must preserve",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "must preserve",
+          "label": "Must preserve all existing routes, payloads, and status codes"
+        },
+        {
+          "value": "partial: specify routes/contracts",
+          "label": "Preserve only specified routes/contracts"
+        },
+        {
+          "value": "can break with versioning",
+          "label": "Breaking changes only with a new API version"
+        },
+        {
+          "value": "can break",
+          "label": "Existing contracts may break"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "B3",
+      "kit": "backend",
+      "field": "data.migration_strategy",
+      "title": "Database migration approach",
+      "question": "Confirm the database migration strategy. The brief describes an in-place PostgreSQL migration already underway and prohibits destructive migrations/seeds against any database.",
+      "importance": "required",
+      "impact": 5,
+      "recommended": "in-place",
+      "default": "TBD / assess in research phase",
+      "prefilled": true,
+      "prefilled_value": "in-place",
+      "answer": {
+        "value": "in-place",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "in-place",
+          "label": "In-place PostgreSQL migration"
+        },
+        {
+          "value": "dual-write",
+          "label": "Dual-write alongside the existing database"
+        },
+        {
+          "value": "new schema",
+          "label": "New schema with a data migration"
+        },
+        {
+          "value": "no migration",
+          "label": "No database migration"
+        },
+        {
+          "value": "TBD / assess in research phase",
+          "label": "Defer strategy to research"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "B4",
+      "kit": "backend",
+      "field": "auth.framework",
+      "title": "Authentication approach",
+      "question": "Which authentication/authorization framework and policy should be retained for the Auth domain?",
+      "importance": "recommended",
+      "impact": 3,
+      "recommended": "Preserve existing auth mechanism and detect it from the codebase",
+      "default": "preserve existing auth mechanism; detect from codebase",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Preserve existing auth mechanism and detect it from the codebase",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve existing auth mechanism and detect it from the codebase",
+          "label": "Preserve existing auth mechanism"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "B5",
+      "kit": "backend",
+      "field": "nfr.sla",
+      "title": "Service-level targets",
+      "question": "What latency, throughput, and availability targets should the cleaned-up runtime meet?",
+      "importance": "recommended",
+      "impact": 2,
+      "recommended": "Match current production baseline; no regression",
+      "default": "match current production baseline; no regression",
+      "prefilled": false,
+      "prefilled_value": null,
+      "answer": {
+        "value": "Match current production baseline; no regression",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Match current production baseline; no regression",
+          "label": "Match current production baseline; no regression"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "G1",
+      "kit": "generic",
+      "field": "success.definition",
+      "title": "Definition of done",
+      "question": "Confirm the definition of success. The brief requires all required product behavior and stable routes/wire contracts, with the specified Python, Ruff, and frontend validation completed.",
+      "importance": "required",
+      "impact": 5,
+      "recommended": "Preserve all required product behavior and API contracts; requested validations pass",
+      "default": "feature parity with the current system; all existing user-facing behaviors preserved",
+      "prefilled": true,
+      "prefilled_value": "Preserve all required product behavior and API contracts; requested validations pass",
+      "answer": {
+        "value": "Preserve all required product behavior and API contracts; requested validations pass",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Preserve all required product behavior and API contracts; requested validations pass",
+          "label": "Preserve behavior/contracts and pass requested validations"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "G2",
+      "kit": "generic",
+      "field": "out_of_scope",
+      "title": "Scope boundaries",
+      "question": "Confirm the explicit boundaries: no destructive live-database migrations/seeds, no deletion/reversion of user data or existing edits, no rebuilding PMTiles from empty placeholders, and no unrelated style/security work. Anything else out of scope?",
+      "importance": "recommended",
+      "impact": 3,
+      "recommended": "Use the stated boundaries; infer other exclusions from repository structure",
+      "default": "no explicit exclusions; agent will infer from project structure",
+      "prefilled": true,
+      "prefilled_value": "Use the stated boundaries; infer other exclusions from repository structure",
+      "answer": {
+        "value": "Use the stated boundaries; infer other exclusions from repository structure",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "Use the stated boundaries; infer other exclusions from repository structure",
+          "label": "Use stated boundaries; infer other exclusions from repository structure"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "G3",
+      "kit": "generic",
+      "field": "existing_tests.posture",
+      "title": "Existing test policy",
+      "question": "Confirm the test policy. The brief calls for targeted Python PostgreSQL tests, Ruff, and frontend lint/tests/build, while preserving or rewriting useful regression coverage rather than deleting tests blindly.",
+      "importance": "recommended",
+      "impact": 3,
+      "recommended": "partial: targeted Python PostgreSQL tests, Ruff, frontend lint/tests/build; preserve or rewrite useful regression coverage",
+      "default": "must pass",
+      "prefilled": true,
+      "prefilled_value": "partial: targeted Python PostgreSQL tests, Ruff, frontend lint/tests/build; preserve or rewrite useful regression coverage",
+      "answer": {
+        "value": "partial: targeted Python PostgreSQL tests, Ruff, frontend lint/tests/build; preserve or rewrite useful regression coverage",
+        "source": "user"
+      },
+      "depends_on": null,
+      "options": [
+        {
+          "value": "partial: targeted Python PostgreSQL tests, Ruff, frontend lint/tests/build; preserve or rewrite useful regression coverage",
+          "label": "Run the specified validation set and preserve useful regression coverage"
+        },
+        {
+          "value": "must pass",
+          "label": "All existing tests must pass"
+        },
+        {
+          "value": "can rewrite",
+          "label": "Existing tests may be replaced with equivalent coverage"
+        }
+      ],
+      "allow_other": true,
+      "type": "single_select"
+    },
+    {
+      "id": "G5",
+      "kit": "generic",
+      "field": "constraints.additional",
+      "title": "Additional constraints",
+      "question": "Add or confirm any additional requirements, exclusions, dependencies, compliance rules, or operational constraints not already captured above.",
+      "importance": "optional",
+      "impact": 2,
+      "recommended": null,
+      "default": "None beyond the decisions listed in this specification.",
+      "prefilled": true,
+      "prefilled_value": "None beyond the decisions listed in this specification.",
+      "answer": {
+        "value": "None beyond the decisions listed in this specification.",
+        "source": "user"
+      },
+      "depends_on": null,
+      "type": "text",
+      "options": []
+    }
+  ]
+}

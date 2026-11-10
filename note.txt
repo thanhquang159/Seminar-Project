@@ -1,0 +1,5 @@
+Sửa đồng bộ POI: thiết kế tombstone hoặc cơ chế ghi nhận xóa/ngừng public; đảm bảo sync cursor luôn tăng đơn điệu và có test regression.
+Hoàn thiện offline thật: cung cấp PMTiles có dữ liệu tile, xác minh checksum audio, cài pack an toàn và bổ sung E2E chạy khi thực sự mất kết nối.
+Hoàn thiện nghiệp vụ Owner/Admin: biểu mẫu Owner đầy đủ, sửa/quản lý nội dung POI, từ chối submission, quản lý user/role/permission, Menu và publish workflow.
+Tạo đường dựng database đáng tin cậy: bổ sung migration/schema bootstrap và quy trình CI có PostgreSQL cùng E2E trên database riêng; không chạy seed lên database dữ liệu thật.
+Chốt Open Issues và cập nhật tài liệu: sửa presentation để phản ánh PostgreSQL và trạng thái thực tế; gắn trạng thái từng yêu cầu PRD với test/evidence cụ thể.

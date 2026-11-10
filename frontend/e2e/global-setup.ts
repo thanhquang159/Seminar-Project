@@ -13,7 +13,10 @@ const python =
 export default function globalSetup(): void {
   execFileSync(python, ['scripts/seed_e2e.py'], {
     cwd: backendDir,
-    env: { ...process.env, MONGODB_DB_NAME: 'amds_e2e' },
+    env: {
+      ...process.env,
+      DB_NAME: process.env.E2E_DB_NAME ?? 'quan4_culinary_tourism_e2e',
+    },
     stdio: 'inherit',
   })
 }

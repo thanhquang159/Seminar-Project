@@ -2,14 +2,14 @@
 
 from cryptography.fernet import Fernet, InvalidToken
 
-from app.config import settings
+from app.core.config import settings
 
 
 def lay_khoa() -> Fernet | None:
     """Không có key cấu hình thì bỏ qua mã hóa chứ không crash."""
-    if not settings.pii_key:
+    if not settings.PII_KEY:
         return None
-    return Fernet(settings.pii_key.encode())
+    return Fernet(settings.PII_KEY.encode())
 
 
 def ma_hoa_pii(gia_tri: str) -> str | None:

@@ -2,7 +2,7 @@
 
 import httpx
 
-from app.config import settings
+from app.core.config import settings
 
 TIMEOUT_GIAY = 30
 
@@ -16,7 +16,9 @@ class MockProvider(NhaCungCap):
     """Dev: không bịa nội dung mới, chỉ thêm tính từ tích cực, 200-300 từ giả lập."""
 
     async def viet_lai(self, mo_ta: str) -> str:
-        return f"Quán ngon nức tiếng, {mo_ta} Hương vị đậm đà khó quên, không gian ấm cúng đáng thử."
+        return (
+            f"Quán ngon nức tiếng, {mo_ta} Hương vị đậm đà khó quên, không gian ấm cúng đáng thử."
+        )
 
 
 class HttpProvider(NhaCungCap):
@@ -27,14 +29,14 @@ class HttpProvider(NhaCungCap):
         # URL rỗng rồi trả về cho client một lỗi httpx khó hiểu. Đây là lỗi đặt
         # sai biến môi trường, phải nói đúng tên biến chứ không nói "request
         # thiếu protocol".
-        if not settings.ai_api_url:
+        if not settings.AI_API_URL:
             raise RuntimeError(
                 "AI chưa cấu hình: đặt AI_API_URL (và AI_API_KEY) khi AI_PROVIDER=http"
             )
         try:
             async with httpx.AsyncClient(timeout=TIMEOUT_GIAY) as client:
                 res = await client.post(
-                    settings.ai_api_url,
+                    settings.AI_API_URL,
                     headers={"Authorization": f"Bearer {settings.ai_api_key}"},
                     json={"prompt": f"Viết lại mô tả quán 200-300 từ, không bịa: {mo_ta}"},
                 )
@@ -47,6 +49,6 @@ class HttpProvider(NhaCungCap):
 
 
 def lay_provider() -> NhaCungCap:
-    if settings.ai_provider == "mock":
+    if settings.AI_PROVIDER == "mock":
         return MockProvider()
     return HttpProvider()
