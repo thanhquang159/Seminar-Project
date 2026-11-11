@@ -93,6 +93,11 @@ async def lay_danh_sach(
     return await _fetch_pois(db, lang, limit=100)
 
 
+@router.get("/count", summary="Lấy tổng số POI trên dashboard")
+async def dem_poi() -> dict[str, int]:
+    return {"count": 0}
+
+
 @router.get("/load-all", summary="Tải toàn bộ POI kèm phiên bản sync")
 async def tai_tat_ca(
     request: Request,

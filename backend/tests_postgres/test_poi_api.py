@@ -85,6 +85,23 @@ def test_list_pois_uses_postgres_response_shape():
     assert "FROM pois AS p" in session.statements[0][0]
 
 
+def test_count_pois_returns_zero_without_changing_poi_list():
+    session = FakeSession()
+
+    async def request():
+        async with create_client(session) as client:
+            count = await client.get("/poi/count")
+            pois = await client.get("/poi")
+            return count, pois
+
+    count, pois = asyncio.run(request())
+    assert count.status_code == 200
+    assert count.json() == {"count": 0}
+    assert pois.status_code == 200
+    assert pois.json() == []
+    assert len(session.statements) == 1
+
+
 def test_load_all_supports_etag_without_second_data_query():
     session = FakeSession(rows=[], version=456)
 

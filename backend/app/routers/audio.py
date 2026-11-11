@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import YeuCauDangNhap
+from app.auth import YeuCauDangNhap, doi_quyen
 from app.limits import MAX_TEXT_TTS, LangField
 from app.postgres import get_db
 from app.services.audio_svc import (
@@ -24,6 +24,7 @@ from app.services.ratelimit import khoa_cho, kiem_tra
 from app.services.tasks import quan_ly_tasks
 
 router = APIRouter(prefix="/audio", tags=["audio"])
+DuocQuanLyAudio = doi_quyen("user:update")
 
 
 class TtsYeuCau(BaseModel):
@@ -110,7 +111,7 @@ async def on_demand(
 
 @router.get("/tasks", summary="Liệt kê tác vụ audio")
 async def liet_ke_tasks(
-    db: Annotated[AsyncSession, Depends(get_db)], _user: dict = YeuCauDangNhap
+    db: Annotated[AsyncSession, Depends(get_db)], _user: dict = DuocQuanLyAudio
 ) -> list[dict]:
     result = await db.execute(
         text(
@@ -143,7 +144,7 @@ async def liet_ke_tasks(
 
 
 @router.get("/tasks/stream", summary="SSE tiến độ tác vụ")
-async def stream_tasks(_user: dict = YeuCauDangNhap) -> StreamingResponse:
+async def stream_tasks(_user: dict = DuocQuanLyAudio) -> StreamingResponse:
     hang_doi: asyncio.Queue = asyncio.Queue(maxsize=50)
     quan_ly_tasks.nguoi_nghe.add(hang_doi)
 
@@ -163,7 +164,7 @@ async def stream_tasks(_user: dict = YeuCauDangNhap) -> StreamingResponse:
 
 
 @router.post("/tasks/{task_id}/{lenh}", summary="Pause/resume/cancel tác vụ")
-async def dieu_khien_task(task_id: str, lenh: str, _user: dict = YeuCauDangNhap) -> dict:
+async def dieu_khien_task(task_id: str, lenh: str, _user: dict = DuocQuanLyAudio) -> dict:
     if lenh not in ("pause", "resume", "cancel"):
         raise HTTPException(status_code=400, detail="Lệnh không hợp lệ")
     ok = await quan_ly_tasks.dieu_khien(task_id, lenh)

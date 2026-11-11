@@ -1,6 +1,14 @@
 import { beforeEach, describe, expect, it, vi } from 'vitest'
-import { batDauAnalytics, flush, ghiSuKien, xinDongY } from './service'
+import { batDauAnalytics, batDauChiaSeMacDinh, flush, ghiSuKien, ghiSuKienNgay, xinDongY } from './service'
 import { daDongY, damBaoAnonymousId, useConsentStore } from '../stores/consentStore'
+
+const outbox = vi.hoisted(() => ({
+  themSuKien: vi.fn().mockResolvedValue(undefined),
+  laySuKien: vi.fn().mockResolvedValue([]),
+  xoaSuKien: vi.fn().mockResolvedValue(undefined),
+}))
+
+vi.mock('./outbox', () => outbox)
 
 // Không mock module nào: muốn chứng minh "chưa đồng ý thì không gọi request"
 // thì phải để chính cái cổng đó quyết định, không làm thay nó.
@@ -25,6 +33,7 @@ function laiFetch() {
 }
 
 function resetConsent() {
+  vi.clearAllMocks()
   localStorage.clear()
   sessionStorage.clear()
   useConsentStore.setState({ trangThai: 'chua-chon', receipt: null, trackedOnlineUsers: null })
@@ -42,6 +51,15 @@ describe('cổng consent', () => {
     useConsentStore.getState().datTrangThai('granted')
     expect(daDongY()).toBe(true)
     expect(localStorage.getItem('quan4-consent')).toBe('granted')
+  })
+
+  it('lưu receipt để tiếp tục gửi analytics sau khi tải lại trang', () => {
+    useConsentStore.getState().datTrangThai('granted')
+    useConsentStore.getState().datReceipt('receipt-can-khoi-phuc')
+
+    expect(localStorage.getItem('quan4-consent-receipt')).toBe('receipt-can-khoi-phuc')
+    useConsentStore.getState().datReceipt(null)
+    expect(localStorage.getItem('quan4-consent-receipt')).toBeNull()
   })
 
   it('từ chối thì không phải granted', () => {
@@ -90,8 +108,40 @@ describe('không có consent thì không gửi request analytics nào', () => {
   it('thiếu receipt thì không gửi, dù đã đồng ý', async () => {
     const goi = laiFetch()
     useConsentStore.setState({ trangThai: 'granted', receipt: null })
-    await flush(true)
+    expect(await flush(true)).toBe(0)
     expect(goi).toHaveLength(0)
+  })
+
+  it('gửi lượt nghe trực tiếp lên API khi consent hợp lệ', async () => {
+    const goi = laiFetch()
+    useConsentStore.setState({ trangThai: 'granted', receipt: 'receipt-hop-le' })
+
+    await expect(
+      ghiSuKienNgay('audio_played', { poi_id: 'poi-1', lang: 'vi', tier: 'tier1' }),
+    ).resolves.toBe(true)
+
+    expect(goi).toEqual([expect.stringContaining('/analytics/collect')])
+    const body = JSON.parse(vi.mocked(fetch).mock.calls[0][1]?.body as string)
+    expect(body.heartbeat).toBe(false)
+    expect(body.events).toEqual([
+      expect.objectContaining({
+        name: 'audio_played',
+        properties: { poi_id: 'poi-1', lang: 'vi', tier: 'tier1' },
+      }),
+    ])
+  })
+
+  it('xếp lượt nghe vào outbox nếu gửi trực tiếp gặp lỗi mạng', async () => {
+    useConsentStore.setState({ trangThai: 'granted', receipt: 'receipt-hop-le' })
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+
+    await expect(ghiSuKienNgay('audio_played', { poi_id: 'poi-1' })).resolves.toBe(false)
+    expect(outbox.themSuKien).toHaveBeenCalledWith(
+      expect.objectContaining({
+        name: 'audio_played',
+        properties: { poi_id: 'poi-1' },
+      }),
+    )
   })
 })
 
@@ -105,6 +155,20 @@ describe('xinDongY phải bật được trạng thái, không chỉ lưu receip
     expect(useConsentStore.getState().trangThai).toBe('granted')
     expect(useConsentStore.getState().receipt).toBe('r')
     expect(localStorage.getItem('quan4-consent')).toBe('granted')
+  })
+
+  it('bật analytics mặc định cho thiết bị chưa có lựa chọn', async () => {
+    laiFetch()
+    await expect(batDauChiaSeMacDinh()).resolves.toBe(true)
+    expect(useConsentStore.getState().trangThai).toBe('granted')
+  })
+
+  it('không ghi đè lựa chọn đã tắt trước đó', async () => {
+    useConsentStore.getState().datTrangThai('revoked')
+    const goi = laiFetch()
+    await expect(batDauChiaSeMacDinh()).resolves.toBe(false)
+    expect(goi).toHaveLength(0)
+    expect(useConsentStore.getState().trangThai).toBe('revoked')
   })
 
   it('API lỗi thì không được bật, và không ghi consent vào localStorage', async () => {

@@ -30,7 +30,7 @@ interface PoiState {
   error: string
   lang: string
   setLang: (lang: string) => void
-  fetchPOIs: () => Promise<void>
+  fetchPOIs: (taiLaiToanBo?: boolean) => Promise<void>
 }
 
 // State toàn cục (nơi duy nhất giữ danh sách POI cho mọi component).
@@ -45,12 +45,11 @@ export const usePoiStore = create<PoiState>((set, get) => ({
     set({ lang })
     void get().fetchPOIs()
   },
-  fetchPOIs: async () => {
+  fetchPOIs: async (taiLaiToanBo = false) => {
     set({ loading: true, error: '' })
     try {
       // Online thì delta sync, offline thì IDB fallback (không màn hình trống).
-      const { pois, tuMang } = await dongBo(get().lang)
-      if (!tuMang && pois.length === 0) throw new Error('offline')
+      const { pois } = await dongBo(get().lang, taiLaiToanBo)
       set({ pois, loading: false })
     } catch (err) {
       set({ error: err instanceof Error ? err.message : 'Lỗi không rõ', loading: false })

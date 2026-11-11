@@ -45,6 +45,9 @@ Sửa `backend/.env` trước khi chạy:
 
 `env_file=".env"` được đọc tương đối với thư mục hiện hành; hãy chạy lệnh
 backend từ `backend/`. Không commit `.env` hoặc chia sẻ nội dung chứa mật khẩu.
+Trước khi bật đăng ký chủ quán, tạo `PII_KEY` bằng lệnh trong `.env.example`.
+Giữ khóa này ổn định và sao lưu an toàn: mất khóa sẽ không giải mã được CCCD
+đã mã hóa; không dùng chung khóa giữa các môi trường.
 
 ## Chạy và kiểm tra kết nối
 
@@ -53,6 +56,13 @@ cd backend
 .\.venv\Scripts\Activate.ps1
 uvicorn app.main:app --reload --port 8000
 ```
+
+Để điện thoại cùng Wi-Fi truy cập bản dev, khởi động bằng
+`uvicorn app.main:app --reload --host 0.0.0.0 --port 8000` và thêm origin chính
+xác của frontend, ví dụ `http://192.168.1.20:5173`, vào `CORS_ORIGINS` trong
+`.env`. Chỉ mở truy cập trên mạng riêng tin cậy; cho phép cổng 8000 qua Windows
+Firewall ở profile Private. IP ví dụ phải được thay bằng IPv4 hiện tại của máy
+chạy backend.
 
 Ứng dụng dừng khởi động nếu không kết nối được PostgreSQL hoặc `DB_NAME` không
 đúng. Kiểm tra database và PostGIS tại:
@@ -63,6 +73,46 @@ http://127.0.0.1:8000/api/v1/health/database
 
 `/docs` mở Swagger UI. Database health trả tên DB, phiên bản PostGIS và số bảng;
 nó không xác nhận dữ liệu nghiệp vụ đã được nạp.
+
+## Admin user và role APIs
+
+- `GET /admin/users` yêu cầu `users.read`; trả danh sách `{id, email, full_name,
+  account_status, role_code, role_name}`.
+- `POST /admin/roles` yêu cầu `role:read`; body
+  `{code, name, description?, permission_codes?}` tạo role tùy chỉnh. Mã role
+  hệ thống và quyền quản trị bị từ chối; mã trùng trả `409`.
+- `PATCH /admin/users/{user_id}` yêu cầu `user:update` (permission
+  `users.manage` được ánh xạ sang permission này). Body nhận
+  `{account_status?: "pending" | "active" | "rejected", role_code?: string | null}`;
+  `role_code: null` gỡ role của tài khoản. Role hệ thống và role có quyền
+  quản trị không thể được gán. Trả `{id, account_status, role_code}`.
+- `PUT /admin/roles/{role_code}/permissions` yêu cầu `role:read` (permission
+  `roles.manage` được ánh xạ sang permission này). Body
+  `{permission_codes: string[]}` thay thế toàn bộ permissions của role và trả
+  `{role_code, permission_codes}`. Chỉ role không phải hệ thống mới được sửa;
+  endpoint không cấp quyền `users.manage` hoặc `roles.manage`.
+
+Các thay đổi thành công được ghi vào audit log trong cùng transaction; người
+dùng hiện tại không thể tự khóa tài khoản, thay đổi role, hoặc sửa quyền của
+role đang sử dụng.
+
+## Báo cáo AI và tác vụ âm thanh
+
+`GET /admin/ai-usage?so_ngay=7` yêu cầu `analytics:view` và tổng hợp lượt dùng
+AI theo ngày của chủ quán trong khoảng 1–30 ngày. API không trả nội dung prompt.
+Danh sách, luồng tiến độ và lệnh điều khiển tác vụ âm thanh tại `/audio/tasks`
+yêu cầu quyền `user:update`; các API TTS dành cho người dùng vẫn giữ giới hạn
+riêng.
+
+## Owner portal
+
+- `GET /owner/pois` chỉ trả POI thuộc tài khoản chủ quán đã được duyệt.
+- `GET /owner/submissions/mine` trả trạng thái, thời điểm gửi và `admin_note`;
+  submission bị từ chối sẽ tạo thông báo cho chủ quán.
+- `POST /owner/submissions/{sid}/reject` yêu cầu quyền `poi:approve` và lý do
+  từ chối.
+- Menu và món ăn được quản lý qua `/owner/pois/{poi_id}/menus` và
+  `/owner/menus/{menu_id}/items`; API xác định quyền sở hữu từ phiên đăng nhập.
 
 ## Seed dữ liệu
 

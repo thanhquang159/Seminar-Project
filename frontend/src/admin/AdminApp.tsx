@@ -4,6 +4,9 @@ import AnalyticsPanel from './AnalyticsPanel'
 import AudioTasks from './AudioTasks'
 import OwnerApprovals from './OwnerApprovals'
 import PoiImageManager from './PoiImageManager'
+import PortalDashboard, { type PortalDashboardItem } from './PortalDashboard'
+import AdminGovernance from './AdminGovernance'
+import AdminAccessManagement from './AdminAccessManagement'
 import { layUrlAnh } from '../components/imageUtils'
 import type { Poi } from '../stores/poiStore'
 
@@ -33,18 +36,33 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   const [ten, setTen] = useState('')
   const [matKhau, setMatKhau] = useState('')
   const [loi, setLoi] = useState('')
+  const [dangDangNhap, setDangDangNhap] = useState(false)
   const [pois, setPois] = useState<Poi[]>([])
+  const [tongPoi, setTongPoi] = useState<number | null>(null)
+  const [loiTongPoi, setLoiTongPoi] = useState('')
   const [form, setForm] = useState<Poi>(TRONG)
   const [dangSua, setDangSua] = useState(false)
   const [poiQuanLyAnh, setPoiQuanLyAnh] = useState<Poi | null>(null)
-  const [adminTab, setAdminTab] = useState<'pois' | 'approvals' | 'audio' | 'analytics'>('pois')
+  const [adminTab, setAdminTab] = useState<'pois' | 'approvals' | 'audio' | 'analytics' | 'access' | 'audit'>('pois')
 
   const taiPois = async () => {
-    try {
-      const danhSach = await api<Poi[]>('/poi')
-      setPois(danhSach)
-    } catch {
-      // Bỏ qua lỗi
+    const [ketQuaDanhSach, ketQuaTong] = await Promise.allSettled([
+      api<Poi[]>('/poi'),
+      api<{ count: number }>('/poi/count'),
+    ])
+    if (ketQuaDanhSach.status === 'fulfilled') {
+      setPois(ketQuaDanhSach.value)
+    }
+    if (
+      ketQuaTong.status === 'fulfilled' &&
+      Number.isSafeInteger(ketQuaTong.value.count) &&
+      ketQuaTong.value.count >= 0
+    ) {
+      setTongPoi(ketQuaTong.value.count)
+      setLoiTongPoi('')
+    } else {
+      setTongPoi(null)
+      setLoiTongPoi('Không thể tải tổng số địa điểm từ máy chủ.')
     }
   }
 
@@ -59,30 +77,39 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   }, [])
 
   const dangNhap = async () => {
+    if (dangDangNhap) return
     setLoi('')
-    const res = await apiText('/admin/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: ten, password: matKhau }),
-    })
-    if (!res.ok) {
-      setLoi('Sai tên đăng nhập hoặc mật khẩu')
-      return
+    setDangDangNhap(true)
+    try {
+      const res = await apiText('/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: ten, password: matKhau }),
+      })
+      if (!res.ok) {
+        setLoi('Sai tên đăng nhập hoặc mật khẩu')
+        return
+      }
+      const me = (await res.json()) as { username: string; role: string }
+      if (CONG_KHACH.has(me.role)) {
+        setLoi('Tài khoản này là chủ quán, không mở được cổng quản trị')
+        return
+      }
+      setUser(me.username)
+      setMatKhau('')
+      await taiPois()
+    } catch {
+      setLoi('Không kết nối được máy chủ. Hãy kiểm tra backend và thử lại.')
+    } finally {
+      setDangDangNhap(false)
     }
-    const me = (await res.json()) as { username: string; role: string }
-    if (CONG_KHACH.has(me.role)) {
-      setLoi('Tài khoản này là chủ quán, không mở được cổng quản trị')
-      return
-    }
-    setUser(me.username)
-    setMatKhau('')
-    await taiPois()
   }
 
   const dangXuat = async () => {
     await apiText('/admin/auth/logout', { method: 'POST' })
     setUser(null)
     setPois([])
+    setTongPoi(null)
   }
 
   const luu = async () => {
@@ -132,131 +159,160 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
 
   if (user === null) {
     return (
-      <div className="login-card-wrapper">
+      <div className="login-card-wrapper login-card-wrapper--admin">
         <div className="card login-card">
           <div className="login-card__header">
-            <div className="login-card__icon-wrap">
+            <div className="login-card__icon-wrap login-card__icon-wrap--admin">
               <svg className="login-card__icon" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75">
-                <rect x="3" y="11" width="18" height="11" rx="2" ry="2" />
-                <path d="M7 11V7a5 5 0 0 1 10 0v4" />
+                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
+                <path d="m9 12 2 2 4-4" />
               </svg>
             </div>
-            <h2 className="card__title">Đăng nhập Quản trị viên</h2>
-            <p className="card__subtitle">Dành riêng cho cán bộ điều hành hệ thống AMDS Quận 4</p>
+            <span className="portal-login__eyebrow">CỔNG NỘI BỘ</span>
+            <h2 className="card__title">Chào mừng trở lại!</h2>
+            <p className="card__subtitle">Đăng nhập để quản lý hệ thống Ẩm Thực Quận 4.</p>
           </div>
 
-          <div className="field">
-            <label className="field__label" htmlFor="admin-username">Tên đăng nhập</label>
-            <input
-              id="admin-username"
-              className="input"
-              placeholder="Tên đăng nhập"
-              value={ten}
-              onChange={(e) => setTen(e.target.value)}
-            />
-          </div>
-
-          <div className="field">
-            <label className="field__label" htmlFor="admin-password">Mật khẩu</label>
-            <input
-              id="admin-password"
-              className="input"
-              placeholder="Mật khẩu"
-              type="password"
-              value={matKhau}
-              onChange={(e) => setMatKhau(e.target.value)}
-            />
-          </div>
-
-          <button
-            className="btn btn--primary btn--block btn--lg mt"
-            type="button"
-            onClick={() => void dangNhap()}
+          <form
+            onSubmit={(event) => {
+              event.preventDefault()
+              void dangNhap()
+            }}
           >
-            Đăng nhập
-          </button>
+            <div className="field">
+              <label className="field__label" htmlFor="admin-username">Email hoặc tên đăng nhập</label>
+              <input
+                id="admin-username"
+                className="input"
+                placeholder="Nhập email hoặc tên đăng nhập"
+                autoComplete="username"
+                required
+                value={ten}
+                onChange={(e) => setTen(e.target.value)}
+              />
+            </div>
 
-          {loi !== '' && <div className="notice notice--error mt">{loi}</div>}
+            <div className="field">
+              <label className="field__label" htmlFor="admin-password">Mật khẩu</label>
+              <input
+                id="admin-password"
+                className="input"
+                placeholder="Nhập mật khẩu"
+                type="password"
+                autoComplete="current-password"
+                required
+                value={matKhau}
+                onChange={(e) => setMatKhau(e.target.value)}
+              />
+            </div>
+
+            <button
+              className="btn btn--primary btn--block btn--lg mt"
+              type="submit"
+              disabled={dangDangNhap}
+            >
+              {dangDangNhap ? 'Đang xác thực…' : 'Đăng nhập quản trị'}
+            </button>
+          </form>
+
+          {loi !== '' && <div className="notice notice--error mt" role="alert">{loi}</div>}
+          <p className="portal-login__security-note">
+            Phiên quản trị được bảo vệ bằng cookie bảo mật. Không chia sẻ thông tin đăng nhập.
+          </p>
         </div>
       </div>
     )
   }
 
-  return (
-    <div className="admin-container">
-      {/* Thanh chào & Đăng xuất */}
-      <div className="card admin-header-card">
-        <div className="spread">
-          <div className="admin-user-info">
-            <div className="admin-user-avatar">
-              <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-                <path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10z" />
-              </svg>
-            </div>
-            <div>
-              <p className="admin-user-title">
-                Xin chào, <strong>{user}</strong>
-              </p>
-              <span className="badge badge--ok">Phiên làm việc Quản trị viên</span>
-            </div>
-          </div>
-          <button className="btn btn--secondary btn--sm" type="button" onClick={() => void dangXuat()}>
-            Đăng xuất
-          </button>
-        </div>
-      </div>
+  const navItems: PortalDashboardItem[] = [
+    {
+      key: 'pois',
+      label: `Quản lý quán (${pois.length})`,
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" /><circle cx="12" cy="10" r="3" /></svg>,
+    },
+    {
+      key: 'approvals',
+      label: 'Duyệt chủ quán',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></svg>,
+    },
+    {
+      key: 'audio',
+      label: 'Tác vụ âm thanh',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2m7 9v3" /></svg>,
+    },
+    {
+      key: 'analytics',
+      label: 'Thống kê & Giám sát',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 19V9m8 10V4m8 15v-7" /></svg>,
+    },
+    {
+      key: 'access',
+      label: 'Tài khoản & quyền',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 22s8-4 8-10V5l-8-3-8 3v7c0 6 8 10 8 10Z" /><path d="m9 12 2 2 4-4" /></svg>,
+    },
+    {
+      key: 'audit',
+      label: 'Nhật ký hoạt động',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M3 12a9 9 0 1 0 3-6.7L3 8" /><path d="M3 3v5h5m4-1v5l3 2" /></svg>,
+    },
+  ]
+  const pageInfo = {
+    pois: ['Quản lý địa điểm', 'Theo dõi và cập nhật các điểm ẩm thực Quận 4.'],
+    approvals: ['Kiểm duyệt', 'Xử lý hồ sơ chủ quán và địa điểm mới gửi lên.'],
+    audio: ['Tác vụ âm thanh', 'Quản lý nội dung thuyết minh cho các điểm ẩm thực.'],
+    analytics: ['Thống kê & Giám sát', 'Theo dõi tương tác và tình trạng vận hành hệ thống.'],
+    access: ['Tài khoản & quyền', 'Quản lý trạng thái tài khoản và quyền vai trò.'],
+    audit: ['Nhật ký hoạt động', 'Tra cứu lịch sử thao tác trong hệ thống.'],
+  }[adminTab]
+  const audioCount = pois.filter((poi) => Boolean(poi.audio_url)).length
+  const imageCount = pois.reduce((total, poi) => total + (poi.images?.length ?? 0), 0)
 
-      {/* Thanh tab nội bộ của Admin */}
-      <div className="admin-tabs-nav mt" role="tablist">
-        <button
-          type="button"
-          className={`admin-tab-btn${adminTab === 'pois' ? ' admin-tab-btn--active' : ''}`}
-          onClick={() => setAdminTab('pois')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0z" />
-            <circle cx="12" cy="10" r="3" />
-          </svg>
-          Quản lý quán ({pois.length})
-        </button>
-        <button
-          type="button"
-          className={`admin-tab-btn${adminTab === 'approvals' ? ' admin-tab-btn--active' : ''}`}
-          onClick={() => setAdminTab('approvals')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" />
-            <circle cx="9" cy="7" r="4" />
-            <path d="M22 21v-2a4 4 0 0 0-3-3.87" />
-            <path d="M16 3.13a4 4 0 0 1 0 7.75" />
-          </svg>
-          Duyệt chủ quán
-        </button>
-        <button
-          type="button"
-          className={`admin-tab-btn${adminTab === 'audio' ? ' admin-tab-btn--active' : ''}`}
-          onClick={() => setAdminTab('audio')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" />
-            <path d="M19 10v2a7 7 0 0 1-14 0v-2" />
-            <line x1="12" y1="19" x2="12" y2="22" />
-          </svg>
-          Tác vụ âm thanh
-        </button>
-        <button
-          type="button"
-          className={`admin-tab-btn${adminTab === 'analytics' ? ' admin-tab-btn--active' : ''}`}
-          onClick={() => setAdminTab('analytics')}
-        >
-          <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-            <line x1="18" y1="20" x2="18" y2="10" />
-            <line x1="12" y1="20" x2="12" y2="4" />
-            <line x1="6" y1="20" x2="6" y2="14" />
-          </svg>
-          Thống kê & Giám sát
-        </button>
-      </div>
+  return (
+    <PortalDashboard
+      role="admin"
+      username={user}
+      title={pageInfo[0]}
+      description={pageInfo[1]}
+      activeItem={adminTab}
+      items={navItems}
+      onNavigate={(key) => {
+        if (key === 'pois' || key === 'approvals' || key === 'audio' || key === 'analytics' || key === 'access' || key === 'audit') {
+          setAdminTab(key)
+        }
+      }}
+      onLogout={() => void dangXuat()}
+    >
+      {adminTab === 'pois' && (
+        <section className="dashboard-metrics" aria-label="Tổng quan địa điểm">
+          <div className="dashboard-metric">
+            <span className="dashboard-metric__icon dashboard-metric__icon--blue" aria-hidden="true">⌖</span>
+            <span className="dashboard-metric__label">Tổng địa điểm</span>
+            <strong>{pois.length}</strong>
+            <span className="dashboard-metric__hint">điểm ẩm thực đang quản lý</span>
+          </div>
+          <div className="dashboard-metric">
+            <span className="dashboard-metric__icon dashboard-metric__icon--green" aria-hidden="true">♫</span>
+            <span className="dashboard-metric__label">Đã có thuyết minh</span>
+            <strong>{audioCount}</strong>
+            <span className="dashboard-metric__hint">địa điểm có audio</span>
+          </div>
+          <div className="dashboard-metric">
+            <span className="dashboard-metric__icon dashboard-metric__icon--amber" aria-hidden="true">◷</span>
+            <span className="dashboard-metric__label">Cần bổ sung audio</span>
+            <strong>{pois.length - audioCount}</strong>
+            <span className="dashboard-metric__hint">địa điểm chưa có audio</span>
+          </div>
+          <div className="dashboard-metric">
+            <span className="dashboard-metric__icon dashboard-metric__icon--violet" aria-hidden="true">▧</span>
+            <span className="dashboard-metric__label">Hình ảnh</span>
+            <strong>{imageCount}</strong>
+            <span className="dashboard-metric__hint">ảnh trên các địa điểm</span>
+          </div>
+        </section>
+      )}
+      {adminTab === 'pois' && loiTongPoi !== '' && (
+        <div className="notice notice--error mt" role="alert">{loiTongPoi}</div>
+      )}
 
       {/* NỘI DUNG THEO TAB ADMIN */}
       {adminTab === 'pois' && (
@@ -470,6 +526,11 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
         </div>
       )}
 
+      {adminTab === 'access' && <AdminAccessManagement />}
+      {adminTab === 'audit' && (
+        <AdminGovernance key={adminTab} section={adminTab} />
+      )}
+
       {/* Modal Quản lý hình ảnh POI */}
       {poiQuanLyAnh && (
         <PoiImageManager
@@ -480,6 +541,6 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
           onDong={() => setPoiQuanLyAnh(null)}
         />
       )}
-    </div>
+    </PortalDashboard>
   )
 }

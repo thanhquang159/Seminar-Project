@@ -14,7 +14,7 @@ export function useStartup() {
   const [mangSanSang, setMangSanSang] = useState(false)
 
   useEffect(() => {
-    void fetchPOIs()
+    void fetchPOIs(true)
     void thamDoBackend(API_GOC).then(setMangSanSang)
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [])

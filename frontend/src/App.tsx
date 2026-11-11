@@ -1,5 +1,4 @@
 import { lazy, Suspense, useCallback, useEffect, useRef, useState, type ComponentType } from 'react'
-import ConsentBanner from './components/ConsentBanner'
 import LanguagePicker from './components/LanguagePicker'
 import OfflinePacks from './components/OfflinePacks'
 import { PoiDetail, PoiList } from './components/PoiList'
@@ -11,7 +10,7 @@ import { useGeofence } from './geofence/useGeofence'
 import { useViTri } from './geofence/useViTri'
 import { chonPrefetch, tinhBackoff } from './geofence/prefetch'
 import { useStartup } from './startup'
-import { batDauAnalytics, ghiSuKien } from './analytics/service'
+import { batDauAnalytics, batDauChiaSeMacDinh, ghiSuKienNgay } from './analytics/service'
 import { baoMau, batDauQuanSatVịTri } from './telemetry/location'
 import { laySessionId, useConsentStore } from './stores/consentStore'
 import { usePoiStore } from './stores/poiStore'
@@ -210,7 +209,7 @@ function khoiTaoTab(): TabType {
   return 'trang-chu'
 }
 
-function App() {
+function MainApp() {
   const { pois, loading, error, fetchPOIs, lang } = usePoiStore()
   const [selectedId, setSelectedId] = useState<string | null>(null)
   const [dangDoc, setDangDoc] = useState<string | null>(null)
@@ -223,6 +222,36 @@ function App() {
   useEffect(() => {
     langRef.current = lang
   })
+
+  useEffect(() => {
+    if (trangThaiConsent !== 'chua-chon') return
+    let active = true
+    let dangBat = false
+    const enableByDefault = async () => {
+      if (dangBat) return
+      dangBat = true
+      try {
+        const enabled = await batDauChiaSeMacDinh()
+        if (active && !enabled) {
+          console.error('Không thể bật analytics mặc định; khách vẫn chưa được theo dõi.')
+        }
+      } catch (error) {
+        if (active) console.error('Không kết nối được để bật analytics mặc định:', error)
+      } finally {
+        dangBat = false
+      }
+    }
+
+    void enableByDefault()
+    const retry = window.setInterval(() => {
+      if (useConsentStore.getState().trangThai === 'chua-chon') void enableByDefault()
+    }, 30000)
+
+    return () => {
+      active = false
+      window.clearInterval(retry)
+    }
+  }, [trangThaiConsent])
 
   // ANA-001: chỉ khi đã đồng ý mới bật; thu hồi consent thì teardown ngay.
   useEffect(() => batDauAnalytics(), [trangThaiConsent])
@@ -280,7 +309,19 @@ function App() {
     }
   }, [viTri, pois])
 
-  const chonPoi = useCallback((id: string) => setSelectedId(id), [])
+  const chonPoi = useCallback(
+    (id: string) => {
+      setSelectedId(id)
+      const poi = pois.find((item) => item.id === id)
+      if (poi !== undefined) {
+        void ghiSuKienNgay('poi_viewed', { poi_id: poi.id, lang: langRef.current })
+      }
+    },
+    [pois],
+  )
+  const vaoCong = useCallback((cong: 'admin' | 'chu-quan') => {
+    window.location.assign(cong === 'admin' ? '/admin/login' : '/owner/login')
+  }, [])
 
   // GEO-004 + AUD-009: vào vòng thì phát 4 tầng, đổi ngôn ngữ thì bỏ cũ.
   const docPoi = useCallback(
@@ -289,7 +330,6 @@ function App() {
       if (poi === undefined) return
       setSelectedId(id)
       setDangDoc(poi.name)
-      void ghiSuKien('poi_viewed', { poi_id: poi.id, lang: langRef.current })
       void playWithFallback({
         poiId: poi.id,
         lang: langRef.current,
@@ -297,15 +337,18 @@ function App() {
         audioUrl: poi.audio_url,
         isFallback: poi.is_fallback,
         uuTien: poi.audio_priority,
-      }).then((tier) => {
-        // Chỉ ghi khi thật sự có tiếng; 'bo' nghĩa là bị lượt mới hơn cắt ngang
-        // thì tính vào số liệu sẽ làm sai tỉ lệ nghe.
-        if (tier !== 'bo') {
-          return ghiSuKien('audio_played', { poi_id: poi.id, lang: langRef.current, tier })
-        }
       })
     },
     [pois],
+  )
+  const nghePoi = useCallback(
+    (id: string) => {
+      const poi = pois.find((item) => item.id === id)
+      if (poi === undefined) return
+      void ghiSuKienNgay('audio_played', { poi_id: poi.id, lang: langRef.current })
+      docPoi(id)
+    },
+    [docPoi, pois],
   )
 
   useGeofence(pois, (poi) => docPoi(poi.id))
@@ -316,7 +359,13 @@ function App() {
       <HomeSplash
         onStart={() => setTab('kham-pha')}
         onOffline={() => setTab('goi-offline')}
-        onNavigate={(target) => setTab(target)}
+        onNavigate={(target) => {
+          if (target === 'admin' || target === 'chu-quan') {
+            vaoCong(target)
+            return
+          }
+          setTab(target)
+        }}
       />
     )
   }
@@ -371,7 +420,13 @@ function App() {
                 aria-selected={isActive}
                 aria-label={t.ma === 'admin' ? 'Admin · Quản trị' : t.ten}
                 className={`nav-tab-item${isActive ? ' nav-tab-item--active' : ''}`}
-                onClick={() => setTab(t.ma)}
+                onClick={() => {
+                  if (t.ma === 'admin' || t.ma === 'chu-quan') {
+                    vaoCong(t.ma)
+                    return
+                  }
+                  setTab(t.ma)
+                }}
               >
                 <span className="nav-tab-item__icon" aria-hidden="true">
                   <Icon />
@@ -391,8 +446,6 @@ function App() {
             Đang khởi động… (nội dung {khoiDong.noiDungSanSang ? 'sẵn sàng' : 'đang tải'}, giao diện {khoiDong.uiSanSang ? 'sẵn sàng' : 'đang tải'})
           </div>
         )}
-
-        <ConsentBanner />
 
         {/* Floating Glass Pill: Thanh phát âm thanh hiện đại, không đẩy lệch bố cục trang */}
         {dangDoc !== null && (
@@ -456,7 +509,7 @@ function App() {
                     <div className="kham-pha-detail-wrap mb">
                       <PoiDetail
                         poi={dangChon}
-                        onNghe={() => void docPoi(dangChon.id)}
+                        onNghe={() => nghePoi(dangChon.id)}
                         onDong={() => setSelectedId(null)}
                       />
                     </div>
@@ -477,6 +530,126 @@ function App() {
       )}
     </div>
   )
+}
+
+function PortalPage({ portal }: { portal: 'admin' | 'owner' }) {
+  const isAdmin = portal === 'admin'
+
+  if (isAdmin) {
+    return (
+      <div className="portal-page portal-page--admin">
+        <main className="admin-login-layout">
+          <section className="admin-login-main">
+            <a className="admin-login-mobile-brand" href="/" aria-label="Về trang chủ Ẩm Thực Quận 4">
+              <span className="admin-login-mobile-brand__mark" aria-hidden="true">A</span>
+              <span>Ẩm Thực Quận 4</span>
+            </a>
+            <div className="admin-login-form">
+              <Suspense fallback={<div className="notice notice--info">Đang tải cổng đăng nhập…</div>}>
+                <AdminApp onPoisChanged={() => void usePoiStore.getState().fetchPOIs()} />
+              </Suspense>
+            </div>
+            <footer className="admin-login-footer">
+              <span>© 2026 Ẩm Thực Quận 4</span>
+              <a href="/">Về trang khám phá</a>
+            </footer>
+          </section>
+          <aside className="admin-login-art" aria-label="Cổng quản trị hệ thống">
+            <svg className="admin-login-art__waves" viewBox="0 0 640 900" preserveAspectRatio="xMidYMid slice" aria-hidden="true">
+              <path d="M-80 250C100 120 160 370 320 240S520 130 720 260" />
+              <path d="M-100 300C80 170 170 420 340 290S540 170 740 310" />
+              <path d="M-90 360C90 230 180 480 350 350S550 220 730 370" />
+              <path d="M-80 430C80 300 180 560 360 420S540 310 720 450" />
+              <path d="M-70 520C100 370 190 650 380 500S560 390 720 530" />
+              <path d="M-80 620C90 470 200 730 390 590S560 480 730 620" />
+              <path d="M-70 720C90 570 210 820 400 690S570 570 730 720" />
+              <path d="M-90 810C100 660 220 900 410 780S570 670 740 810" />
+            </svg>
+            <div className="admin-login-art__content">
+              <div className="admin-login-art__brand">
+                <span className="admin-login-art__brand-mark" aria-hidden="true">A</span>
+                <span>Ẩm Thực Quận 4</span>
+              </div>
+              <div className="admin-login-art__message">
+                <span className="admin-login-art__eyebrow">CỔNG QUẢN TRỊ</span>
+                <h1>Vận hành dễ dàng,<br />trải nghiệm trọn vẹn.</h1>
+                <p>Quản lý điểm đến, nội dung và hành trình khám phá ẩm thực Quận 4 tại một nơi.</p>
+              </div>
+              <div className="admin-login-art__dots" aria-hidden="true">
+                <span />
+                <span />
+                <span />
+              </div>
+            </div>
+          </aside>
+        </main>
+      </div>
+    )
+  }
+
+  return (
+    <div className="portal-page portal-page--owner">
+      <main className="owner-login-layout">
+        <aside className="owner-login-art" aria-label="Đồng hành cùng quán ngon Quận 4">
+          <div className="owner-login-art__top">
+            <a className="owner-login-art__brand" href="/" aria-label="Về trang chủ Ẩm Thực Quận 4">
+              <span className="owner-login-art__brand-mark" aria-hidden="true">A</span>
+              <span>Ẩm Thực Quận 4</span>
+            </a>
+            <span className="owner-login-art__tag">GÓC BẾP ĐỊA PHƯƠNG</span>
+          </div>
+          <svg className="owner-login-art__illustration" viewBox="0 0 520 420" fill="none" aria-hidden="true">
+            <ellipse cx="260" cy="337" rx="177" ry="25" fill="#12243D" fillOpacity=".16" />
+            <path d="M101 211c7 97 70 153 159 153s152-56 159-153H101Z" fill="#F6E8C9" />
+            <path d="M103 211c7 97 70 153 157 153 89 0 152-56 159-153H103Z" stroke="#E4D2AB" strokeWidth="5" />
+            <ellipse cx="260" cy="211" rx="159" ry="42" fill="#FFF8E9" stroke="#E4D2AB" strokeWidth="5" />
+            <ellipse cx="260" cy="207" rx="139" ry="28" fill="#B9472D" />
+            <path d="M145 206c25-25 46 22 70-2 22-21 38-25 58-2 17 20 34 14 49-3 15-17 37-21 55 5" stroke="#F0B35B" strokeWidth="9" strokeLinecap="round" />
+            <circle cx="206" cy="197" r="13" fill="#F1D77A" />
+            <circle cx="303" cy="211" r="12" fill="#F1D77A" />
+            <path d="M178 169c-17-24-9-46 12-61 7 25 3 45-12 61Zm58-12c-4-31 13-51 42-58-3 30-18 50-42 58Zm66 4c4-26 22-39 49-37-8 26-25 39-49 37Z" fill="#7D9BC4" />
+            <path d="M176 170c17-17 26-34 34-56m26 43c11-18 21-35 42-54m24 56c10-15 20-25 39-35" stroke="#D3DEEF" strokeWidth="4" strokeLinecap="round" />
+            <path d="M93 130c-36-14-49-43-39-79 32 19 46 45 39 79Zm336 8c14-36 42-51 78-42-17 33-43 48-78 42ZM97 287c-39 3-65-17-72-55 38 7 62 26 72 55Zm327-7c27-29 59-33 91-11-29 24-59 28-91 11Z" fill="#D9804E" />
+            <path d="M94 129c-13-24-24-43-39-65m375 73c20-17 39-29 64-37M97 286c-24-17-42-32-59-54m386 48c22-14 41-22 66-26" stroke="#F4C39A" strokeWidth="4" strokeLinecap="round" />
+            <path d="M118 109c-8-28-1-49 22-66 11 29 4 51-22 66Zm288 12c12-29 34-41 64-36-12 29-34 41-64 36Z" fill="#7D9BC4" />
+            <circle cx="125" cy="222" r="5" fill="#E4B85F" />
+            <circle cx="386" cy="221" r="5" fill="#E4B85F" />
+          </svg>
+          <div className="owner-login-art__message">
+            <span className="owner-login-art__eyebrow">CÂU CHUYỆN CỦA BẠN</span>
+            <h1>Mỗi quán ngon<br />đều có một câu chuyện.</h1>
+            <p>Chia sẻ hương vị và dấu ấn riêng của quán bạn với những người yêu ẩm thực Quận 4.</p>
+          </div>
+          <div className="owner-login-art__bottom">
+            <span>Vị ngon địa phương · Kết nối gần hơn</span>
+            <span className="owner-login-art__spark" aria-hidden="true">✳</span>
+          </div>
+        </aside>
+        <section className="owner-login-main">
+          <header className="owner-login-main__header">
+            <a href="/">← Trang khám phá</a>
+            <span>Đội ngũ vận hành? <a href="/admin/login">Đăng nhập Admin</a></span>
+          </header>
+          <div className="owner-login-form">
+            <Suspense fallback={<div className="notice notice--info">Đang tải cổng đăng nhập…</div>}>
+              <OwnerApp />
+            </Suspense>
+          </div>
+          <footer className="owner-login-main__footer">
+            <span>© 2026 Ẩm Thực Quận 4</span>
+            <span>Phát triển cùng cộng đồng địa phương</span>
+          </footer>
+        </section>
+      </main>
+    </div>
+  )
+}
+
+function App() {
+  const path = window.location.pathname.replace(/\/+$/, '') || '/'
+  if (path === '/admin/login') return <PortalPage portal="admin" />
+  if (path === '/owner/login') return <PortalPage portal="owner" />
+  return <MainApp />
 }
 
 export default App

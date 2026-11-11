@@ -208,7 +208,7 @@ def _client(session, *routers):
         return {
             "username": "tester",
             "role": "admin",
-            "permissions": ["poi:update"],
+            "permissions": ["poi:update", "user:update"],
         }
 
     app.dependency_overrides[get_db] = fake_db

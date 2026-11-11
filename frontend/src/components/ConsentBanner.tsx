@@ -1,3 +1,4 @@
+import { useState } from 'react'
 import { useConsentStore } from '../stores/consentStore'
 import { thuHoiDongY, xinDongY } from '../analytics/service'
 
@@ -25,28 +26,73 @@ function ShieldCheckIcon() {
 export default function ConsentBanner() {
   const trangThai = useConsentStore((s) => s.trangThai)
   const tracked = useConsentStore((s) => s.trackedOnlineUsers)
+  const [dangCapNhat, setDangCapNhat] = useState(false)
+  const [loi, setLoi] = useState('')
+
+  const batChiaSe = async () => {
+    if (dangCapNhat) return
+    setDangCapNhat(true)
+    setLoi('')
+    try {
+      if (!(await xinDongY())) {
+        setLoi('Chưa bật được chia sẻ dữ liệu. Kiểm tra kết nối máy chủ rồi thử lại.')
+      }
+    } catch {
+      setLoi('Không kết nối được máy chủ. Dữ liệu analytics vẫn đang tắt.')
+    } finally {
+      setDangCapNhat(false)
+    }
+  }
+
+  const tatChiaSe = async () => {
+    if (dangCapNhat) return
+    setDangCapNhat(true)
+    setLoi('')
+    try {
+      await thuHoiDongY()
+    } finally {
+      setDangCapNhat(false)
+    }
+  }
 
   if (trangThai !== 'chua-chon') {
     return (
-      <div className="consent-status-bar mb">
-        <div className="spread">
-          <div className="consent-status-info">
-            <span
-              className="consent-status-dot"
-              style={{ backgroundColor: trangThai === 'granted' ? 'var(--amds-success)' : 'var(--amds-text-faint)' }}
-            />
-            <span className="consent-status-text">
-              Chia sẻ dữ liệu ẩn danh: <strong>{trangThai === 'granted' ? 'đang bật' : 'đang tắt'}</strong>
-              {trangThai === 'granted' && tracked !== null && ` · ${tracked} thiết bị đang dùng`}
-            </span>
+      <>
+        <div className="consent-status-bar mb">
+          <div className="spread">
+            <div className="consent-status-info">
+              <span
+                className="consent-status-dot"
+                style={{ backgroundColor: trangThai === 'granted' ? 'var(--amds-success)' : 'var(--amds-text-faint)' }}
+              />
+              <span className="consent-status-text">
+                Chia sẻ dữ liệu ẩn danh: <strong>{trangThai === 'granted' ? 'đang bật' : 'đang tắt'}</strong>
+                {trangThai === 'granted' && tracked !== null && ` · ${tracked} thiết bị đang dùng`}
+              </span>
+            </div>
+            {trangThai === 'granted' ? (
+              <button
+                className="btn btn--sm btn--secondary"
+                type="button"
+                disabled={dangCapNhat}
+                onClick={() => void tatChiaSe()}
+              >
+                {dangCapNhat ? 'Đang cập nhật…' : 'Tắt thu thập'}
+              </button>
+            ) : (
+              <button
+                className="btn btn--sm btn--primary"
+                type="button"
+                disabled={dangCapNhat}
+                onClick={() => void batChiaSe()}
+              >
+                {dangCapNhat ? 'Đang bật…' : 'Bật chia sẻ'}
+              </button>
+            )}
           </div>
-          {trangThai === 'granted' && (
-            <button className="btn btn--sm btn--secondary" type="button" onClick={() => void thuHoiDongY()}>
-              Tắt thu thập
-            </button>
-          )}
         </div>
-      </div>
+        {loi !== '' && <div className="notice notice--error mb" role="alert">{loi}</div>}
+      </>
     )
   }
 
@@ -71,10 +117,16 @@ export default function ConsentBanner() {
         <button className="btn btn--secondary btn--sm" type="button" onClick={() => void thuHoiDongY()}>
           Không cho phép
         </button>
-        <button className="btn btn--primary btn--sm" type="button" onClick={() => void xinDongY()}>
-          Cho phép
+        <button
+          className="btn btn--primary btn--sm"
+          type="button"
+          disabled={dangCapNhat}
+          onClick={() => void batChiaSe()}
+        >
+          {dangCapNhat ? 'Đang bật…' : 'Cho phép'}
         </button>
       </div>
+      {loi !== '' && <div className="notice notice--error mt" role="alert">{loi}</div>}
     </div>
   )
 }

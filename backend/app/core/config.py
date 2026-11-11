@@ -61,9 +61,6 @@ def la_dev() -> bool:
 
 
 def kiem_tra_bi_mat() -> None:
-    if la_dev():
-        return
-
     development_secrets = {
         "dev-access-secret-doi-khi-deploy",
         "dev-refresh-secret-doi-khi-deploy",
@@ -74,7 +71,7 @@ def kiem_tra_bi_mat() -> None:
             ("JWT_SECRET", settings.JWT_SECRET),
             ("REFRESH_TOKEN_SECRET", settings.REFRESH_TOKEN_SECRET),
         )
-        if not value or value in development_secrets
+        if not value or (not la_dev() and value in development_secrets)
     ]
     if missing:
         raise RuntimeError(f"Missing required environment variables: {', '.join(missing)}")

@@ -18,6 +18,7 @@ from app.routers.admin_analytics import router as admin_analytics_router
 from app.routers.admin_auth import router as admin_auth_router
 from app.routers.admin_meta import router as admin_meta_router
 from app.routers.admin_pois import router as admin_pois_router
+from app.routers.admin_users import router as admin_users_router
 from app.routers.ai import router as ai_router
 from app.routers.analytics import router as analytics_router
 from app.routers.audio import router as audio_router
@@ -26,6 +27,7 @@ from app.routers.i18n import router as ui_bundle_router
 from app.routers.localizations import router as localizations_router
 from app.routers.maps import router as maps_router
 from app.routers.owner import router as owner_router
+from app.routers.owner_menus import router as owner_menus_router
 from app.routers.runtime_observability import router as runtime_observability_router
 from app.routers.warmup import router as warmup_router
 
@@ -69,7 +71,9 @@ app.include_router(ui_bundle_router)
 app.include_router(admin_auth_router)
 app.include_router(admin_meta_router)
 app.include_router(admin_pois_router)
+app.include_router(admin_users_router)
 app.include_router(owner_router)
+app.include_router(owner_menus_router)
 app.include_router(analytics_router)
 app.include_router(admin_analytics_router)
 app.include_router(runtime_observability_router)

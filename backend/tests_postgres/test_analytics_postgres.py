@@ -1,4 +1,5 @@
 import asyncio
+from datetime import date
 from uuid import uuid4
 
 from fastapi import FastAPI
@@ -115,35 +116,43 @@ def test_summary_uses_events_and_exposes_unavailable_session_count(monkeypatch):
             FakeResult(
                 [
                     {
-                        "views": 4,
-                        "audio_plays": 2,
-                        "searches": 3,
-                        "page_engaged": 1,
-                        "devices": 2,
+                        "period_views": 8,
+                        "period_audio_plays": 5,
+                        "today_views": 4,
+                        "today_audio_plays": 2,
                     }
                 ]
             ),
             FakeResult(
-                [{"metric_date": "2026-11-09", "views": 4, "audio_plays": 2, "searches": 3}]
+                [
+                    {"metric_date": "2026-11-03", "views": 0, "audio_plays": 0},
+                    {"metric_date": "2026-11-09", "views": 4, "audio_plays": 2},
+                ]
             ),
-            FakeResult([{"poi_id": "poi-1", "name": "Place", "views": 3, "audio_plays": 1}]),
-            FakeResult([{"query": "soup", "count": 3}]),
+            FakeResult([{"poi_id": "poi-1", "name": "Place", "views": 4, "audio_plays": 2}]),
         ]
     )
+    monkeypatch.setattr(analytics_read, "dem_online", lambda: asyncio.sleep(0, result=3))
 
-    async def online():
-        return 2
-
-    monkeypatch.setattr(analytics_read, "dem_online", online)
     summary = asyncio.run(analytics_read.thong_ke(session, "2026-11-09", 7))
 
+    assert summary["period_start"] == "2026-11-03"
+    assert summary["period_days"] == 7
+    assert summary["period_views"] == 8
+    assert summary["period_audio_plays"] == 5
     assert summary["today_views"] == 4
-    assert summary["devices_today"] == 2
-    assert summary["sessions_today"] is None
-    assert summary["sessions_available"] is False
-    assert summary["presence_available"] is True
+    assert summary["today_audio_plays"] == 2
+    assert summary["tracked_online_users"] == 3
     assert summary["top_pois"][0]["poi_id"] == "poi-1"
+    assert summary["daily"][0]["views"] == 0
     assert all("analytics_events" in sql for sql, _ in session.calls)
+    assert session.calls[0][1]["period_start"].isoformat() == "2026-11-03T00:00:00+07:00"
+    assert session.calls[0][1]["today_start"].isoformat() == "2026-11-09T00:00:00+07:00"
+    assert session.calls[1][1]["period_start_date"].isoformat() == "2026-11-03"
+    assert "event_name = 'poi_viewed'" in session.calls[0][0]
+    assert "generate_series" in session.calls[1][0]
+    assert "Asia/Ho_Chi_Minh" in session.calls[1][0]
+    assert "event_name IN ('poi_viewed', 'audio_played')" in session.calls[2][0]
 
 
 def test_runtime_location_aggregates_rounded_cells_and_reads_postgres():
@@ -270,6 +279,7 @@ def test_analytics_consent_and_collect_routes_use_mocked_postgres():
             FakeResult(),
             FakeResult([{"consent_status": "granted"}]),
             FakeResult([{"id": 1}]),
+            FakeResult([{"id": 2}]),
         ]
     )
     app = FastAPI()
@@ -298,7 +308,10 @@ def test_analytics_consent_and_collect_routes_use_mocked_postgres():
                     "receipt": receipt,
                     "session_id": "session-identifier-123",
                     "heartbeat": False,
-                    "events": [{"name": "page_viewed", "properties": {"poi_id": "poi-1"}}],
+                    "events": [
+                        {"name": "poi_viewed", "properties": {"poi_id": "poi-1"}},
+                        {"name": "audio_played", "properties": {"poi_id": "poi-1"}},
+                    ],
                 },
             )
             return consent, collected
@@ -309,7 +322,7 @@ def test_analytics_consent_and_collect_routes_use_mocked_postgres():
     assert consent.status_code == 200
     assert consent.json()["status"] == "granted"
     assert collected.status_code == 200
-    assert collected.json()["accepted"] == 1
+    assert collected.json()["accepted"] == 2
     assert any("INSERT INTO analytics_events" in sql for sql, _ in session.calls)
 
 
@@ -358,13 +371,18 @@ def test_ai_route_uses_postgres_quota_and_records_request(monkeypatch):
     assert session.commits == 3
 
 
-def test_admin_analytics_routes_retain_permission_dependency():
+def test_admin_analytics_routes_retain_permission_dependency(monkeypatch):
     session = FakeSession(
         [
             FakeResult(
-                [{"views": 0, "audio_plays": 0, "searches": 0, "page_engaged": 0, "devices": 0}]
+                [{
+                    "period_views": 3,
+                    "period_audio_plays": 1,
+                    "today_views": 1,
+                    "today_audio_plays": 0,
+                    "tracked_online_users": 2,
+                }]
             ),
-            FakeResult(),
             FakeResult(),
             FakeResult(),
             FakeResult([{"samples": 0, "cells": 0}]),
@@ -380,6 +398,10 @@ def test_admin_analytics_routes_retain_permission_dependency():
     async def analytics_viewer():
         return {"username": "admin", "role": "admin", "permissions": ["analytics:view"]}
 
+    async def online():
+        return 2
+
+    monkeypatch.setattr(analytics_read, "dem_online", online)
     app.dependency_overrides[get_db] = fake_db
     app.dependency_overrides[auth.lay_user_hien_tai] = analytics_viewer
 
@@ -388,14 +410,50 @@ def test_admin_analytics_routes_retain_permission_dependency():
             transport=ASGITransport(app=app),
             base_url="http://test",
         ) as client:
-            summary = await client.get("/admin/analytics/summary")
+            summary = await client.get("/admin/analytics/summary?so_ngay=30")
             runtime = await client.get("/admin/runtime-observability/location")
             return summary, runtime
 
     summary, runtime = asyncio.run(request())
 
     assert summary.status_code == 200
-    assert summary.json()["sessions_today"] is None
-    assert summary.json()["sessions_available"] is False
+    assert summary.json()["period_days"] == 30
+    assert summary.json()["period_views"] == 3
+    assert summary.json()["today_views"] == 1
+    assert summary.json()["tracked_online_users"] == 2
     assert runtime.status_code == 200
     assert runtime.json()["samples"] == 0
+
+
+def test_admin_ai_usage_returns_daily_owner_totals():
+    session = FakeSession(
+        [FakeResult([{"metric_date": "2026-03-10", "requests": 4, "daily_limit": 10, "owners": 1}])]
+    )
+    app = FastAPI()
+    app.include_router(admin_router)
+
+    async def fake_db():
+        yield session
+
+    async def analytics_viewer():
+        return {"username": "admin", "role": "admin", "permissions": ["analytics:view"]}
+
+    app.dependency_overrides[get_db] = fake_db
+    app.dependency_overrides[auth.lay_user_hien_tai] = analytics_viewer
+
+    async def request():
+        async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+            return await client.get("/admin/ai-usage?so_ngay=14")
+
+    response = asyncio.run(request())
+
+    assert response.status_code == 200
+    assert response.json() == {
+        "days": 14,
+        "daily": [{"metric_date": "2026-03-10", "requests": 4, "daily_limit": 10, "owners": 1}],
+    }
+    params = session.calls[0][1]
+    assert isinstance(params["start_date"], date)
+    assert isinstance(params["end_date"], date)
+    assert (params["end_date"] - params["start_date"]).days == 13
+    assert "ai_usage_daily" in session.calls[0][0]

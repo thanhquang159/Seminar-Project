@@ -20,6 +20,7 @@ export default function Settings({ pack }: SettingsProps) {
   const { lang, setLang } = usePoiStore()
   const trangThaiConsent = useConsentStore((s) => s.trangThai)
   const [dangCapNhatConsent, setDangCapNhatConsent] = useState(false)
+  const [loiConsent, setLoiConsent] = useState('')
 
   const cheDoBanDo = pack ? pack.cheDo : (localStorage.getItem('quan4-mapmode') as CheDo) ?? 'hybrid'
 
@@ -32,12 +33,19 @@ export default function Settings({ pack }: SettingsProps) {
 
   const doiRiengTu = async (muc: 'granted' | 'revoked') => {
     setDangCapNhatConsent(true)
+    setLoiConsent('')
     try {
       if (muc === 'granted') {
-        await xinDongY()
+        if (!(await xinDongY())) {
+          setLoiConsent('Không cập nhật được lựa chọn. Hãy kiểm tra kết nối máy chủ rồi thử lại.')
+        }
       } else {
-        await thuHoiDongY()
+        if (!(await thuHoiDongY())) {
+          setLoiConsent('Đã tắt thu thập trên thiết bị này nhưng chưa đồng bộ được với máy chủ.')
+        }
       }
+    } catch {
+      setLoiConsent('Không kết nối được máy chủ để cập nhật lựa chọn chia sẻ dữ liệu.')
     } finally {
       setDangCapNhatConsent(false)
     }
@@ -112,6 +120,9 @@ export default function Settings({ pack }: SettingsProps) {
       <div className="card mt">
         <h3 className="card__title">Chính sách Riêng tư & Đo lường</h3>
         <p className="card__subtitle">
+          Analytics được bật mặc định trên thiết bị mới để thống kê lượt xem POI và lượt nghe. Bạn có thể tắt bất cứ lúc nào tại đây.
+        </p>
+        <p className="card__subtitle">
           Mức độ hiện tại:{' '}
           <strong>
             {trangThaiConsent === 'granted'
@@ -141,6 +152,7 @@ export default function Settings({ pack }: SettingsProps) {
             )
           })}
         </div>
+        {loiConsent !== '' && <div className="notice notice--error mt" role="alert">{loiConsent}</div>}
       </div>
     </div>
   )

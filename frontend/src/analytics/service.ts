@@ -10,6 +10,14 @@ import { damBaoAnonymousId, daDongY, laySessionId, useConsentStore } from '../st
 import { API_BASE_URL } from '../config'
 
 const API_GOC = API_BASE_URL
+let consentRevision = 0
+let consentQueue: Promise<void> = Promise.resolve()
+
+function xepYeuCauConsent<T>(operation: () => Promise<T>): Promise<T> {
+  const result = consentQueue.then(operation)
+  consentQueue = result.then(() => undefined, () => undefined)
+  return result
+}
 
 // Nhịp gửi: 15s gộp lô, 20s nhịp tim. Lấy từ sơ đồ luồng analytics.
 export const CHU_KY_FLUSH_MS = 15000
@@ -58,9 +66,12 @@ export async function ghiSuKien(ten: TenSuKien, thuoc_tinh: Record<string, unkno
   }
 }
 
-async function gui(bo: { name: string; at: number; properties: Record<string, unknown> }[], heartbeat: boolean) {
+async function gui(
+  bo: { name: string; at: number; properties: Record<string, unknown> }[],
+  heartbeat: boolean,
+): Promise<number> {
   const { receipt } = useConsentStore.getState()
-  if (receipt === null) return
+  if (receipt === null) throw new Error('Thiếu receipt consent analytics')
   const res = await fetch(`${API_GOC}/analytics/collect`, {
     method: 'POST',
     headers: { 'Content-Type': 'application/json' },
@@ -78,15 +89,46 @@ async function gui(bo: { name: string; at: number; properties: Record<string, un
     // Dừng ngay thay vì cứ gửi tiếp rồi nhận 403 mãi.
     useConsentStore.getState().datTrangThai('revoked')
     useConsentStore.getState().datReceipt(null)
-    return
+    return 0
   }
   if (!res.ok) throw new Error(`HTTP ${res.status}`)
-  const goi = (await res.json()) as { tracked_online_users: number | null }
+  const goi = (await res.json()) as {
+    accepted?: number
+    tracked_online_users: number | null
+  }
   useConsentStore.getState().datTrackedOnlineUsers(goi.tracked_online_users)
+  return goi.accepted ?? bo.length
+}
+
+export async function ghiSuKienNgay(
+  ten: TenSuKien,
+  thuoc_tinh: Record<string, unknown> = {},
+): Promise<boolean> {
+  if (!daDongY() || !tenHopLe(ten)) return false
+  const suKien: SuKienOutbox = {
+    name: ten,
+    at: Date.now(),
+    properties: locThuocTinh(thuoc_tinh),
+  }
+  try {
+    return (await gui([suKien], false)) > 0
+  } catch (error) {
+    try {
+      await themSuKien(suKien)
+    } catch (storageError) {
+      console.error('Không thể gửi hoặc xếp hàng sự kiện analytics:', {
+        event: ten,
+        networkError: error,
+        storageError,
+      })
+    }
+    return false
+  }
 }
 
 export async function flush(heartbeat = false): Promise<number> {
   if (!daDongY()) return 0
+  if (useConsentStore.getState().receipt === null) return 0
   const bo = await laySuKien().catch(() => [])
   try {
     await gui(bo, heartbeat)
@@ -98,36 +140,47 @@ export async function flush(heartbeat = false): Promise<number> {
 }
 
 export async function xinDongY(): Promise<boolean> {
-  const res = await fetch(`${API_GOC}/analytics/consent`, {
-    method: 'POST',
-    headers: { 'Content-Type': 'application/json' },
-    credentials: 'include',
-    body: JSON.stringify({ anonymous_id: damBaoAnonymousId(), granted: true }),
+  const revision = ++consentRevision
+  return xepYeuCauConsent(async () => {
+    const res = await fetch(`${API_GOC}/analytics/consent`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      credentials: 'include',
+      body: JSON.stringify({ anonymous_id: damBaoAnonymousId(), granted: true }),
+    })
+    if (!res.ok) return false
+    const goi = (await res.json()) as { status: string; receipt: string }
+    if (goi.status !== 'granted' || revision !== consentRevision) return false
+    useConsentStore.getState().datTrangThai('granted')
+    useConsentStore.getState().datReceipt(goi.receipt)
+    return true
   })
-  if (!res.ok) return false
-  const goi = (await res.json()) as { status: string; receipt: string }
-  if (goi.status !== 'granted') return false
-  // Phải set trạng thái, không chỉ lưu receipt: `batDauAnalytics` chỉ chạy khi
-  // trạng thái là granted. Thiếu dòng này thì bấm "Cho phép" xong app vẫn
-  // im lặng và banner vẫn hỏi lại.
-  useConsentStore.getState().datTrangThai('granted')
-  useConsentStore.getState().datReceipt(goi.receipt)
-  return true
 }
 
-export async function thuHoiDongY(): Promise<void> {
+export async function batDauChiaSeMacDinh(): Promise<boolean> {
+  if (useConsentStore.getState().trangThai !== 'chua-chon') return false
+  return xinDongY()
+}
+
+export async function thuHoiDongY(): Promise<boolean> {
+  ++consentRevision
   useConsentStore.getState().datTrangThai('revoked')
   useConsentStore.getState().datReceipt(null)
   useConsentStore.getState().datTrackedOnlineUsers(null)
   try {
-    await fetch(`${API_GOC}/analytics/consent`, {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      credentials: 'include',
-      body: JSON.stringify({ anonymous_id: damBaoAnonymousId(), granted: false }),
+    return await xepYeuCauConsent(async () => {
+      const res = await fetch(`${API_GOC}/analytics/consent`, {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        credentials: 'include',
+        body: JSON.stringify({ anonymous_id: damBaoAnonymousId(), granted: false }),
+      })
+      if (!res.ok) throw new Error(`HTTP ${res.status}`)
+      return true
     })
-  } catch {
-    return
+  } catch (error) {
+    console.error('Không thể đồng bộ việc tắt analytics lên máy chủ:', error)
+    return false
   }
 }
 

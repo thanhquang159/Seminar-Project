@@ -85,15 +85,22 @@ python -m venv .venv
 python -m pip install -r requirements.txt
 Copy-Item .env.example .env
 # Cập nhật DB_HOST, DB_PORT, DB_NAME, DB_USER và DB_PASSWORD trong .env
-uvicorn app.main:app --reload
+uvicorn app.main:app --reload --host 0.0.0.0 --port 8000
 
 # Frontend (terminal khác, nếu cần)
 cd frontend
 npm install
-npm run dev
+npm run dev:lan
 ```
 
-Mở <http://localhost:5173>. API chạy ở <http://127.0.0.1:8000>, tài liệu endpoint ở `/docs`.
+Trên cùng máy, mở <http://localhost:5173>. Để truy cập từ điện thoại cùng Wi-Fi,
+lấy IPv4 của máy tính bằng `ipconfig`, thêm origin
+`http://<IP-máy-tính>:5173` vào mảng `CORS_ORIGINS` trong `backend/.env`, rồi
+khởi động lại backend. Trên điện thoại mở
+`http://<IP-máy-tính>:5173` (ví dụ `http://192.168.1.20:5173`). Frontend sẽ
+dùng cùng địa chỉ IP đó để gọi API cổng 8000. Chỉ làm trên mạng riêng tin cậy;
+Windows Firewall cần cho phép cổng 5173 và 8000 trên profile Private. Nếu DHCP
+đổi IP, cập nhật lại `CORS_ORIGINS`. API tài liệu endpoint ở `/docs`.
 
 Kiểm tra kết nối: <http://127.0.0.1:8000/api/v1/health/database>. Schema PostgreSQL phải được provision trước; các script `seed_roles.py`, `seed_admin.py`, `seed_poi.py` và `migrate_localizations.py` hiện thao tác trên PostgreSQL. Đọc [hướng dẫn backend](backend/README.md) trước khi chạy seed vì chúng có thể thay đổi dữ liệu.
 

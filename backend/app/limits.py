@@ -134,9 +134,9 @@ class GioiHanBody:
         da_doc = {"trai": False}
 
         async def phat_lai():
-            """Phát lại body đã gom, đúng một lần, giống hệt request gốc."""
+            """Phát lại body một lần, rồi tiếp tục nhận sự kiện từ client."""
             if da_doc["trai"]:
-                return {"type": "http.disconnect"}
+                return await receive()
             da_doc["trai"] = True
             return {"type": "http.request", "body": b"".join(chunks), "more_body": False}
 

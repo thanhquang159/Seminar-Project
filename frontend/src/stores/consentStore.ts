@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 
 const KHOA = 'quan4-consent'
+const KHOA_RECEIPT = 'quan4-consent-receipt'
 
 export type TrangThaiConsent = 'chua-chon' | 'granted' | 'revoked'
 
@@ -41,19 +42,29 @@ interface ConsentState {
 
 function docTrangThai(): TrangThaiConsent {
   const cu = localStorage.getItem(KHOA)
+  if (cu === 'granted' && !localStorage.getItem(KHOA_RECEIPT)) return 'chua-chon'
   return cu === 'granted' || cu === 'revoked' ? cu : 'chua-chon'
+}
+
+function docReceipt(): string | null {
+  if (docTrangThai() !== 'granted') return null
+  return localStorage.getItem(KHOA_RECEIPT)
 }
 
 export const useConsentStore = create<ConsentState>((set) => ({
   trangThai: docTrangThai(),
-  receipt: null,
+  receipt: docReceipt(),
   // null = chưa có số liệu (Redis tắt), khác 0 = thật sự không có ai online.
   trackedOnlineUsers: null,
   datTrangThai: (t) => {
     localStorage.setItem(KHOA, t)
     set({ trangThai: t })
   },
-  datReceipt: (r) => set({ receipt: r }),
+  datReceipt: (r) => {
+    if (r === null) localStorage.removeItem(KHOA_RECEIPT)
+    else localStorage.setItem(KHOA_RECEIPT, r)
+    set({ receipt: r })
+  },
   datTrackedOnlineUsers: (n) => set({ trackedOnlineUsers: n }),
 }))
 

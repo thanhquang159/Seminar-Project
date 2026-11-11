@@ -119,7 +119,8 @@ Mẫu đường dẫn **[Đề xuất]**: `GET/POST /admin/pois`, `PUT/DELETE /a
 |---|---|
 | API thu thập analytics | Công khai nhưng chỉ ghi khi client gửi đủ thông tin consent; có rate limit. Gửi sự kiện, phiên, thiết bị ẩn danh. Đường dẫn cụ thể: xem mã nguồn. |
 | Ingest vị trí runtime | Kênh công khai riêng, rate limit, không phụ thuộc consent analytics. |
-| Đọc số liệu | Chỉ admin; dựa trên read model. `tracked_online_users` là số thiết bị ẩn danh đã đồng ý còn trong cửa sổ trượt. |
+| Đọc số liệu | `GET /admin/analytics/summary?so_ngay=7` (1–30 ngày), yêu cầu quyền `analytics:view`; trả tổng lượt xem/nghe trong kỳ, số liệu hôm nay, chuỗi theo từng ngày (điền ngày không có sự kiện bằng 0) và top POI. Ngày được tính theo giờ Việt Nam. |
+| Giám sát runtime | `GET /admin/runtime-observability/location?window=24h|7d`, yêu cầu quyền `analytics:view`; số liệu chẩn đoán runtime tách biệt khỏi dashboard lượt xem/nghe. |
 
 ## 11. Hệ thống
 

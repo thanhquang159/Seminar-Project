@@ -1,31 +1,47 @@
-"""Dashboard analytics read directly from the existing PostgreSQL event table."""
+"""POI view and audio-play dashboard analytics from PostgreSQL events."""
 
-from datetime import UTC, datetime, timedelta
+from datetime import date, datetime, time, timedelta, timezone
 
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.services.presence import dem_online
 
+TZ_VIETNAM = timezone(timedelta(hours=7))
+
 
 async def thong_ke(db: AsyncSession, metric_date: str, so_ngay: int = 7) -> dict:
-    """Return dashboard totals and rankings without Mongo read-model collections."""
-    day_start = datetime.strptime(metric_date, "%Y-%m-%d").replace(tzinfo=UTC)
-    day_end = day_start + timedelta(days=1)
-    period_start = day_start - timedelta(days=max(1, min(so_ngay, 30)) - 1)
-    params = {"day_start": day_start, "day_end": day_end}
+    """Return period totals, a zero-filled daily series, and top POIs."""
+    ngay_cuoi = date.fromisoformat(metric_date)
+    so_ngay = max(1, min(so_ngay, 30))
+    ngay_dau = ngay_cuoi - timedelta(days=so_ngay - 1)
+    ngay_ke_tiep = ngay_cuoi + timedelta(days=1)
+    moc_dau = datetime.combine(ngay_dau, time.min, tzinfo=TZ_VIETNAM)
+    moc_hom_nay = datetime.combine(ngay_cuoi, time.min, tzinfo=TZ_VIETNAM)
+    moc_cuoi = datetime.combine(ngay_ke_tiep, time.min, tzinfo=TZ_VIETNAM)
+    params = {
+        "period_start": moc_dau,
+        "period_start_date": ngay_dau,
+        "metric_date": ngay_cuoi,
+        "today_start": moc_hom_nay,
+        "period_end": moc_cuoi,
+    }
 
     totals_result = await db.execute(
         text(
             """
             SELECT
-                COUNT(*) FILTER (WHERE event_name = 'page_viewed') AS views,
-                COUNT(*) FILTER (WHERE event_name = 'audio_played') AS audio_plays,
-                COUNT(*) FILTER (WHERE event_name = 'search') AS searches,
-                COUNT(*) FILTER (WHERE event_name = 'page_engaged') AS page_engaged,
-                COUNT(DISTINCT anonymous_visitor_id) AS devices
+                COUNT(*) FILTER (WHERE event_name = 'poi_viewed') AS period_views,
+                COUNT(*) FILTER (WHERE event_name = 'audio_played') AS period_audio_plays,
+                COUNT(*) FILTER (
+                    WHERE event_name = 'poi_viewed' AND occurred_at >= :today_start
+                ) AS today_views,
+                COUNT(*) FILTER (
+                    WHERE event_name = 'audio_played' AND occurred_at >= :today_start
+                ) AS today_audio_plays
             FROM analytics_events
-            WHERE occurred_at >= :day_start AND occurred_at < :day_end
+            WHERE occurred_at >= :period_start AND occurred_at < :period_end
+                AND event_name IN ('poi_viewed', 'audio_played')
             """
         ),
         params,
@@ -35,77 +51,68 @@ async def thong_ke(db: AsyncSession, metric_date: str, so_ngay: int = 7) -> dict
     daily_result = await db.execute(
         text(
             """
-            SELECT to_char((occurred_at AT TIME ZONE 'UTC')::date, 'YYYY-MM-DD') AS metric_date,
-                COUNT(*) FILTER (WHERE event_name = 'page_viewed') AS views,
-                COUNT(*) FILTER (WHERE event_name = 'audio_played') AS audio_plays,
-                COUNT(*) FILTER (WHERE event_name = 'search') AS searches
-            FROM analytics_events
-            WHERE occurred_at >= :period_start AND occurred_at < :day_end
-            GROUP BY (occurred_at AT TIME ZONE 'UTC')::date
-            ORDER BY (occurred_at AT TIME ZONE 'UTC')::date
+            WITH days AS (
+                SELECT generated_day::date AS metric_day
+                FROM generate_series(
+                    :period_start_date,
+                    :metric_date,
+                    INTERVAL '1 day'
+                ) AS generated(generated_day)
+            ),
+            event_totals AS (
+                SELECT (occurred_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date AS metric_day,
+                    COUNT(*) FILTER (WHERE event_name = 'poi_viewed') AS views,
+                    COUNT(*) FILTER (WHERE event_name = 'audio_played') AS audio_plays
+                FROM analytics_events
+                WHERE occurred_at >= :period_start AND occurred_at < :period_end
+                    AND event_name IN ('poi_viewed', 'audio_played')
+                GROUP BY (occurred_at AT TIME ZONE 'Asia/Ho_Chi_Minh')::date
+            )
+            SELECT to_char(days.metric_day, 'YYYY-MM-DD') AS metric_date,
+                COALESCE(event_totals.views, 0) AS views,
+                COALESCE(event_totals.audio_plays, 0) AS audio_plays
+            FROM days
+            LEFT JOIN event_totals USING (metric_day)
+            ORDER BY days.metric_day
             """
         ),
-        {"period_start": period_start, "day_end": day_end},
+        params,
     )
     daily = [dict(row) for row in daily_result.mappings().all()]
 
     poi_result = await db.execute(
         text(
             """
-            WITH poi_metrics AS (
-                SELECT event_properties->>'poi_id' AS poi_id,
-                    COUNT(*) FILTER (WHERE event_name = 'page_viewed') AS views,
-                    COUNT(*) FILTER (WHERE event_name = 'audio_played') AS audio_plays
-                FROM analytics_events
-                WHERE occurred_at >= :day_start AND occurred_at < :day_end
-                    AND event_name IN ('page_viewed', 'audio_played')
-                    AND NULLIF(event_properties->>'poi_id', '') IS NOT NULL
-                GROUP BY event_properties->>'poi_id'
-            )
-            SELECT metrics.poi_id, COALESCE(p.name, metrics.poi_id) AS name,
-                metrics.views, metrics.audio_plays
-            FROM poi_metrics AS metrics
-            LEFT JOIN pois AS p ON p.id::text = metrics.poi_id
-            ORDER BY metrics.views DESC, metrics.audio_plays DESC, metrics.poi_id
-            LIMIT 5
+            SELECT event_properties->>'poi_id' AS poi_id,
+                COALESCE(p.name, event_properties->>'poi_id') AS name,
+                COUNT(*) FILTER (WHERE event_name = 'poi_viewed') AS views,
+                COUNT(*) FILTER (WHERE event_name = 'audio_played') AS audio_plays
+            FROM analytics_events AS events
+            LEFT JOIN pois AS p ON p.id::text = events.event_properties->>'poi_id'
+            WHERE events.occurred_at >= :period_start AND events.occurred_at < :period_end
+                AND events.event_name IN ('poi_viewed', 'audio_played')
+                AND NULLIF(events.event_properties->>'poi_id', '') IS NOT NULL
+            GROUP BY event_properties->>'poi_id', p.name
+            ORDER BY COUNT(*) DESC,
+                COUNT(*) FILTER (WHERE event_name = 'poi_viewed') DESC,
+                event_properties->>'poi_id'
+            LIMIT 10
             """
         ),
         params,
     )
     top_pois = [dict(row) for row in poi_result.mappings().all()]
-
-    search_result = await db.execute(
-        text(
-            """
-            SELECT LEFT(LOWER(BTRIM(event_properties->>'query')), 120) AS query,
-                COUNT(*) AS count
-            FROM analytics_events
-            WHERE occurred_at >= :day_start AND occurred_at < :day_end
-                AND event_name = 'search'
-                AND NULLIF(BTRIM(event_properties->>'query'), '') IS NOT NULL
-            GROUP BY LEFT(LOWER(BTRIM(event_properties->>'query')), 120)
-            ORDER BY count DESC, query
-            LIMIT 5
-            """
-        ),
-        params,
-    )
-    top_searches = [dict(row) for row in search_result.mappings().all()]
     online = await dem_online()
 
     return {
         "metric_date": metric_date,
-        "today_views": totals["views"],
-        "audio_plays": totals["audio_plays"],
-        "searches": totals["searches"],
-        "page_engaged": totals["page_engaged"],
-        "devices_today": totals["devices"],
-        # analytics_events has no session_id; exact session counts are unsupported.
-        "sessions_today": None,
-        "sessions_available": False,
+        "period_start": ngay_dau.isoformat(),
+        "period_days": so_ngay,
+        "period_views": totals["period_views"],
+        "period_audio_plays": totals["period_audio_plays"],
+        "today_views": totals["today_views"],
+        "today_audio_plays": totals["today_audio_plays"],
         "tracked_online_users": online,
-        "presence_available": online is not None,
-        "top_pois": top_pois,
-        "top_searches": top_searches,
         "daily": daily,
+        "top_pois": top_pois,
     }

@@ -24,6 +24,15 @@ def test_production_accepts_configured_token_secrets(monkeypatch):
     kiem_tra_bi_mat()
 
 
+@pytest.mark.parametrize("secret_name", ["JWT_SECRET", "REFRESH_TOKEN_SECRET"])
+def test_dev_rejects_empty_token_secrets(monkeypatch, secret_name):
+    monkeypatch.setattr(settings, "APP_ENV", "dev")
+    monkeypatch.setattr(settings, secret_name, "")
+
+    with pytest.raises(RuntimeError, match=secret_name):
+        kiem_tra_bi_mat()
+
+
 def test_cors_origins_are_validated_and_deduplicated():
     config = Settings(
         _env_file=None,

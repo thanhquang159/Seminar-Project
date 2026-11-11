@@ -70,6 +70,8 @@ Output mong đợi:
 | Địa chỉ | Nội dung |
 |---|---|
 | <http://localhost:5173> | ứng dụng: tab Khám phá, Quản trị, Chủ quán, Gói offline, Cài đặt |
+| <http://localhost:5173/admin/login> | cổng đăng nhập và quản trị Admin riêng |
+| <http://localhost:5173/owner/login> | cổng đăng nhập, đăng ký và quản lý Chủ quán riêng |
 
 Dừng server bằng `Ctrl+C`.
 

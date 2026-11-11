@@ -344,6 +344,46 @@ async def gui_submission(
     return {"ok": True, "submission_id": str(submission_id)}
 
 
+@router.get("/owner/pois", summary="Danh sách POI của tôi")
+async def pois_cua_toi(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = YeuCauOwnerDuyet,
+) -> list[dict]:
+    owner_id = await resolve_user_id(db, user)
+    result = await db.execute(
+        text(
+            """
+            SELECT p.id::text AS id, p.name, COALESCE(p.description, '') AS description,
+                   p.latitude::double precision AS lat,
+                   p.longitude::double precision AS lng,
+                   p.trigger_radius_m AS trigger_radius,
+                   COALESCE(img.images, '[]'::json) AS images,
+                   loc.audio_url
+            FROM pois AS p
+            LEFT JOIN LATERAL (
+                SELECT l.audio_url
+                FROM poi_localizations AS l
+                WHERE l.poi_id = p.id
+                ORDER BY CASE WHEN l.language_code = 'vi' THEN 0 ELSE 1 END,
+                         l.language_code
+                LIMIT 1
+            ) AS loc ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT json_agg(i.public_url ORDER BY i.sort_order, i.created_at)
+                       FILTER (WHERE i.public_url IS NOT NULL) AS images
+                FROM poi_images AS i
+                WHERE i.poi_id = p.id
+            ) AS img ON TRUE
+            WHERE p.owner_id = :owner_id
+            ORDER BY p.name, p.id
+            LIMIT 100
+            """
+        ),
+        {"owner_id": owner_id},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
 @router.get("/owner/submissions/mine", summary="Submission của tôi")
 async def submission_cua_toi(
     db: Annotated[AsyncSession, Depends(get_db)],
@@ -355,7 +395,8 @@ async def submission_cua_toi(
             """
             SELECT s.id::text AS id, s.owner_id::text AS owner_id,
                    s.poi_id::text AS poi_id, s.content_snapshot AS data,
-                   s.status, s.submitted_at AS created_at, u.email AS username
+                   s.status, COALESCE(s.admin_note, '') AS admin_note,
+                   s.submitted_at, s.submitted_at AS created_at, u.email AS username
             FROM poi_submissions AS s
             JOIN users AS u ON u.id = s.owner_id
             WHERE s.owner_id = :owner_id
@@ -369,6 +410,7 @@ async def submission_cua_toi(
         {
             **dict(row),
             "data": _json_value(row["data"]),
+            "submitted_at": _iso(row["submitted_at"]),
             "created_at": _iso(row["created_at"]),
         }
         for row in result.mappings().all()
@@ -490,6 +532,73 @@ async def duyet_submission(
     await ghi_audit(db, user_label(user_duyet), "poi:approve", f"submission:{submission_id}")
     await db.commit()
     return {"ok": True, "poi_id": str(poi_id)}
+
+
+@router.post("/owner/submissions/{sid}/reject", summary="Từ chối submission POI")
+async def tu_choi_submission(
+    sid: str,
+    body: XetDuyet,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user_duyet: dict = DuocDuyetPoi,
+) -> dict:
+    admin_note = body.admin_note.strip()
+    if not admin_note:
+        raise HTTPException(status_code=400, detail="Từ chối phải có ghi chú")
+
+    submission_id = doi_id(sid)
+    reviewer_id = await resolve_user_id(db, user_duyet)
+    result = await db.execute(
+        text(
+            """
+            SELECT id, owner_id
+            FROM poi_submissions
+            WHERE id = :submission_id AND status = 'pending'
+            FOR UPDATE
+            """
+        ),
+        {"submission_id": submission_id},
+    )
+    submission = result.mappings().one_or_none()
+    if submission is None:
+        raise HTTPException(status_code=404, detail="Không có submission chờ")
+
+    owner_id = UUID(str(submission["owner_id"]))
+    await db.execute(
+        text(
+            """
+            UPDATE poi_submissions
+            SET status = 'rejected', admin_note = :admin_note,
+                reviewed_by = :reviewer_id, reviewed_at = now(), updated_at = now()
+            WHERE id = :submission_id AND status = 'pending'
+            """
+        ),
+        {
+            "submission_id": submission_id,
+            "reviewer_id": reviewer_id,
+            "admin_note": admin_note,
+        },
+    )
+    await db.execute(
+        text(
+            """
+            INSERT INTO owner_notifications (
+                owner_id, notification_type, title, message, reference_type, reference_id
+            )
+            VALUES (
+                :owner_id, 'poi_submission_rejected', 'Đề xuất POI bị từ chối',
+                :message, 'poi_submission', :submission_id
+            )
+            """
+        ),
+        {
+            "owner_id": owner_id,
+            "submission_id": submission_id,
+            "message": f"Đề xuất POI bị từ chối: {admin_note}",
+        },
+    )
+    await ghi_audit(db, user_label(user_duyet), "poi:reject", f"submission:{submission_id}")
+    await db.commit()
+    return {"ok": True}
 
 
 @router.get("/owner/submissions/pending", summary="Submission chờ duyệt (admin)")

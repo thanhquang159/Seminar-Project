@@ -20,6 +20,7 @@ export default function OwnerApprovals() {
   const [don, setDon] = useState<DonDangKy[]>([])
   const [choDuyet, setChoDuyet] = useState<SubmissionChoDuyet[]>([])
   const [ghiChu, setGhiChu] = useState<Record<string, string>>({})
+  const [lyDoTuChoi, setLyDoTuChoi] = useState<Record<string, string>>({})
   const [loi, setLoi] = useState('')
 
   const tai = async () => {
@@ -71,6 +72,24 @@ export default function OwnerApprovals() {
     const res = await apiText(`/owner/submissions/${id}/approve`, { method: 'POST' })
     if (!res.ok) {
       setLoi('Duyệt quán thất bại')
+      return
+    }
+    await tai()
+  }
+
+  const tuChoiQuan = async (id: string) => {
+    const admin_note = (lyDoTuChoi[id] ?? '').trim()
+    if (admin_note === '') {
+      setLoi('Vui lòng nhập lý do từ chối để chủ quán biết nội dung cần chỉnh sửa')
+      return
+    }
+    const res = await apiText(`/owner/submissions/${id}/reject`, {
+      method: 'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body: JSON.stringify({ admin_note }),
+    })
+    if (!res.ok) {
+      setLoi('Từ chối quán thất bại')
       return
     }
     await tai()
@@ -171,7 +190,7 @@ export default function OwnerApprovals() {
             <table className="table">
               <thead>
                 <tr>
-                  <th>Tên quán ăn đề xuất</th>
+                  <th>Tên quán ăn đề xuất & lý do từ chối</th>
                   <th>Chủ quán gửi</th>
                   <th style={{ textAlign: 'right', width: 140 }}>Hành động</th>
                 </tr>
@@ -181,6 +200,13 @@ export default function OwnerApprovals() {
                   <tr key={s.id}>
                     <td>
                       <strong className="poi-title-cell">{s.name}</strong>
+                      <input
+                        className="input input--sm mt-xs"
+                        aria-label={`Lý do từ chối ${s.name}`}
+                        placeholder="Nhập lý do nếu từ chối"
+                        value={lyDoTuChoi[s.id] ?? ''}
+                        onChange={(event) => setLyDoTuChoi({ ...lyDoTuChoi, [s.id]: event.target.value })}
+                      />
                     </td>
                     <td>
                       <span className="badge badge--neutral">{s.username}</span>
@@ -192,6 +218,13 @@ export default function OwnerApprovals() {
                         onClick={() => void duyetQuan(s.id)}
                       >
                         Duyệt quán
+                      </button>
+                      <button
+                        className="btn btn--sm btn--danger ml"
+                        type="button"
+                        onClick={() => void tuChoiQuan(s.id)}
+                      >
+                        Từ chối
                       </button>
                     </td>
                   </tr>

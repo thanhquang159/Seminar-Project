@@ -1,280 +1,270 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useMemo, useState } from 'react'
 import { api } from './api'
+import './AnalyticsPanel.css'
 
-interface TongQuan {
+interface DailyMetric {
   metric_date: string
-  today_views: number
+  views: number
   audio_plays: number
-  searches: number
-  page_engaged: number
-  devices_today: number
-  sessions_today: number
+}
+
+interface PoiMetric {
+  poi_id: string
+  name: string
+  views: number
+  audio_plays: number
+}
+
+interface AnalyticsSummary {
+  metric_date: string
+  period_start: string
+  period_days: number
+  period_views: number
+  period_audio_plays: number
+  today_views: number
+  today_audio_plays: number
   tracked_online_users: number | null
-  presence_available: boolean
-  top_pois: { poi_id: string; name: string; views: number; audio_plays: number }[]
-  top_searches: { query: string; count: number }[]
-  daily: { metric_date: string; views: number; audio_plays: number; searches: number }[]
+  daily: DailyMetric[]
+  top_pois: PoiMetric[]
 }
 
-interface CuaSoRuntime {
-  window: string
-  hours: number
-  samples: number
-  cells: number
-  outcomes: Record<string, number>
+const PERIODS = [7, 30] as const
+type Period = (typeof PERIODS)[number]
+
+function dinhDangSo(value: number): string {
+  return new Intl.NumberFormat('vi-VN').format(value)
 }
 
-const CUA_SO: { ma: '24h' | '7d'; ten: string }[] = [
-  { ma: '24h', ten: '24 giờ' },
-  { ma: '7d', ten: '7 ngày' },
-]
-
-function o(a?: number, b?: number): number {
-  if (a === undefined || b === undefined || a === 0) return 0
-  return Math.round((b / a) * 100)
+function dinhDangNgay(value: string): string {
+  const [, month, day] = value.split('-')
+  return `${day}/${month}`
 }
 
-// ADM-005: hai nhóm số liệu tách bạch có chủ đích — analytics chỉ có dữ liệu
-// của thiết bị đã consent, còn cửa sổ runtime là chẩn đoán vận hành.
 export default function AnalyticsPanel() {
-  const [tq, setTQ] = useState<TongQuan | null>(null)
-  const [cuaSo, setCuaSo] = useState<'24h' | '7d'>('24h')
-  const [runtime, setRuntime] = useState<CuaSoRuntime | null>(null)
-  const [loi, setLoi] = useState('')
+  const [period, setPeriod] = useState<Period>(7)
+  const [refreshKey, setRefreshKey] = useState(0)
+  const [data, setData] = useState<AnalyticsSummary | null>(null)
+  const [loading, setLoading] = useState(true)
+  const [error, setError] = useState('')
+  const [updatedAt, setUpdatedAt] = useState<Date | null>(null)
+
+  const taiDuLieu = useCallback(async (isMounted: () => boolean) => {
+    try {
+      const summary = await api<AnalyticsSummary>(
+        `/admin/analytics/summary?so_ngay=${period}`,
+        { cache: 'no-store' },
+      )
+      if (!isMounted()) return
+      setData(summary)
+      setUpdatedAt(new Date())
+      setError('')
+    } catch {
+      if (isMounted()) setError('Không tải được thống kê. Hãy kiểm tra quyền analytics:view và thử lại.')
+    } finally {
+      if (isMounted()) setLoading(false)
+    }
+  }, [period])
 
   useEffect(() => {
-    api<TongQuan>('/admin/analytics/summary')
-      .then(setTQ)
-      .catch(() => setLoi('Không xem được analytics (cần quyền analytics:view)'))
-  }, [])
+    let active = true
+    const isMounted = () => active
+    const firstLoad = window.setTimeout(() => void taiDuLieu(isMounted), 0)
 
-  useEffect(() => {
-    api<CuaSoRuntime>(`/admin/runtime-observability/location?window=${cuaSo}`)
-      .then(setRuntime)
-      .catch(() => setRuntime(null))
-  }, [cuaSo])
+    const timer = window.setInterval(() => {
+      if (document.visibilityState === 'visible') void taiDuLieu(isMounted)
+    }, 10000)
 
-  if (loi !== '') return <div className="card notice notice--warn">{loi}</div>
-  if (tq === null) {
+    return () => {
+      active = false
+      window.clearTimeout(firstLoad)
+      window.clearInterval(timer)
+    }
+  }, [taiDuLieu, refreshKey])
+
+  const maxDaily = useMemo(
+    () => Math.max(1, ...(data?.daily.flatMap((day) => [day.views, day.audio_plays]) ?? [])),
+    [data],
+  )
+
+  if (loading && data === null) {
     return (
-      <div className="card">
-        <div className="empty-state">
-          <p className="muted">Đang tải dữ liệu phân tích hệ thống…</p>
+      <section className="analytics-page" aria-live="polite">
+        <div className="analytics-page__loading">
+          <span className="analytics-page__spinner" aria-hidden="true" />
+          <p>Đang tải thống kê lượt xem và lượt nghe…</p>
         </div>
-      </div>
+      </section>
     )
   }
 
-  const lonNhat = Math.max(1, ...tq.daily.map((d) => d.views))
+  if (data === null) {
+    return (
+      <section className="analytics-page">
+        <div className="analytics-page__error" role="alert">
+          <strong>Chưa tải được số liệu</strong>
+          <p>{error}</p>
+          <button
+            className="btn btn--primary"
+            type="button"
+            onClick={() => {
+              setError('')
+              setLoading(true)
+              setRefreshKey((key) => key + 1)
+            }}
+          >
+            Thử lại
+          </button>
+        </div>
+      </section>
+    )
+  }
 
   return (
-    <div className="analytics-container">
-      {/* 1. Lưới chỉ số KPI Stat Cards */}
-      <div className="stat-cards-grid">
-        <div className="stat-card">
-          <div className="stat-card__icon stat-card__icon--views">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <path d="M2 12s3-7 10-7 10 7 10 7-3 7-10 7-10-7-10-7Z" />
-              <circle cx="12" cy="12" r="3" />
-            </svg>
-          </div>
-          <div className="stat-card__info">
-            <strong className="stat-card__value">{tq.today_views}</strong>
-            <span className="stat-card__label">Lượt xem hôm nay</span>
-            <span className="stat-card__sub">{tq.metric_date}</span>
-          </div>
+    <section className="analytics-page" aria-label="Thống kê lượt xem và lượt nghe">
+      <header className="analytics-page__header">
+        <div>
+          <span className="analytics-page__eyebrow">BÁO CÁO TƯƠNG TÁC</span>
+          <h2 className="analytics-page__title">Thống kê địa điểm</h2>
+          <p className="analytics-page__description">
+            Theo dõi lượt mở POI và lượt bấm nghe thuyết minh.
+          </p>
         </div>
-
-        <div className="stat-card">
-          <div className="stat-card__icon stat-card__icon--audio">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <polygon points="11 5 6 9 2 9 2 15 6 15 11 19 11 5" />
-              <path d="M15.54 8.46a5 5 0 0 1 0 7.07" />
-              <path d="M19.07 4.93a10 10 0 0 1 0 14.14" />
-            </svg>
-          </div>
-          <div className="stat-card__info">
-            <strong className="stat-card__value">{tq.audio_plays}</strong>
-            <span className="stat-card__label">Lượt nghe audio</span>
-            <span className="stat-card__sub">{o(tq.today_views, tq.audio_plays)}% tỷ lệ nghe</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__icon stat-card__icon--devices">
-            <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
-              <rect width="14" height="20" x="5" y="2" rx="2" ry="2" />
-              <path d="M12 18h.01" />
-            </svg>
-          </div>
-          <div className="stat-card__info">
-            <strong className="stat-card__value">{tq.devices_today}</strong>
-            <span className="stat-card__label">Thiết bị consent</span>
-            <span className="stat-card__sub">{tq.sessions_today} phiên hôm nay</span>
-          </div>
-        </div>
-
-        <div className="stat-card">
-          <div className="stat-card__icon stat-card__icon--online">
-            <span className="status-indicator-dot" />
-          </div>
-          <div className="stat-card__info">
-            <strong className="stat-card__value">
-              {tq.presence_available && tq.tracked_online_users !== null ? tq.tracked_online_users : '0'}
-            </strong>
-            <span className="stat-card__label">Đang online</span>
-            <span className="stat-card__sub">Cửa sổ 5 phút gần nhất</span>
-          </div>
-        </div>
-      </div>
-
-      {/* 2. Biểu đồ lượt xem 7 ngày */}
-      <div className="card mt">
-        <div className="section-header">
-          <div>
-            <h3 className="card__title">Xu hướng tương tác 7 ngày</h3>
-            <p className="card__subtitle">So sánh lượt xem trang theo từng ngày</p>
-          </div>
-        </div>
-
-        {tq.daily.length === 0 ? (
-          <div className="empty-state">
-            <p className="muted">Chưa có dữ liệu thống kê ngày.</p>
-          </div>
-        ) : (
-          <div className="chart-bar-list mt">
-            {tq.daily.map((d) => (
-              <div key={d.metric_date} className="chart-bar-row">
-                <span className="chart-bar-date">{d.metric_date.slice(5)}</span>
-                <div className="chart-bar-track">
-                  <div
-                    className="chart-bar-fill"
-                    style={{ width: `${Math.max(4, (d.views / lonNhat) * 100)}%` }}
-                    title={`${d.views} lượt xem`}
-                  />
-                </div>
-                <span className="chart-bar-value">{d.views}</span>
-              </div>
-            ))}
-          </div>
-        )}
-      </div>
-
-      {/* 3. Top quán được xem & nghe nhiều nhất */}
-      <div className="card mt">
-        <div className="section-header">
-          <div>
-            <h3 className="card__title">Địa điểm ẩm thực thu hút nhất</h3>
-            <p className="card__subtitle">Xếp hạng quán có lượt quan tâm cao</p>
-          </div>
-        </div>
-
-        {tq.top_pois.length === 0 ? (
-          <div className="empty-state">
-            <p className="muted">Chưa có dữ liệu tương tác quán ăn.</p>
-          </div>
-        ) : (
-          <div className="table-responsive mt">
-            <table className="table">
-              <thead>
-                <tr>
-                  <th>Tên điểm quán</th>
-                  <th style={{ textAlign: 'right' }}>Lượt xem</th>
-                  <th style={{ textAlign: 'right' }}>Lượt nghe</th>
-                  <th style={{ textAlign: 'right' }}>Tỷ lệ nghe</th>
-                </tr>
-              </thead>
-              <tbody>
-                {tq.top_pois.map((p, idx) => (
-                  <tr key={p.poi_id}>
-                    <td>
-                      <span className="rank-badge">#{idx + 1}</span>
-                      <strong>{p.name || p.poi_id}</strong>
-                    </td>
-                    <td style={{ textAlign: 'right' }}>{p.views}</td>
-                    <td style={{ textAlign: 'right' }}>{p.audio_plays}</td>
-                    <td style={{ textAlign: 'right' }}>
-                      <span className="badge badge--ok">{o(p.views, p.audio_plays)}%</span>
-                    </td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
-          </div>
-        )}
-      </div>
-
-      {/* 4. Từ khóa tìm kiếm */}
-      {tq.top_searches.length > 0 && (
-        <div className="card mt">
-          <h3 className="card__title">Từ khoá được tìm nhiều</h3>
-          <div className="tags-cloud mt">
-            {tq.top_searches.map((s) => (
-              <span key={s.query} className="tag-pill">
-                <svg width="13" height="13" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" style={{ display: 'inline', marginRight: 4 }}>
-                  <circle cx="11" cy="11" r="8" />
-                  <line x1="21" y1="21" x2="16.65" y2="16.65" />
-                </svg>
-                {s.query} <strong className="tag-count">({s.count})</strong>
-              </span>
-            ))}
-          </div>
-        </div>
-      )}
-
-      {/* 5. Quan sát vị trí runtime */}
-      <div className="card mt">
-        <div className="spread">
-          <div>
-            <h3 className="card__title">Quan sát vị trí Runtime (Telemetry)</h3>
-            <p className="card__subtitle">Chẩn đoán kỹ thuật vùng quét GPS</p>
-          </div>
-          <div className="segmented-control">
-            {CUA_SO.map((c) => (
+        <div className="analytics-page__controls">
+          <div className="analytics-period" role="group" aria-label="Khoảng thời gian thống kê">
+            {PERIODS.map((days) => (
               <button
-                key={c.ma}
+                key={days}
                 type="button"
-                className={`segmented-btn${c.ma === cuaSo ? ' segmented-btn--active' : ''}`}
-                onClick={() => setCuaSo(c.ma)}
+                className={`analytics-period__button${period === days ? ' is-active' : ''}`}
+                aria-pressed={period === days}
+                onClick={() => {
+                  setError('')
+                  setLoading(true)
+                  setPeriod(days)
+                }}
               >
-                {c.ten}
+                {days} ngày
               </button>
             ))}
           </div>
+          <button
+            className="btn btn--secondary"
+            type="button"
+            disabled={loading}
+            onClick={() => {
+              setError('')
+              setLoading(true)
+              setRefreshKey((key) => key + 1)
+            }}
+          >
+            {loading ? 'Đang cập nhật…' : 'Làm mới'}
+          </button>
         </div>
+      </header>
 
-        {runtime && (
-          <div className="runtime-metrics mt">
-            <div className="row" style={{ gap: 12 }}>
-              <div className="runtime-metric-badge">
-                Mẫu nhận diện: <strong>{runtime.samples}</strong>
-              </div>
-              <div className="runtime-metric-badge">
-                Ô lưới không gian: <strong>{runtime.cells}</strong>
-              </div>
-            </div>
-
-            <div className="table-responsive mt">
-              <table className="table table--compact">
-                <thead>
-                  <tr>
-                    <th>Kết quả quét</th>
-                    <th style={{ textAlign: 'right' }}>Số lượng</th>
-                  </tr>
-                </thead>
-                <tbody>
-                  {Object.entries(runtime.outcomes).map(([ketQua, dem]) => (
-                    <tr key={ketQua}>
-                      <td><code>{ketQua}</code></td>
-                      <td style={{ textAlign: 'right' }}><strong>{dem}</strong></td>
-                    </tr>
-                  ))}
-                </tbody>
-              </table>
-            </div>
-          </div>
-        )}
+      <div className="analytics-page__notice">
+        Số liệu chỉ bao gồm sự kiện từ khách đã cho phép thu thập analytics. Cập nhật lần cuối:{' '}
+        {updatedAt?.toLocaleTimeString('vi-VN') ?? '—'}.
+        {error && <span className="analytics-page__stale"> Không tải được lần cập nhật mới nhất.</span>}
       </div>
-    </div>
+
+      <div className="analytics-kpis">
+        <article className="analytics-kpi analytics-kpi--views">
+          <span className="analytics-kpi__label">Lượt xem POI · {period} ngày</span>
+          <strong className="analytics-kpi__value">{dinhDangSo(data.period_views)}</strong>
+          <span className="analytics-kpi__detail">Hôm nay: {dinhDangSo(data.today_views)}</span>
+        </article>
+        <article className="analytics-kpi analytics-kpi--audio">
+          <span className="analytics-kpi__label">Lượt bấm nghe · {period} ngày</span>
+          <strong className="analytics-kpi__value">{dinhDangSo(data.period_audio_plays)}</strong>
+          <span className="analytics-kpi__detail">Hôm nay: {dinhDangSo(data.today_audio_plays)}</span>
+        </article>
+        <article className="analytics-kpi analytics-kpi--online">
+          <span className="analytics-kpi__label">Thiết bị online</span>
+          <strong className="analytics-kpi__value">
+            {data.tracked_online_users === null ? '—' : dinhDangSo(data.tracked_online_users)}
+          </strong>
+          <span className="analytics-kpi__detail">Có analytics bật, hoạt động trong 5 phút</span>
+        </article>
+      </div>
+
+      <div className="analytics-panels">
+        <article className="analytics-panel">
+          <header className="analytics-panel__header">
+            <div>
+              <h3 className="analytics-panel__title">Xu hướng theo ngày</h3>
+              <p className="analytics-panel__subtitle">
+                {dinhDangNgay(data.period_start)} – {dinhDangNgay(data.metric_date)}
+              </p>
+            </div>
+            <div className="analytics-legend" aria-label="Chú giải biểu đồ">
+              <span><i className="analytics-legend__swatch analytics-legend__swatch--views" />Lượt xem</span>
+              <span><i className="analytics-legend__swatch analytics-legend__swatch--audio" />Lượt nghe</span>
+            </div>
+          </header>
+
+          <div className="analytics-chart" role="list" aria-label={`Lượt xem và lượt nghe theo ngày trong ${period} ngày`}>
+            {data.daily.map((day) => (
+              <div className="analytics-chart__row" key={day.metric_date} role="listitem">
+                <time className="analytics-chart__date" dateTime={day.metric_date}>
+                  {dinhDangNgay(day.metric_date)}
+                </time>
+                <div className="analytics-chart__bars">
+                  <div className="analytics-chart__track">
+                    <span
+                      className="analytics-chart__bar analytics-chart__bar--views"
+                      style={{ width: `${(day.views / maxDaily) * 100}%` }}
+                    />
+                  </div>
+                  <span className="analytics-chart__count">{dinhDangSo(day.views)}</span>
+                  <div className="analytics-chart__track">
+                    <span
+                      className="analytics-chart__bar analytics-chart__bar--audio"
+                      style={{ width: `${(day.audio_plays / maxDaily) * 100}%` }}
+                    />
+                  </div>
+                  <span className="analytics-chart__count">{dinhDangSo(day.audio_plays)}</span>
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+
+        <article className="analytics-panel">
+          <header className="analytics-panel__header">
+            <div>
+              <h3 className="analytics-panel__title">POI được quan tâm nhất</h3>
+              <p className="analytics-panel__subtitle">Xếp hạng theo tổng lượt xem và nghe trong {period} ngày</p>
+            </div>
+          </header>
+
+          {data.top_pois.length === 0 ? (
+            <div className="analytics-empty">
+              <strong>Chưa có lượt tương tác</strong>
+              <p>Khi khách mở POI hoặc bấm nghe và đã cho phép analytics, dữ liệu sẽ xuất hiện tại đây.</p>
+            </div>
+          ) : (
+            <div className="analytics-ranking">
+              {data.top_pois.map((poi, index) => (
+                <div className="analytics-ranking__row" key={poi.poi_id}>
+                  <span className="analytics-ranking__position">{String(index + 1).padStart(2, '0')}</span>
+                  <div className="analytics-ranking__name">
+                    <strong>{poi.name || poi.poi_id}</strong>
+                    <span>{dinhDangSo(poi.views)} lượt xem · {dinhDangSo(poi.audio_plays)} lượt nghe</span>
+                  </div>
+                  <strong className="analytics-ranking__total">
+                    {dinhDangSo(poi.views + poi.audio_plays)}
+                  </strong>
+                </div>
+              ))}
+            </div>
+          )}
+        </article>
+      </div>
+
+      <p className="analytics-page__footnote">
+        Lượt xem được ghi khi khách chọn một POI. Lượt nghe được ghi mỗi khi khách bấm nút nghe.
+      </p>
+    </section>
   )
 }
