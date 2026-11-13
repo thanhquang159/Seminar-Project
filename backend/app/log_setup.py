@@ -16,7 +16,7 @@ Nguyên tắc:
 
 Giới hạn đã biết: chỉ che được thứ **có tên** (`token=...`, `email=...`, DSN, JWT,
 chữ Bearer, 9–12 chữ số đứng riêng). Một chuỗi lạ dán thẳng vào log thì không che
-được, và cố đoán theo độ hỗn loạn ký tự sẽ nuốt luôn ObjectId 24 ký tự hex, ETag,
+được, và cố đoán theo độ hỗn loạn ký tự sẽ nuốt luôn ID dạng hex 24 ký tự, ETag,
 hash. Quy ước thay cho phép đoán: log bằng tham số có tên (`"token=%s"`), đừng dán
 giá trị thẳng vào chuỗi f-string.
 """
@@ -46,7 +46,7 @@ _CAC_MAU = (
     ),
     # `Cookie: access_token=xyz` — cookie luôn là `tên=giá trị` không có dấu `:`.
     re.compile(r"(?i)\b(access_token|refresh_token|sessionid|session_id|jwt)(=)([^\s;]+)"),
-    # DSN có mật khẩu: mongodb://user:mat_khau@host
+    # DSN có mật khẩu: postgresql://user:mat_khau@host
     re.compile(r"(?i)(://[^\s:/@]+:)([^\s@]+)(@)"),
     # JWT và chữ Bearer.
     re.compile(r"\beyJ[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}\.[A-Za-z0-9_-]{6,}"),

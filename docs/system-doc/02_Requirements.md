@@ -20,7 +20,7 @@
 |---|---|---|
 | FR-10 | Hiển thị bản đồ vector với các POI đang hoạt động. | M |
 | FR-11 | Hiển thị chi tiết POI: tên, mô tả, hình ảnh (tối đa 8, mỗi ảnh tối đa 5 MB), thực đơn (menu item), tọa độ, bán kính kích hoạt. | M |
-| FR-12 | Lấy danh sách POI gần vị trí người dùng (`/poi/nearby`), ưu tiên truy vấn không gian `$geoNear`, fallback Haversine nếu lỗi. | M |
+| FR-12 | Lấy danh sách POI gần vị trí người dùng (`/poi/nearby`) bằng truy vấn không gian PostGIS. | M |
 | FR-13 | Tải toàn bộ POI bằng full sync hoặc delta sync (ETag, `If-None-Match`, `updated_after`), trả về `dataset_version`, `sync_mode`, `removed_poi_ids`, `sync_cursor`. | M |
 | FR-14 | Nút định vị: dùng `requestBestEffortPosition()` ưu tiên vị trí cache còn tốt (tuổi tối đa 30 giây, sai số chấp nhận tới 100 m, ngân sách 15 giây). | M |
 | FR-15 | Ba chế độ bản đồ: Cloud, Offline Pack, Hybrid (cloud trước, tự chuyển sang pack khi mất mạng; quay lại cloud có độ trễ để tránh nhấp nháy). | M |
@@ -74,7 +74,7 @@
 | FR-50 | Đăng nhập admin/owner bằng cookie httpOnly: access token 30 phút, refresh token 7 ngày. | M |
 | FR-51 | Hỗ trợ thêm Bearer header cho API/mobile fallback. | S |
 | FR-52 | Đăng xuất, đổi mật khẩu, lấy thông tin tài khoản hiện tại. | M |
-| FR-53 | RBAC động: 32 quyền thuộc 9 nhóm; role lưu trong MongoDB; bảo vệ route bằng `require_permission`. | M |
+| FR-53 | RBAC động: 32 quyền thuộc 9 nhóm; role và permission lưu trong các bảng PostgreSQL; bảo vệ route bằng `require_permission`. | M |
 | FR-54 | Bốn role mặc định: super_admin, admin, poi_owner, user. | M |
 | FR-55 | Owner chỉ được vào các chức năng nghiệp vụ khi `is_poi_owner_verified = true`. | M |
 | FR-56 | Mật khẩu băm bằng bcrypt. | M |
@@ -131,8 +131,8 @@
 | NFR-10 | Người dùng không bao giờ thấy màn hình trống: có chuỗi fallback ngôn ngữ và 4 lớp phòng thủ offline. |
 | NFR-11 | Backend kiểm tra bí mật bắt buộc khi khởi động ở môi trường không phải dev và dừng ngay nếu thiếu (fail-fast). |
 | NFR-12 | Có `/health` và `/health/ready` (kiểm tra sẵn sàng DB/transaction/storage). |
-| NFR-13 | Tác vụ audio phục hồi sau khi backend khởi động lại (snapshot Mongo, heartbeat 5 giây, coi là treo sau 5 phút, lưu 14 ngày). |
-| NFR-14 | Giới hạn tần suất dùng trạng thái chung (Mongo/Redis) để hoạt động đúng khi chạy nhiều tiến trình. |
+| NFR-13 | Trạng thái tác vụ audio được lưu trong PostgreSQL để phục hồi sau khi backend khởi động lại. |
+| NFR-14 | Giới hạn tần suất dùng PostgreSQL hoặc trạng thái trong tiến trình theo luồng nghiệp vụ; không phụ thuộc MongoDB/Redis. |
 
 ### B3. Bảo mật
 

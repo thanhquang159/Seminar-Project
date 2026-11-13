@@ -44,7 +44,7 @@ Chứa định danh, role, **danh sách quyền**, nên đa số yêu cầu khô
 ## 4. Mô hình phân quyền (RBAC động)
 
 - **Quyền (permission)** định nghĩa tĩnh trong mã: 32 quyền thuộc 9 nhóm, dạng `domain:action`.
-- **Role** lưu động trong MongoDB (`roles`), mỗi role là một tập quyền; có thể tạo role mới không cần sửa mã.
+- **Role** được lưu trong PostgreSQL qua các bảng `roles`, `permissions`, `user_roles` và `role_permissions`; có thể tạo role mới không cần sửa mã.
 - **Bảo vệ route:** `require_permission("poi:delete")`. Thiếu quyền trả 403.
 
 ### 4.1 Chín nhóm quyền

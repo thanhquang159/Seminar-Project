@@ -47,7 +47,7 @@
 - Ba chế độ bản đồ: Cloud, Offline Pack, Hybrid.
 - Đồng ý (consent) trước khi thu thập analytics.
 
-### 5.2 Backend (FastAPI + MongoDB)
+### 5.2 Backend (FastAPI + PostgreSQL/PostGIS)
 - Mười router: content, audio, admin, owner, ai_advisor, analytics, localization, maps, runtime_observability, ui_i18n.
 - Xác thực cookie httpOnly (JWT access 30 phút, refresh 7 ngày), RBAC động với 32 quyền.
 - Sinh audio nền bằng Edge-TTS với tiến độ thời gian thực qua SSE.
@@ -72,7 +72,7 @@
 
 | Loại | Nội dung |
 |---|---|
-| Công nghệ | Backend FastAPI + Motor (MongoDB), Redis; frontend React 19.2, Vite 7, Zustand, MapLibre GL JS, Turf.js, Workbox, idb. |
+| Công nghệ | Backend FastAPI + SQLAlchemy async/asyncpg, PostgreSQL/PostGIS; frontend React 19.2, Vite 7, Zustand, MapLibre GL JS, Turf.js, Workbox, idb. |
 | Chi phí | Lõi mã nguồn mở. Gemini/ProxyPal cần API key; MapTiler chỉ cần cho chế độ cloud/hybrid; OpenWeather chỉ khi bật ngữ cảnh thời tiết cho AI. |
 | Trình duyệt | Cần hỗ trợ Service Worker, Cache API, IndexedDB, Geolocation, Web Speech Synthesis. |
 | Quyền riêng tư | Analytics chỉ chạy sau khi người dùng đồng ý; PII mã hóa và hết hạn sau 180 ngày. |

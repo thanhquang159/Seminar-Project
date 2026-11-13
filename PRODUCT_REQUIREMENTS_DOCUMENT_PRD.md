@@ -464,8 +464,8 @@ Các thành phần chính:
 ## 2. Owner Portal.
 ## 3. Admin Portal.
 ## 4. Backend API.
-## 5. MongoDB.
-## 6. Redis.
+## 5. PostgreSQL + PostGIS.
+## 6. Trạng thái tạm thời trong tiến trình.
 ## 7. Static/Runtime Storage.
 ## 8. Translation Provider.
 ## 9. TTS Provider.
@@ -2197,9 +2197,9 @@ PMTiles Cung cấp dữ liệu bản đồ Offline
 
 MapTiler Tài nguyên bản đồ trực tuyến theo cấu hình
 
-Redis Cache và trạng thái runtime
+Trạng thái tạm thời trong tiến trình; dữ liệu bền được lưu trong PostgreSQL
 
-MongoDB Lưu dữ liệu nghiệp vụ
+PostgreSQL + PostGIS Lưu dữ liệu nghiệp vụ và truy vấn không gian
 
 ## 16. TECHNOLOGY CONSTRAINTS
 
@@ -2222,9 +2222,9 @@ Offline Map PMTiles
 
 Backend FastAPI
 
-Database MongoDB
+Database PostgreSQL + PostGIS
 
-Cache / Runtime State Redis
+Cache / Runtime State Trạng thái trong tiến trình
 
 Translation deep-translator / Google Translate
 

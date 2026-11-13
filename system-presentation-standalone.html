@@ -722,7 +722,7 @@
         <p class="subtitle">PWA full-stack: Bản đồ tương tác, hướng dẫn âm thanh đa ngôn ngữ, hoạt động hoàn toàn
             offline — khám phá ẩm thực đường phố Quận 4, TP.HCM</p>
         <div class="badges">
-            <span class="badge">FastAPI + MongoDB</span>
+            <span class="badge">FastAPI + PostgreSQL/PostGIS</span>
             <span class="badge">React 19.2 + Vite 7 PWA</span>
             <span class="badge">MapLibre + PMTiles</span>
             <span class="badge">Edge-TTS (Microsoft)</span>
@@ -783,8 +783,8 @@
         <p style="margin-bottom:1rem;color:var(--text-secondary);">Runtime backend hiện mount 10 router lane:
             <code>content</code>, <code>audio</code>, <code>admin</code>, <code>owner</code>,
             <code>ai_advisor</code>, <code>analytics</code>, <code>localization</code>, <code>maps</code>,
-            <code>runtime_observability</code> và <code>ui_i18n</code>. Các lane dùng chung MongoDB, Redis,
-            static/runtime storage nhưng boundary vẫn tách theo router/service/store.</p>
+            <code>runtime_observability</code> và <code>ui_i18n</code>. Backend dùng PostgreSQL/PostGIS qua SQLAlchemy
+            async; tệp media nằm trong static/runtime storage.</p>
 
         <div class="arch-grid">
             <div class="arch-module">
@@ -805,7 +805,7 @@
             <div class="arch-module">
                 <div class="mod-icon">📈</div>
                 <div class="mod-name">analytics</div>
-                <div class="mod-desc">Consent-gated collect API, Redis presence, Mongo read models</div>
+                <div class="mod-desc">Consent-gated collect API và số liệu tổng hợp từ PostgreSQL</div>
             </div>
             <div class="arch-module">
                 <div class="mod-icon">🧠</div>
@@ -834,46 +834,51 @@
             </div>
         </div>
 
-        <h3 style="margin:1.5rem 0 .8rem;">MongoDB Collections</h3>
+        <h3 style="margin:1.5rem 0 .8rem;">Các bảng PostgreSQL theo nghiệp vụ</h3>
         <div class="table-wrap">
             <table>
                 <thead>
                     <tr>
-                        <th>Collection</th>
+                        <th>Bảng</th>
                         <th>Module</th>
                         <th>Mục đích</th>
                     </tr>
                 </thead>
                 <tbody>
                     <tr>
-                        <td><code>POI</code></td>
+                        <td><code>pois</code></td>
                         <td>content</td>
-                        <td>Dữ liệu POI gốc (tiếng Việt), hình ảnh, tọa độ, <code>trigger_radius</code></td>
+                        <td>Dữ liệu POI; ảnh và bản dịch được lưu ở các bảng liên quan</td>
                     </tr>
                     <tr>
                         <td><code>poi_localizations</code></td>
                         <td>localization</td>
-                        <td>Bản dịch + audio_url theo (poi_id, lang). Compound index.</td>
+                        <td>Bản dịch và audio URL theo POI/ngôn ngữ</td>
+                    </tr>
+                    <tr>
+                        <td><code>poi_images</code></td>
+                        <td>content</td>
+                        <td>Ảnh liên kết với POI</td>
                     </tr>
                     <tr>
                         <td><code>audio_tasks</code></td>
                         <td>audio</td>
-                        <td>Snapshot/control state cho audio task, restart recovery, heartbeat, TTL retention</td>
+                        <td>Trạng thái bền của tác vụ audio, phục hồi sau restart</td>
                     </tr>
                     <tr>
-                        <td><code>content_dataset_versions</code></td>
+                        <td><code>poi_sync_state</code>, <code>poi_sync_changes</code></td>
                         <td>content</td>
-                        <td>Version token cho <code>/poi/load-all</code>, ETag và delta sync cursor</td>
+                        <td>Trạng thái cursor và các thay đổi cho full/delta sync</td>
                     </tr>
                     <tr>
-                        <td><code>admin_users</code></td>
+                        <td><code>users</code>, <code>user_roles</code></td>
                         <td>admin</td>
-                        <td>Tài khoản admin/owner + hashed password + role + <code>is_poi_owner_verified</code> + PII encrypted</td>
+                        <td>Tài khoản và quan hệ gán vai trò</td>
                     </tr>
                     <tr>
-                        <td><code>roles</code></td>
+                        <td><code>roles</code>, <code>permissions</code>, <code>role_permissions</code></td>
                         <td>admin</td>
-                        <td>Dynamic roles + permission arrays. 4 default roles seeded.</td>
+                        <td>Vai trò và quyền liên kết qua <code>role_permissions</code></td>
                     </tr>
                     <tr>
                         <td><code>audit_logs</code></td>
@@ -881,7 +886,7 @@
                         <td>Nhật ký hành động (action, user_id, resource, timestamp)</td>
                     </tr>
                     <tr>
-                        <td><code>poi_owner_registrations</code></td>
+                        <td><code>owner_registrations</code></td>
                         <td>admin</td>
                         <td>Đơn đăng ký chủ quán (pending → approved/rejected) + <code>admin_note</code></td>
                     </tr>
@@ -896,32 +901,32 @@
                         <td>Thông báo review cho owner, đọc/chưa đọc, trang chi tiết trong owner portal</td>
                     </tr>
                     <tr>
-                        <td><code>ai_usage_limits</code></td>
+                        <td><code>ai_usage_daily</code></td>
                         <td>ai_advisor</td>
-                        <td>Rate limit: {user_id, date, count}. Reset daily.</td>
+                        <td>Tổng hợp lượt dùng AI theo người dùng/ngày</td>
                     </tr>
                     <tr>
-                        <td><code>analytics_*</code></td>
+                        <td><code>analytics_consents</code>, <code>analytics_events</code></td>
                         <td>analytics</td>
-                        <td>Devices, sessions, events, hourly/daily metrics, jobs và read models dashboard</td>
+                        <td>Consent và các sự kiện analytics đã được cho phép</td>
                     </tr>
                     <tr>
-                        <td><code>localization_rate_limits</code></td>
+                        <td><code>localization_request_logs</code></td>
                         <td>localization</td>
-                        <td>Rate limit shared-state cho on-demand translation/TTS, TTL theo cửa sổ quota</td>
+                        <td>Ghi nhận giới hạn yêu cầu dịch/TTS trong PostgreSQL</td>
                     </tr>
                     <tr>
-                        <td><code>ui_translation_bundles</code></td>
-                        <td>ui_i18n</td>
-                        <td>Cache bundle UI theo <code>namespace + locale + source_hash</code>, trạng thái <code>pending/ready</code></td>
-                    </tr>
-                    <tr>
-                        <td><code>runtime_location_hourly</code></td>
+                        <td><code>runtime_observability_hourly</code></td>
                         <td>runtime_observability</td>
-                        <td>Read model vị trí runtime theo cửa sổ giờ, tách khỏi analytics consent lane</td>
+                        <td>Số liệu quan sát runtime theo giờ, tách khỏi analytics consent</td>
                     </tr>
                     <tr>
-                        <td><code>MenuItem</code></td>
+                        <td><code>offline_packs</code>, <code>offline_pack_assets</code></td>
+                        <td>maps</td>
+                        <td>Manifest và metadata tài sản bản đồ offline</td>
+                    </tr>
+                    <tr>
+                        <td><code>menus</code>, <code>menu_items</code></td>
                         <td>content</td>
                         <td>Menu items cho POI</td>
                     </tr>
@@ -943,30 +948,29 @@
         <h3>Backend Startup Sequence</h3>
         <div class="timeline">
             <div class="timeline-item">
-                <h4>Tầng 1 — Security + Bootstrap Guard</h4>
-                <p>Kiểm tra <code>JWT_SECRET</code>, <code>REFRESH_TOKEN_SECRET</code>, <code>SECRET_KEY</code> ở non-dev
-                    và validate <code>SUPERADMIN_BOOTSTRAP_MODE</code>. Sai mode hoặc thiếu secret là fail-fast ngay.</p>
+                <h4>Tầng 1 — Kiểm tra cấu hình bảo mật</h4>
+                <p><code>kiem_tra_bi_mat()</code> xác thực <code>JWT_SECRET</code> và
+                    <code>REFRESH_TOKEN_SECRET</code> theo môi trường.</p>
             </div>
             <div class="timeline-item">
-                <h4>Tầng 2 — Database / Cache / Media Readiness</h4>
-                <p><code>connect_db()</code> → <code>assert_transaction_capability()</code> → optional
-                    <code>media_storage.check_backend_health()</code> khi media đi qua S3-compatible backend.</p>
+                <h4>Tầng 2 — Kết nối PostgreSQL</h4>
+                <p><code>connect_db()</code> dùng SQLAlchemy async/asyncpg, truy vấn
+                    <code>current_database()</code> và từ chối khởi động nếu tên DB không khớp <code>DB_NAME</code>.</p>
             </div>
             <div class="timeline-item">
-                <h4>Tầng 3 — Seeding + Runtime Prep</h4>
-                <p><code>admin_service.ensure_roles()</code> và <code>ensure_super_admin()</code>, sau đó
-                    <code>verify_runtime_storage()</code> hoặc <code>ensure_runtime_storage()</code> tùy môi trường.</p>
+                <h4>Tầng 3 — Phục vụ yêu cầu</h4>
+                <p>Schema phải được provision trước; backend không tự tạo bảng hoặc tự chạy migration khi khởi động.
+                    Endpoint kiểm tra DB là <code>/api/v1/health/database</code>.</p>
             </div>
             <div class="timeline-item">
-                <h4>Tầng 4 — Recovery + Background Workers</h4>
-                <p>Refresh transaction readiness, start readiness loop, recover audio task sau restart, load recent
-                    tasks, start maintenance loop, ensure runtime observability indexes rồi bật analytics worker và media cleanup worker.</p>
+                <h4>Tầng 4 — Đóng kết nối</h4>
+                <p>Khi ứng dụng dừng, <code>close_db()</code> giải phóng connection pool PostgreSQL.</p>
             </div>
             <div class="timeline-item">
-                <h4>Gắn 10 Routers + /static + readiness</h4>
+                <h4>Gắn các router và /static</h4>
                 <p>content, audio, admin, owner, ai_advisor, analytics, localization, maps,
                     runtime_observability, ui_i18n — kèm
-                    <code>/static</code>, <code>/health</code>, <code>/health/ready</code>.</p>
+                    <code>/static</code> và endpoint health PostgreSQL.</p>
             </div>
         </div>
 
@@ -1121,8 +1125,8 @@
             </div>
             <div class="card">
                 <h3>GET /poi/nearby</h3>
-                <p>Ưu tiên <code>$geoNear</code> trên index không gian để lấy POI trong bán kính; nếu geo query lỗi thì
-                    fallback sang Haversine sort in-memory. Dùng cho hotset và nearby discovery.</p>
+                <p>Dùng <code>ST_DWithin</code> và <code>ST_Distance</code> của PostGIS để lọc và sắp xếp POI trong
+                    bán kính. Cùng truy vấn không gian được dùng cho nearby và hotset.</p>
             </div>
             <div class="card">
                 <h3>Create / Update POI</h3>
@@ -1260,7 +1264,7 @@
                 <h3>🔑 Dynamic RBAC</h3>
                 <ul>
                     <li><strong>Static:</strong> 32 permissions / 9 domains (code)</li>
-                    <li><strong>Dynamic:</strong> Roles in MongoDB (DB)</li>
+                    <li><strong>Dynamic:</strong> Roles and permissions in PostgreSQL tables</li>
                     <li>Route Guards: <code>require_permission("poi:delete")</code></li>
                     <li>JWT payload chứa permissions → không cần query DB cho hầu hết request</li>
                 </ul>
@@ -1776,7 +1780,7 @@
                     </tr>
                     <tr>
                         <td><strong>SSE Progress Tracking</strong></td>
-                        <td>AudioTaskManager snapshot Mongo + EventSource → UI</td>
+                        <td>AudioTaskManager state in PostgreSQL + EventSource → UI</td>
                         <td>GitHub Actions live log streaming</td>
                     </tr>
                     <tr>
@@ -1968,7 +1972,7 @@ sequenceDiagram
     participant GE as GeofenceEngine
     participant NE as NarrationEngine
     participant BE as FastAPI Backend
-    participant DB as MongoDB
+    participant DB as PostgreSQL
 
     U->>SW: Mở app → SW register
     FE->>FE: React Router → MapApp → SplashScreen
@@ -2026,14 +2030,14 @@ sequenceDiagram
                 <h3>Backend</h3>
                 <ul>
                     <li><strong>FastAPI</strong> — async Python web framework</li>
-                    <li><strong>Motor</strong> — async MongoDB driver</li>
+                    <li><strong>SQLAlchemy 2 + asyncpg</strong> — async PostgreSQL access</li>
+                    <li><strong>PostgreSQL + PostGIS</strong> — relational and spatial data</li>
                     <li><strong>Edge-TTS</strong> — Microsoft Neural Voices (FREE)</li>
                     <li><strong>deep-translator</strong> — Google Translate wrapper (FREE)</li>
                     <li><strong>Google Gemini 2.5 Flash / ProxyPal gateway</strong> — AI enhancement</li>
                     <li><strong>bcrypt</strong> — password hashing</li>
                     <li><strong>PyJWT</strong> — JWT tokens (HS256)</li>
                     <li><strong>cryptography (Fernet)</strong> — PII encryption</li>
-                    <li><strong>Redis</strong> — presence, analytics rate limit, coordination keys</li>
                 </ul>
             </div>
             <div class="card">
@@ -2093,9 +2097,8 @@ sequenceDiagram
     <!-- Diagram data (section mapping + mermaid definitions) -->
     <script>
 /**
- * Mermaid diagram data for system-presentation.html
- * Auto-generated from docs/walkthrough/diagrams/*.mermaid
- * DO NOT EDIT MANUALLY — run gen_diagrams_data.py to regenerate
+ * Mermaid diagram data for the standalone system presentation.
+ * The Mermaid source files and generator are not included in this repository.
  */
 (function () {
     window.DIAGRAM_DATA = {
@@ -2157,7 +2160,7 @@ sequenceDiagram
         OWNER["OwnerLayout\\nOwner Portal"]
     end
 
-    subgraph Backend["Backend — FastAPI + MongoDB"]
+    subgraph Backend["Backend — FastAPI + PostgreSQL"]
         FASTAPI["main.py\\nFastAPI App\\nLifespan Manager"]
         CONTENT["content module\\n/api/v1/poi\\nPOI CRUD"]
         AUDIO["audio module\\n/api/v1/audio\\nEdge-TTS + Task Manager"]
@@ -2169,8 +2172,7 @@ sequenceDiagram
     end
 
     subgraph Data["Data Layer"]
-        MONGO[("MongoDB\\nquan4_culinary\\nruntime collections + read models")]
-        REDIS[("Redis\\npresence + rate limits")]
+        POSTGRES[("PostgreSQL + PostGIS\\nquan4_culinary_tourism\\nrelational tables + spatial queries")]
         IDB[("IndexedDB\\nQuan4DB\\npois_by_lang")]
         SW["Service Worker\\nsw.js Workbox\\n584 lines"]
         CACHE[("Cache API\\naudio-lang-{lang}\\nmap-pack-{version}")]
@@ -2195,13 +2197,12 @@ sequenceDiagram
     FASTAPI --> AI
     FASTAPI --> LOC
     FASTAPI --> MAPS
-    CONTENT --> MONGO
-    AUDIO --> MONGO
-    ADMIN_BE --> MONGO
-    ANALYTICS --> MONGO
-    ANALYTICS --> REDIS
-    LOC --> MONGO
-    AI --> MONGO
+    CONTENT --> POSTGRES
+    AUDIO --> POSTGRES
+    ADMIN_BE --> POSTGRES
+    ANALYTICS --> POSTGRES
+    LOC --> POSTGRES
+    AI --> POSTGRES
     MAPAPP -->|"idb library"| IDB
     MAPAPP -->|"postMessage"| SW
     SW --> CACHE`
@@ -2247,65 +2248,24 @@ sequenceDiagram
                 mermaid: `sequenceDiagram
     participant OS as Server OS
     participant MAIN as main.py
-    participant CFG as config/env
-    participant DB as database.py
-    participant MEDIA as media_storage
-    participant ADMIN as AdminService
-    participant RUNTIME as runtime_storage
-    participant AUDIO as AudioTaskManager
-    participant OBS as RuntimeObservability
-    participant ANALYTICS as Analytics/Workers
+    participant CFG as core/config.py
+    participant DB as postgres.py
 
     OS->>MAIN: uvicorn app.main:app --port 8000
     activate MAIN
     MAIN->>MAIN: lifespan() start
-
-    rect rgb(255, 230, 230)
-        Note over MAIN,CFG: Security + Bootstrap Validation (non-dev only)
-        MAIN->>CFG: Check JWT_SECRET
-        MAIN->>CFG: Check REFRESH_TOKEN_SECRET
-        MAIN->>CFG: Check SECRET_KEY
-        MAIN->>CFG: Validate SUPERADMIN_BOOTSTRAP_MODE
-        Note over MAIN: Fail fast if placeholders or unsafe bootstrap config
-    end
-
-    rect rgb(230, 255, 230)
-        Note over MAIN,DB: Database / Media Readiness
-        MAIN->>DB: connect_db()
-        DB->>DB: AsyncIOMotorClient(MONGODB_URI)
-        DB->>DB: client[MONGODB_DB_NAME]
-        DB-->>MAIN: MongoDB connected
-        MAIN->>DB: assert_transaction_capability()
-        MAIN->>MEDIA: check_backend_health() when MEDIA_BACKEND=s3
-    end
-
-    rect rgb(230, 230, 255)
-        Note over MAIN,ADMIN: Seed defaults + admin bootstrap
-        MAIN->>ADMIN: ensure_roles()
-        Note over ADMIN: Upsert 4 default roles:<br/>super_admin, admin,<br/>poi_owner, user
-        MAIN->>ADMIN: ensure_super_admin()
-        Note over ADMIN: Behavior depends on bootstrap mode
-    end
-
-    rect rgb(255, 255, 230)
-        Note over MAIN,RUNTIME: Runtime storage preparation
-        MAIN->>RUNTIME: verify_runtime_storage() or ensure_runtime_storage()
-        MAIN->>MAIN: refresh_transaction_readiness()
-        MAIN->>MAIN: start_transaction_readiness_loop()
-    end
-
-    rect rgb(230, 245, 255)
-        Note over MAIN,ANALYTICS: Recover stateful workers
-        MAIN->>AUDIO: recover_after_restart()
-        MAIN->>AUDIO: load_recent_tasks()
-        MAIN->>AUDIO: start_maintenance_loop()
-        MAIN->>OBS: ensure_indexes()
-        MAIN->>ANALYTICS: analytics_worker.start()
-        MAIN->>ANALYTICS: media_cleanup_worker.start()
-    end
-
-    MAIN->>MAIN: Mount 10 routers + /static + /health/ready
-    Note over MAIN: Server ready on port 8000
+    MAIN->>CFG: kiem_tra_bi_mat()
+    CFG-->>MAIN: Validate JWT secrets for APP_ENV
+    MAIN->>DB: connect_db()
+    DB->>DB: Create postgresql+asyncpg engine from DB_*
+    DB->>DB: SELECT current_database()
+    DB-->>MAIN: Verify result matches DB_NAME
+    Note over MAIN,DB: Startup fails if PostgreSQL is unavailable or DB_NAME mismatches
+    Note over MAIN,DB: Schema is provisioned separately; app does not create tables
+    MAIN->>MAIN: Serve API routes and static files
+    MAIN-->>OS: Ready
+    OS->>MAIN: Shutdown
+    MAIN->>DB: close_db() / dispose engine
     deactivate MAIN`
             },
             'frontend-startup': {
@@ -2466,9 +2426,10 @@ sequenceDiagram
         S_DELETE["delete_poi(poi_id)\\n+ cascade delete"]
     end
 
-    subgraph DB["MongoDB Collections"]
-        COL_POI[("POI\\nname, description, category,\\nlocation, images, audio_status,\\ngeofence_radius, audio_priority")]
-        COL_LOC[("poi_localizations\\npoi_id, lang, name,\\ndescription, audio_url, updated_at")]
+    subgraph DB["PostgreSQL + PostGIS"]
+        COL_POI[("pois\\nid, name, latitude, longitude,\\npublication_status, audio_priority")]
+        COL_LOC[("poi_localizations\\npoi_id, language_code,\\nlocalized_name, localized_description, audio_status")]
+        COL_IMG[("poi_images\\npoi_id, image URL, sort_order")]
     end
 
     subgraph Hydration["load-all & nearby Hydration\\n?lang=xx"]
@@ -2517,7 +2478,7 @@ sequenceDiagram
         STATIC["app/static/audio/\\n{md5_hash}.mp3"]
     end
 
-    subgraph DB["MongoDB"]
+    subgraph DB["PostgreSQL"]
         LOC_COL[("poi_localizations\\naudio_url per lang")]
     end
 
@@ -2551,18 +2512,18 @@ sequenceDiagram
     participant API as admin/router.py
     participant DEP as dependencies.py
     participant SVC as AdminService
-    participant DB as MongoDB admin_users
+    participant DB as PostgreSQL users
     participant JWT as PyJWT
 
     rect rgb(230, 245, 255)
         Note over Client,JWT: LOGIN FLOW
         Client->>API: POST /admin/auth/login<br/>{email, password}
         API->>SVC: authenticate(login)
-        SVC->>DB: find_one({email})
-        DB-->>SVC: user document
+        SVC->>DB: SELECT user by email
+        DB-->>SVC: user row
         SVC->>SVC: verify_password(bcrypt)
         SVC->>SVC: _get_user_permissions(user)
-        Note over SVC: Role perms from DB<br/>+ Extra user permissions
+        Note over SVC: Role permissions from relational tables
         SVC->>JWT: create_access_token<br/>{sub, role, permissions[]}<br/>expire: 30 min
         SVC->>JWT: create_refresh_token<br/>{sub, type: refresh}<br/>expire: 7 days
         JWT-->>SVC: tokens
@@ -2591,7 +2552,7 @@ sequenceDiagram
         API->>DEP: read refresh_token cookie
         DEP->>SVC: verify_refresh_token(token)
         SVC->>JWT: decode with REFRESH_TOKEN_SECRET
-        SVC->>DB: find user — still active?
+        SVC->>DB: Check user is still active
         SVC->>SVC: create new access_token
         API->>Client: Set-Cookie: new access_token
     end`
@@ -2611,7 +2572,7 @@ sequenceDiagram
         CONTENT["content domain\\ncontent:moderate,\\ncontent:publish"]
     end
 
-    subgraph Dynamic["MongoDB roles collection — Dynamic"]
+    subgraph Dynamic["PostgreSQL RBAC tables — Dynamic"]
         SA["super_admin\\nALL permissions\\npriority: 0\\nis_system: true"]
         ADMIN_R["admin\\nPOI + Menu + User +\\nAnalytics + Audit + Content\\npriority: 1\\nis_system: true"]
         OWNER_R["poi_owner\\npoi:read + owner:access +\\nowner:submit_poi + owner:manage_own_poi +\\nmenu read/create/update + analytics:view_own\\npriority: 10\\nis_system: true"]
@@ -2650,7 +2611,7 @@ sequenceDiagram
     participant LOC as LocalizationService
     participant TTS as TTSService
     participant WU as WarmupService
-    participant DB as MongoDB<br/>poi_localizations
+    participant DB as PostgreSQL<br/>poi_localizations
 
     Note over User: User selects language "ja"
 
@@ -2813,7 +2774,7 @@ sequenceDiagram
     participant FE as Frontend
     participant API as admin/router.py
     participant SVC as AdminService
-    participant DB as MongoDB
+    participant DB as PostgreSQL
 
     rect rgb(230, 245, 255)
         Note over Owner,DB: Phase 1 — Registration
@@ -2864,13 +2825,13 @@ sequenceDiagram
     participant API as ai_advisor/router.py
     participant SVC as AIAdvisorService
     participant LLM as Gemini 2.5 Flash / ProxyPal
-    participant DB as MongoDB ai_usage_limits
+    participant DB as PostgreSQL ai_usage_daily
 
     User->>FE: Click "Cai thien mo ta bang AI"
     FE->>API: POST /ai/enhance-description<br/>{name, description, category,<br/>address, price_range}
 
     API->>SVC: check_rate_limit(user_id, is_admin)
-    SVC->>DB: db.ai_usage_limits.find_one<br/>{user_id, date: today}
+    SVC->>DB: Read today's usage for user_id
 
     alt Admin user
         Note over SVC: Unlimited usage
@@ -2889,8 +2850,7 @@ sequenceDiagram
     SVC->>LLM: provider.generate(prompt)
     LLM-->>SVC: Enhanced description text
 
-    SVC->>DB: increment_usage(user_id)
-    Note over DB: Upsert {user_id, date, count+1}
+    SVC->>DB: Increment daily usage in PostgreSQL
 
     SVC-->>API: {enhanced, remaining: 7}
     API-->>FE: {enhanced_description,<br/>remaining_uses_today: 7}
@@ -2959,10 +2919,9 @@ sequenceDiagram
     participant FE as AnalyticsService.js
     participant OUTBOX as IndexedDB<br/>analytics outbox
     participant API as analytics/service.py
-    participant REDIS as Redis<br/>presence + rate limit
-    participant MDB as MongoDB
-    participant WORKER as analytics/worker.py
-    participant READ as analytics/read_service.py
+    participant LIMIT as process_rate_limit.py
+    participant DB as PostgreSQL
+    participant READ as analytics_read.py
     participant DASH as Admin Dashboard
 
     rect rgb(230, 245, 255)
@@ -2980,30 +2939,22 @@ sequenceDiagram
     end
 
     rect rgb(255, 245, 230)
-        Note over API,MDB: Backend ingest gate
+        Note over API,DB: Backend ingest gate
         API->>API: _detect_filtered_reason(User-Agent)
-        API->>REDIS: anonymous 60 / 10m<br/>IP 600 / 10m
-        API->>MDB: upsert_device() + upsert_session()
-        opt heartbeat present
-            API->>REDIS: presence_service.heartbeat()
-            REDIS-->>API: count_online()
-        end
+        API->>LIMIT: anonymous/IP rate limit
+        API->>DB: Check consent receipt
         loop For each accepted event
             API->>API: sanitize_properties() + normalize_event_time()
-            API->>MDB: insert_event(metric_date, metric_hour, poi_id...)
+            API->>DB: INSERT analytics_events
         end
-        API->>MDB: enqueue_aggregation_job(metric_date, env)
         API-->>FE: accepted + tracked_online_users
     end
 
     rect rgb(230, 255, 230)
-        Note over WORKER,DASH: Read model for dashboard
-        WORKER->>MDB: lease_due_jobs()
-        WORKER->>MDB: list_events_for_metric_date()
-        WORKER->>MDB: replace daily / hourly / poi / search metrics
+        Note over READ,DASH: Dashboard aggregation
         DASH->>READ: get_dashboard_stats()
-        READ->>MDB: list_daily_metrics() + list_poi_daily_metrics()
-        READ->>REDIS: presence_service.count_online()
+        READ->>DB: Aggregate analytics_events and join pois
+        READ->>READ: Count in-process presence
         READ-->>DASH: today_views / audio_plays / searches / top_pois / tracked_online_users
     end`
             },

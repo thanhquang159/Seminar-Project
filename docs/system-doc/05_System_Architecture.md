@@ -10,7 +10,7 @@ Hình dung theo chiều từ người dùng vào trong:
 
 1. **Trình duyệt/PWA của người dùng** chạy ứng dụng React. Giữa ứng dụng và mạng có **Service Worker** làm lớp chặn yêu cầu và cache. Dữ liệu lâu dài nằm trong **IndexedDB** và **Cache API**.
 2. Yêu cầu đi qua mạng tới **một tiến trình backend FastAPI** duy nhất, trong đó mười router chia ranh giới theo nghiệp vụ.
-3. Backend dùng chung **MongoDB** (dữ liệu chính), **Redis** (trạng thái tạm thời, phối hợp), và **kho tệp tĩnh/runtime** (audio, ảnh, bản đồ), có thể thay bằng kho tương thích S3.
+3. Backend dùng **PostgreSQL/PostGIS** cho dữ liệu nghiệp vụ và truy vấn không gian; tệp audio, ảnh, bản đồ nằm trong kho tĩnh/runtime, có thể thay bằng kho tương thích S3.
 4. Backend gọi ra **dịch vụ ngoài** khi cần: Edge-TTS, Google Translate (qua deep-translator), Gemini/ProxyPal, MapTiler, OpenWeather (tùy chọn).
 
 ## 2. Các thành phần
@@ -40,7 +40,7 @@ Các module logic chính trong frontend:
 
 ### 2.2 Backend (FastAPI)
 
-Công nghệ: FastAPI (async), Motor (MongoDB async), PyJWT (HS256), bcrypt, cryptography (Fernet), Redis client, Edge-TTS, deep-translator, SDK Gemini hoặc cổng ProxyPal.
+Công nghệ: FastAPI (async), SQLAlchemy async, asyncpg, PostgreSQL/PostGIS, PyJWT (HS256), bcrypt, cryptography (Fernet), Edge-TTS, deep-translator, SDK Gemini hoặc cổng ProxyPal.
 
 Mười router được mount:
 
@@ -51,7 +51,7 @@ Mười router được mount:
 | admin | Xác thực cookie, RBAC, người dùng, role, duyệt đăng ký/submission, audit log |
 | owner | Cổng chủ quán: POI của mình, submission, thông báo, trạng thái đăng ký |
 | ai_advisor | Cải thiện mô tả bằng AI, quota theo ngày |
-| analytics | API thu thập có consent, hiện diện qua Redis, read model trong Mongo |
+| analytics | API thu thập có consent và tổng hợp số liệu từ PostgreSQL |
 | localization | On-demand, hotset, warmup, cổng "sẵn sàng tiếng Anh công khai" |
 | maps | Manifest tĩnh-first, PMTiles, glyph, sprite, chống path traversal |
 | runtime_observability | Ingest vị trí công khai (tách riêng), rate limit, cửa sổ quan sát cho admin |
@@ -59,12 +59,12 @@ Mười router được mount:
 
 Ngoài ra: `/static` (tệp tĩnh), `/health`, `/health/ready`.
 
-Mỗi domain tổ chức theo mẫu **router → service → store**, dùng chung tiến trình, DB và Redis nhưng ranh giới rõ ràng.
+Mỗi domain tổ chức theo mẫu **router → service → store**, dùng chung tiến trình và PostgreSQL qua `AsyncSession`, nhưng ranh giới rõ ràng.
 
 ### 2.3 Cơ sở dữ liệu và lưu trữ
 
-- **MongoDB**: kho dữ liệu chính (chi tiết ở `06_Database_Design.md`). Yêu cầu hỗ trợ transaction (kiểm tra khi khởi động bằng `assert_transaction_capability()`, tức cần replica set).
-- **Redis**: hiện diện người dùng ẩn danh (sliding window), rate limit analytics, khóa phối hợp.
+- **PostgreSQL/PostGIS**: kho dữ liệu nghiệp vụ và truy vấn không gian (chi tiết ở `06_Database_Design.md`). Backend kết nối qua SQLAlchemy async/asyncpg; schema phải được provision trước, ứng dụng không tự tạo schema.
+- **Trạng thái tạm thời**: tác vụ và dữ liệu cần bền được lưu trong PostgreSQL; một số giới hạn tần suất/đếm tạm thời nằm trong tiến trình.
 - **Kho media/runtime**: thư mục tĩnh chứa audio MP3, ảnh, gói bản đồ (`backend/app/static/maps/`, đổi bằng biến môi trường `MAP_PACK_DATA_DIR`). Có thể dùng backend tương thích S3, khi đó khi khởi động có kiểm tra sức khỏe kho (`media_storage.check_backend_health()`).
 
 ### 2.4 Dịch vụ ngoài
@@ -73,11 +73,10 @@ Xem `10_External_Services.md`.
 
 ## 3. Trình tự khởi động backend (theo tầng)
 
-1. **Bảo mật và bootstrap guard:** kiểm tra `JWT_SECRET`, `REFRESH_TOKEN_SECRET`, `SECRET_KEY` ở môi trường không phải dev; kiểm tra `SUPERADMIN_BOOTSTRAP_MODE`. Sai hoặc thiếu thì dừng ngay.
-2. **Sẵn sàng DB, cache, media:** kết nối MongoDB, xác nhận có transaction, nếu dùng S3 thì kiểm tra sức khỏe.
-3. **Seeding và chuẩn bị runtime:** tạo role mặc định, tạo super admin, kiểm tra hoặc tạo thư mục lưu trữ.
-4. **Phục hồi và worker nền:** làm mới trạng thái transaction, bật vòng kiểm tra sẵn sàng, khôi phục tác vụ audio sau restart, nạp tác vụ gần đây, bật vòng bảo trì, tạo index cho quan sát runtime, rồi bật worker analytics và worker dọn media.
-5. **Gắn router:** mount 10 router, `/static`, `/health`, `/health/ready`.
+1. **Kiểm tra bí mật:** `kiem_tra_bi_mat()` xác thực `JWT_SECRET` và `REFRESH_TOKEN_SECRET` theo môi trường; cấu hình không hợp lệ làm startup thất bại.
+2. **Kết nối cơ sở dữ liệu:** `connect_db()` mở kết nối PostgreSQL và xác nhận `DB_NAME`; ứng dụng dừng khởi động nếu kết nối lỗi hoặc tên database không khớp.
+3. **Phục vụ yêu cầu:** router dùng `AsyncSession` lấy từ `app.postgres.get_db`; schema PostgreSQL phải có sẵn trước khi chạy.
+4. **Đóng kết nối:** khi ứng dụng dừng, `close_db()` giải phóng connection pool.
 
 ## 4. Luồng dữ liệu chính (mô tả bằng lời)
 
@@ -88,7 +87,7 @@ Trình duyệt tải trang, Service Worker được đăng ký. Giao diện đ�
 Dịch vụ vị trí đẩy tọa độ mỗi 5 giây vào bộ máy geofence. Bộ máy xác nhận ENTER, chọn POI tốt nhất, chuyển cho bộ phát. Bộ phát hỏi Service Worker audio đã có sẵn chưa; nếu chưa, gọi backend on-demand, rồi TTS stream, rồi cuối cùng dùng giọng của thiết bị.
 
 ### 4.3 Sinh audio phía backend
-Khi admin lưu POI, router content ghi bản gốc tiếng Việt, rồi giao cho trình quản lý tác vụ audio. Trình quản lý chạy tối đa 3 tác vụ song song: dịch văn bản, kiểm tra cache MD5 trên đĩa, nếu chưa có thì gọi Edge-TTS, lưu MP3, upsert bản địa hóa vào MongoDB, cập nhật trạng thái và đẩy tiến độ qua SSE tới trang admin. Trạng thái tác vụ được lưu vào MongoDB để phục hồi.
+Khi admin lưu POI, backend cập nhật dữ liệu trong PostgreSQL. Trình quản lý tác vụ audio dịch văn bản, kiểm tra cache MD5 trên đĩa, gọi Edge-TTS khi cần, lưu MP3 và cập nhật bản địa hóa cùng trạng thái tác vụ trong các bảng PostgreSQL. Tiến độ được đẩy qua SSE; trạng thái tác vụ có thể được nạp lại từ PostgreSQL sau khi backend khởi động lại.
 
 ### 4.4 Gói offline
 Frontend gọi manifest (audio, map) để biết danh sách tệp, kích thước và SHA-256. Tải từng tệp, kiểm tra hash, lưu vào cache riêng của pack, rồi nhắn Service Worker kích hoạt để ưu tiên đọc từ pack.

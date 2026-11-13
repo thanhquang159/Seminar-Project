@@ -266,7 +266,7 @@ async def ghi_su_kien(
 
 
 async def cho_phep_luong(db: AsyncSession, anonymous_id: str, ip: str) -> tuple[bool, int]:
-    """Apply anonymous-device and IP limits in this process without Redis/Mongo."""
+    """Apply anonymous-device and IP limits in this process."""
     del db  # no persistent rate-limit table is part of the existing schema
     allowed, retry = check_rate_limit(
         f"analytics:anonymous:{anonymous_id}",

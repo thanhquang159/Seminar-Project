@@ -15,7 +15,7 @@
 |---|---|---|
 | Unit backend | Hàm service, tiện ích, quyền | pytest, pytest-asyncio |
 | Unit frontend | Geofence, hàng đợi audio, store, fallback | Vitest |
-| Tích hợp API | Router với MongoDB/Redis thật hoặc test container | pytest + httpx, MongoDB test (replica set) |
+| Tích hợp API | Kiểm tra hợp đồng các API PostgreSQL và các truy vấn SQL | pytest + httpx; schema PostgreSQL riêng chỉ dùng cho E2E |
 | Thành phần frontend | Màn hình, trạng thái | React Testing Library |
 | End-to-end | Luồng người dùng trên trình duyệt | Playwright |
 | PWA/Offline | Service Worker, cache, mất mạng | Playwright (offline mode), Lighthouse |
@@ -26,7 +26,7 @@
 
 ## 3. Môi trường kiểm thử
 
-- **Dev:** máy cá nhân, MongoDB replica set đơn nút, Redis cục bộ, dịch vụ ngoài giả lập.
+- **Dev:** máy cá nhân với PostgreSQL/PostGIS đã provision; dịch vụ ngoài được giả lập khi chạy test.
 - **Staging:** giống production, dữ liệu mẫu, khóa API thử.
 - **Thiết bị:** ít nhất một Android (Chrome), một iPhone (Safari), một máy tính (Chrome/Edge/Firefox).
 - **Mạng:** bình thường, chậm (3G giả lập), mất mạng hoàn toàn, mạng chập chờn.
@@ -183,7 +183,7 @@
 | Pin và GPS | Thử thực địa 30 phút | Mức tiêu thụ chấp nhận được, không treo |
 | PWA | Lighthouse | Đạt tiêu chí PWA cài đặt; điểm hiệu năng đạt ngưỡng nhóm đặt ra |
 | Tương thích | Ma trận thiết bị | Hoạt động trên Chrome Android, Safari iOS, Chrome/Edge/Firefox desktop |
-| Chịu lỗi | Tắt Redis, Edge-TTS, AI lần lượt | Hệ thống giảm chất lượng nhưng không sập |
+| Chịu lỗi | Ngắt PostgreSQL, Edge-TTS, AI lần lượt | PostgreSQL lỗi làm backend fail-fast; lỗi dịch vụ ngoài không được làm hỏng chức năng không liên quan |
 | Bảo mật | OWASP Top 10 cơ bản, quét ZAP | Không có lỗ hổng mức cao |
 | Khả năng tiếp cận | Quét tự động và kiểm tra thủ công | Nhãn, tương phản, vùng chạm |
 
@@ -222,4 +222,4 @@
 - Edge-TTS và dịch miễn phí có thể không ổn định khi chạy tự động: dùng mock cho CI.
 - Hành vi Service Worker khác nhau giữa trình duyệt, đặc biệt Safari iOS: bắt buộc thử thiết bị thật.
 - GPS giả lập không phản ánh nhiễu thật: cần thực địa.
-- MongoDB cần replica set để thử transaction: dùng test container.
+- Bộ test thường không tự tạo schema PostgreSQL; E2E phải dùng database riêng có hậu tố `_e2e`, đã provision schema và role `ADMIN`.

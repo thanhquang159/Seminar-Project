@@ -14,7 +14,8 @@ Nguyên tắc: **lõi mã nguồn mở/miễn phí**, dịch vụ cần API key 
 | MapLibre GL JS + PMTiles | Hiển thị bản đồ và bản đồ offline | Miễn phí | Có | Đang dùng |
 | Web Speech Synthesis (trình duyệt) | TTS cục bộ dự phòng | Miễn phí | Dự phòng | Đang dùng |
 | Lưu trữ tương thích S3 | Lưu media | Tùy nhà cung cấp | Tùy chọn | Hỗ trợ tùy cấu hình |
-| Redis | Hiện diện, rate limit, phối hợp | Tự lưu trữ | Có | Đang dùng (hạ tầng) |
+| PostgreSQL + PostGIS | Dữ liệu nghiệp vụ và truy vấn không gian | Tự lưu trữ/dịch vụ quản lý | Có | Đang dùng |
+| Redis | Cache/trạng thái tạm | Tự lưu trữ | Không | Không dùng trong runtime hiện tại |
 | Google Maps | Bản đồ | — | Không | **Không dùng**; thay bằng MapLibre |
 | Google Login | Đăng nhập | — | Không | **Không có trong tài liệu gốc** |
 
@@ -76,8 +77,7 @@ Nếu bắt buộc dùng, phải thay MapLibre bằng Maps JavaScript API, mất
 
 ## 7. Hạ tầng dữ liệu
 
-- **MongoDB:** cần chế độ hỗ trợ transaction (replica set). Có thể dùng bản tự host hoặc dịch vụ quản lý.
-- **Redis:** hiện diện người dùng ẩn danh, giới hạn tần suất analytics, khóa phối hợp.
+- **PostgreSQL + PostGIS:** database nghiệp vụ bắt buộc; schema phải được provision trước khi chạy backend.
 
 ## 8. Quản lý khóa và cấu hình
 
@@ -90,9 +90,9 @@ Nếu bắt buộc dùng, phải thay MapLibre bằng Maps JavaScript API, mất
 | `VITE_MAPTILER_KEY` | Bản đồ cloud | Frontend (biến lúc build) |
 | API key Gemini/ProxyPal | AI Advisor | Backend |
 | Khóa OpenWeather | Thời tiết (tùy chọn) | Backend |
-| Chuỗi kết nối MongoDB, Redis, S3 | Hạ tầng | Backend |
+| `DB_HOST`, `DB_PORT`, `DB_NAME`, `DB_USER`, `DB_PASSWORD` | Kết nối PostgreSQL | Backend |
 
-Tên chính xác của các biến không nêu hết trong tài liệu gốc; cần lấy từ mã nguồn hoặc tệp mẫu `.env`. Tuyệt đối không commit khóa vào kho mã.
+Tệp `backend/.env.example` là nguồn chuẩn cho cấu hình hiện tại. Tuyệt đối không commit khóa hoặc mật khẩu thật vào kho mã.
 
 ## 9. Các dịch vụ trong đề bài mà hệ thống gốc chưa có (đề xuất nếu cần)
 
@@ -113,4 +113,4 @@ Tên chính xác của các biến không nêu hết trong tài liệu gốc; c�
 | AI | Báo lỗi theo nhà cung cấp; không ảnh hưởng chức năng khác |
 | MapTiler | Hybrid chuyển sang pack offline nếu có |
 | S3 | Phát hiện ở bước khởi động qua `check_backend_health()` |
-| Redis | Tính năng hiện diện/rate limit giảm; cần quy định hành vi (fail-open hoặc fail-closed) [Đề xuất: xác nhận] |
+| PostgreSQL | Backend không hoàn tất startup hoặc endpoint database health trả lỗi; khôi phục kết nối và xác minh database/schema |

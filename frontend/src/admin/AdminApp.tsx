@@ -38,31 +38,15 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   const [loi, setLoi] = useState('')
   const [dangDangNhap, setDangDangNhap] = useState(false)
   const [pois, setPois] = useState<Poi[]>([])
-  const [tongPoi, setTongPoi] = useState<number | null>(null)
-  const [loiTongPoi, setLoiTongPoi] = useState('')
   const [form, setForm] = useState<Poi>(TRONG)
   const [dangSua, setDangSua] = useState(false)
   const [poiQuanLyAnh, setPoiQuanLyAnh] = useState<Poi | null>(null)
   const [adminTab, setAdminTab] = useState<'pois' | 'approvals' | 'audio' | 'analytics' | 'access' | 'audit'>('pois')
 
   const taiPois = async () => {
-    const [ketQuaDanhSach, ketQuaTong] = await Promise.allSettled([
-      api<Poi[]>('/poi'),
-      api<{ count: number }>('/poi/count'),
-    ])
+    const [ketQuaDanhSach] = await Promise.allSettled([api<Poi[]>('/poi')])
     if (ketQuaDanhSach.status === 'fulfilled') {
       setPois(ketQuaDanhSach.value)
-    }
-    if (
-      ketQuaTong.status === 'fulfilled' &&
-      Number.isSafeInteger(ketQuaTong.value.count) &&
-      ketQuaTong.value.count >= 0
-    ) {
-      setTongPoi(ketQuaTong.value.count)
-      setLoiTongPoi('')
-    } else {
-      setTongPoi(null)
-      setLoiTongPoi('Không thể tải tổng số địa điểm từ máy chủ.')
     }
   }
 
@@ -109,7 +93,6 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
     await apiText('/admin/auth/logout', { method: 'POST' })
     setUser(null)
     setPois([])
-    setTongPoi(null)
   }
 
   const luu = async () => {
@@ -310,10 +293,6 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
           </div>
         </section>
       )}
-      {adminTab === 'pois' && loiTongPoi !== '' && (
-        <div className="notice notice--error mt" role="alert">{loiTongPoi}</div>
-      )}
-
       {/* NỘI DUNG THEO TAB ADMIN */}
       {adminTab === 'pois' && (
         <div className="admin-poi-layout mt">

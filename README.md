@@ -128,7 +128,7 @@ Lệnh trên chạy cả test độc lập và `tests_postgres/`; không kết n
 - [Kế hoạch kiểm thử](docs/system-doc/11_Test_Plan.md)
 - [Kế hoạch triển khai](docs/system-doc/12_Deployment.md)
 
-Tài liệu `01`–`12` là bộ đặc tả gốc và có thể còn mô tả công nghệ trước khi chuyển đổi. Backend hiện chạy PostgreSQL/PostGIS; hướng dẫn và mã nguồn hiện tại là nguồn chuẩn cho cách chạy. Danh sách nợ kỹ thuật còn lại nằm ở mục O của kế hoạch phát triển.
+Tài liệu `01`–`12` mô tả phạm vi, yêu cầu và hướng dẫn của đồ án; backend runtime hiện dùng PostgreSQL/PostGIS. Hướng dẫn backend và mã nguồn là nguồn chuẩn cho cấu hình, schema và cách chạy.
 
 ## Lộ trình phát triển
 
@@ -168,3 +168,16 @@ Ba lỗ hổng đã phát hiện nhưng chưa vá, ghi ở đây để khỏi t�
 ## Giấy phép
 
 Dự án được thực hiện trong phạm vi đồ án học tập. Thông tin về giấy phép phát hành sẽ được bổ sung khi dự án xác định chính sách phân phối mã nguồn.
+
+## Link Domain Vercel
+https://seminar-project-tau.vercel.app/
+
+## Tài khoản 
+Admin: demo.admin@quan4.local
+Pass: Quan4Demo@123
+
+Owner: demo.owner@quan4.local
+Pass: Quan4Demo@123
+
+Owner chờ duyệt: demo.pending@quan4.local
+Pass: Quan4Demo@123
