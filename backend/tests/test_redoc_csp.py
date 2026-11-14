@@ -26,6 +26,7 @@ def test_redoc_csp_allows_its_external_bundle(monkeypatch) -> None:
     csp = _csp_for_path("/redoc", monkeypatch)
 
     assert "script-src 'self' https://cdn.jsdelivr.net" in csp
+    assert "connect-src 'self' https://cdn.jsdelivr.net" in csp
 
 
 def test_swagger_docs_csp_allows_ui_assets_and_initialization(monkeypatch) -> None:
@@ -33,6 +34,8 @@ def test_swagger_docs_csp_allows_ui_assets_and_initialization(monkeypatch) -> No
 
     assert "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
     assert "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net" in csp
+    assert "connect-src 'self' https://cdn.jsdelivr.net" in csp
+    assert "https://fastapi.tiangolo.com" in csp.split("img-src ", 1)[1].split(";", 1)[0]
 
 
 def test_other_paths_do_not_allow_external_scripts(monkeypatch) -> None:
@@ -40,4 +43,5 @@ def test_other_paths_do_not_allow_external_scripts(monkeypatch) -> None:
 
     assert "script-src 'self';" in csp
     assert "cdn.jsdelivr.net" not in csp
+    assert "connect-src 'self' http://127.0.0.1:8000" in csp
     assert "'unsafe-inline'" not in csp.split("script-src ", 1)[1].split(";", 1)[0]

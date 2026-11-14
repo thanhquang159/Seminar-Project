@@ -25,10 +25,10 @@ phải bản mẫu chung trên mạng):
   khác vẫn chỉ cho phép script cùng nguồn.
 - `worker-src blob:` — MapLibre nạp tile qua Web Worker.
 - `style-src 'self' 'unsafe-inline'` — React đặt style cục bộ (geofence).
-- `img-src` — ảnh tile MapTiler hoặc OpenFreeMap.
-- `connect-src` — API + style bản đồ cloud; danh sách suy ra từ
-  `settings.CORS_ORIGINS` để không trở thành chỗ cấu hình trôi lệch nhau lần
-  thứ ba (lần trước là analytics, lần trước nữa là CORS).
+- `img-src` — ảnh tile MapTiler hoặc OpenFreeMap; trang tài liệu còn cần favicon
+  từ FastAPI.
+- `connect-src 'self'` — API và OpenAPI cùng origin; trang tài liệu cần CDN cho
+  source map. Các dịch vụ bản đồ được liệt kê riêng.
 """
 
 from starlette.types import ASGIApp, Message, Receive, Scope, Send
@@ -53,7 +53,7 @@ class HeaderBaoMat:
                 # có cách nào tránh inline style trong JSX.
                 "style-src 'self' 'unsafe-inline'",
                 "img-src 'self' data: blob: https://*.maptiler.com https://tiles.openfreemap.org",
-                f"connect-src {self.connect_src} https://*.maptiler.com https://demotiles.maplibre.org https://tiles.openfreemap.org",
+                f"connect-src 'self' {self.connect_src} https://*.maptiler.com https://demotiles.maplibre.org https://tiles.openfreemap.org",
                 "object-src 'none'",
                 "base-uri 'self'",
                 "form-action 'self'",
@@ -63,6 +63,14 @@ class HeaderBaoMat:
         self.redoc_csp = self.csp.replace(
             "script-src 'self'",
             "script-src 'self' https://cdn.jsdelivr.net",
+            1,
+        ).replace(
+            "connect-src 'self'",
+            "connect-src 'self' https://cdn.jsdelivr.net",
+            1,
+        ).replace(
+            "img-src 'self' data: blob:",
+            "img-src 'self' data: blob: https://fastapi.tiangolo.com",
             1,
         )
         self.docs_csp = (
@@ -74,6 +82,16 @@ class HeaderBaoMat:
             .replace(
                 "style-src 'self' 'unsafe-inline'",
                 "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                1,
+            )
+            .replace(
+                "connect-src 'self'",
+                "connect-src 'self' https://cdn.jsdelivr.net",
+                1,
+            )
+            .replace(
+                "img-src 'self' data: blob:",
+                "img-src 'self' data: blob: https://fastapi.tiangolo.com",
                 1,
             )
         )
