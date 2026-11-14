@@ -71,8 +71,8 @@ chạy backend.
 http://127.0.0.1:8000/api/v1/health/database
 ```
 
-`/docs` mở Swagger UI. Database health trả tên DB, phiên bản PostGIS và số bảng;
-nó không xác nhận dữ liệu nghiệp vụ đã được nạp.
+`/docs` mở Swagger UI và `/redoc` mở tài liệu ReDoc. Database health trả tên DB,
+phiên bản PostGIS và số bảng; nó không xác nhận dữ liệu nghiệp vụ đã được nạp.
 
 ## Admin user và role APIs
 
@@ -101,8 +101,8 @@ role đang sử dụng.
 `GET /admin/ai-usage?so_ngay=7` yêu cầu `analytics:view` và tổng hợp lượt dùng
 AI theo ngày của chủ quán trong khoảng 1–30 ngày. API không trả nội dung prompt.
 Danh sách, luồng tiến độ và lệnh điều khiển tác vụ âm thanh tại `/audio/tasks`
-yêu cầu quyền `user:update`; các API TTS dành cho người dùng vẫn giữ giới hạn
-riêng.
+yêu cầu quyền `user:update`. `/audio/on-demand` và `/audio/tts` dành cho khách
+không cần đăng nhập; request ẩn danh được giới hạn theo IP.
 
 ## Owner portal
 

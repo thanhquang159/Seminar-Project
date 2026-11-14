@@ -10,7 +10,7 @@ from pydantic import BaseModel, Field
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.auth import YeuCauDangNhap, doi_quyen
+from app.auth import doi_quyen
 from app.limits import MAX_TEXT_TTS, LangField
 from app.postgres import get_db
 from app.services.audio_svc import (
@@ -46,9 +46,8 @@ async def tts(
     body: TtsYeuCau,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: dict = YeuCauDangNhap,
 ) -> Response:
-    await kiem_tra(db, khoa_cho(request, user), "/audio/tts")
+    await kiem_tra(db, khoa_cho(request), "/audio/tts")
     try:
         tep, hit = await tao_mp3_cached(body.text, body.lang)
     except RuntimeError as exc:
@@ -65,13 +64,12 @@ async def on_demand(
     body: OnDemandYeuCau,
     request: Request,
     db: Annotated[AsyncSession, Depends(get_db)],
-    user: dict = YeuCauDangNhap,
 ) -> dict:
     try:
         oid = UUID(body.poi_id)
     except (ValueError, AttributeError):
         raise HTTPException(status_code=400, detail="Id không đúng định dạng") from None
-    await kiem_tra(db, khoa_cho(request, user), "/audio/on-demand")
+    await kiem_tra(db, khoa_cho(request), "/audio/on-demand")
     ban_dich = (
         (
             await db.execute(

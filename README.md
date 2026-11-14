@@ -169,6 +169,10 @@ Ba lỗ hổng đã phát hiện nhưng chưa vá, ghi ở đây để khỏi t�
 
 Dự án được thực hiện trong phạm vi đồ án học tập. Thông tin về giấy phép phát hành sẽ được bổ sung khi dự án xác định chính sách phân phối mã nguồn.
 
+## DB Password Supabase
+
+Thanhquang@123 Thanhquang@123
+
 ## Link Domain Vercel
 https://seminar-project-tau.vercel.app/
 

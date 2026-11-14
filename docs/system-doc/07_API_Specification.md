@@ -43,6 +43,7 @@
 | Method | Đường dẫn | Truy cập | Mô tả |
 |---|---|---|---|
 | GET | `/audio/languages` | P | Danh sách ngôn ngữ/giọng khả dụng (cache danh mục giọng 6 giờ). Cũng dùng làm probe khởi động. |
+| POST | `/audio/on-demand` | P | Sinh audio từ bản dịch đã có của POI. Body: `poi_id`, `lang`; trả `audio_url`, hoặc `409` nếu chưa có bản dịch. Giới hạn 30 yêu cầu/10 phút theo IP. |
 | POST | `/audio/tts` | P | Tầng 2: văn bản thành MP3 stream. Body: `text`, `lang`. Header phản hồi: `X-Cache: HIT/MISS`, `X-Static-Url` (URL có phiên bản cho Service Worker). |
 | GET | `/audio/pack-manifest` | P | Manifest gói audio theo ngôn ngữ (`?lang=`). Trả `{lang, pack_version, total_files, total_bytes, files[]}`, mỗi tệp có SHA-256. |
 | GET | `/admin/audio-tasks/stream` | A (quyền admin) | **SSE** tiến độ tác vụ audio thời gian thực. |

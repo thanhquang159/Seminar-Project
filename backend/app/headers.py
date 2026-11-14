@@ -20,6 +20,9 @@ nhưng để trình duyệt phải tự đoán:
 CSP ở đây được viết khít theo những gì app thật sự cần (đọc từ mã nguồn, không
 phải bản mẫu chung trên mạng):
 - `script-src 'self'` — Vite xuất bundle tĩnh, không có script inline.
+- `/docs` cho phép script inline khởi tạo Swagger UI và tài nguyên từ
+  `https://cdn.jsdelivr.net`; `/redoc` chỉ cần bundle từ CDN này. Các đường dẫn
+  khác vẫn chỉ cho phép script cùng nguồn.
 - `worker-src blob:` — MapLibre nạp tile qua Web Worker.
 - `style-src 'self' 'unsafe-inline'` — React đặt style cục bộ (geofence).
 - `img-src` — ảnh tile MapTiler hoặc OpenFreeMap.
@@ -57,6 +60,23 @@ class HeaderBaoMat:
                 "frame-ancestors 'none'",
             ]
         )
+        self.redoc_csp = self.csp.replace(
+            "script-src 'self'",
+            "script-src 'self' https://cdn.jsdelivr.net",
+            1,
+        )
+        self.docs_csp = (
+            self.csp.replace(
+                "script-src 'self'",
+                "script-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                1,
+            )
+            .replace(
+                "style-src 'self' 'unsafe-inline'",
+                "style-src 'self' 'unsafe-inline' https://cdn.jsdelivr.net",
+                1,
+            )
+        )
 
     async def __call__(self, scope: Scope, receive: Receive, send: Send) -> None:
         if scope["type"] not in ("http", "websocket"):
@@ -70,12 +90,19 @@ class HeaderBaoMat:
         async def gui_phan_hoi(message: Message) -> None:
             if message["type"] == "http.response.start":
                 headers = message.setdefault("headers", [])
+                path = scope.get("path")
+                if path == "/redoc":
+                    csp = self.redoc_csp
+                elif path in {"/docs", "/docs/oauth2-redirect"}:
+                    csp = self.docs_csp
+                else:
+                    csp = self.csp
                 co = {
                     b"x-content-type-options": b"nosniff",
                     b"x-frame-options": b"DENY",
                     b"referrer-policy": b"strict-origin-when-cross-origin",
                     b"permissions-policy": b"geolocation=(self), microphone=()",
-                    b"content-security-policy": self.csp.encode(),
+                    b"content-security-policy": csp.encode(),
                 }
                 if la_https or not _la_dev():
                     co[b"strict-transport-security"] = b"max-age=31536000; includeSubDomains"
