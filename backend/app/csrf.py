@@ -1,12 +1,7 @@
 """SEC-004 — chặn thao tác ghi đến từ origin không khai báo.
 
-Cookie phiên đã đặt `SameSite=lax`, và trình duyệt sẽ không gửi cookie khi
-trang gọi chéo miền bằng `fetch`. Nhưng lớp đó **không đủ** ở hai tình huống:
-
-- trình duyệt cũ hoặc cấu hình sai làm cookie trở thành `SameSite=None`;
-- khi deploy thật, frontend và API cùng nằm trên một site (`app.amds.vn` và
-  `api.amds.vn`): chúng khác *origin* nhưng **cùng site**, nên SameSite vẫn
-  gửi kèm cookie.
+Cookie phiên production dùng `SameSite=None` để frontend trên Vercel có thể
+gọi API trên Render. Vì vậy không thể dựa vào SameSite để chống CSRF.
 
 Vì vậy thêm một lớp ở server: mọi thao tác ghi phải đến từ origin đã khai báo.
 Cách này không phụ thuộc trình duyệt, chỉ cần trình duyệt gửi header `Origin` —

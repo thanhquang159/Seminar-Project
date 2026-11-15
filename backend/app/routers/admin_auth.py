@@ -37,13 +37,13 @@ class DangNhap(BaseModel):
 
 
 def dat_cookie(response: Response, ten: str, token: str, tuoi_giay: int) -> None:
-    """Set an httpOnly cookie with the legacy secure/same-site behavior."""
+    """Set httpOnly cookies that work across the deployed frontend/API sites."""
     response.set_cookie(
         ten,
         token,
         max_age=tuoi_giay,
         httponly=True,
-        samesite="lax",
+        samesite="lax" if la_dev() else "none",
         secure=not la_dev(),
         path="/",
     )

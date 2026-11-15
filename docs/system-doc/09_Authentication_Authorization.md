@@ -15,9 +15,9 @@
 ## 2. Cơ chế xác thực
 
 ### 2.1 Cookie httpOnly (chính)
-- **`access_token`**: JWT, hiệu lực 30 phút, cookie `httpOnly`, `SameSite=Lax`, `Secure`.
-- **`refresh_token`**: JWT, hiệu lực 7 ngày, `httpOnly`.
-- JavaScript phía trình duyệt không đọc được token (chống XSS lấy token). `SameSite=Lax` giảm rủi ro CSRF.
+- **`access_token`**: JWT, hiệu lực 30 phút, cookie `httpOnly`; `SameSite=Lax` ở dev và `SameSite=None; Secure` ở production để frontend Vercel gọi API Render qua fetch.
+- **`refresh_token`**: JWT, hiệu lực 7 ngày, cùng thuộc tính cookie.
+- JavaScript phía trình duyệt không đọc được token (giảm rủi ro XSS lấy token). Cookie cross-site production không được SameSite bảo vệ CSRF; middleware Origin chỉ cho phép origin frontend đã cấu hình đối với request ghi.
 - Thuật toán ký: HS256 (PyJWT). Bí mật: `JWT_SECRET`, `REFRESH_TOKEN_SECRET`.
 
 ### 2.2 Chế độ kép
@@ -132,7 +132,7 @@ Chỉ làm nếu đồ án yêu cầu. Phương án gọn:
 | Rủi ro | Biện pháp |
 |---|---|
 | Đánh cắp token | httpOnly, Secure; token truy cập ngắn (30 phút) |
-| CSRF | SameSite=Lax; cân nhắc thêm CSRF token cho thao tác ghi quan trọng [Đề xuất] |
+| CSRF | Kiểm tra Origin allowlist với mọi request ghi; production cookie dùng SameSite=None cho frontend/API khác site |
 | Quyền cũ còn trong JWT sau khi bị thu hồi | Hạn ngắn 30 phút; thu hồi refresh khi đổi role [Đề xuất] |
 | Dò mật khẩu | Rate limit đăng nhập và khóa tạm sau nhiều lần sai [Đề xuất] |
 | Leo thang quyền | `require_permission` ở backend, kiểm tra sở hữu khi sửa POI |
