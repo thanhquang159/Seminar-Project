@@ -39,6 +39,7 @@ function MapIcon() {
 export default function MapView({ pois, selectedId, onSelect, stylePack }: Props) {
   const khungRef = useRef<HTMLDivElement | null>(null)
   const mapRef = useRef<maplibregl.Map | null>(null)
+  const mapTilerActiveRef = useRef(false)
   const [thongBaoViTri, setThongBaoViTri] = useState('')
   const [loiBanDo, setLoiBanDo] = useState('')
   const [dungCloud, setDungCloud] = useState(false)
@@ -48,8 +49,12 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
   useEffect(() => {
     if (khungRef.current === null || mapRef.current !== null) return
     const key = import.meta.env.VITE_MAPTILER_KEY as string | undefined
-    const style = key !== undefined && key !== '' ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}` : STYLE_MIEN_PHI
-    setDungCloud(style !== STYLE_MIEN_PHI)
+    const dungMapTiler = !styleLanDau.current && key !== undefined && key !== ''
+    const style = dungMapTiler
+      ? `https://api.maptiler.com/maps/streets-v2/style.json?key=${key}`
+      : STYLE_MIEN_PHI
+    mapTilerActiveRef.current = dungMapTiler
+    setDungCloud(dungMapTiler)
     const map = new maplibregl.Map({
       container: khungRef.current,
       style: styleLanDau.current ?? style,
@@ -57,7 +62,18 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
       zoom: 14.5,
     })
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
-    map.on('error', () => {
+    map.on('error', (event) => {
+      if (event.error.message.includes('api.maptiler.com')) {
+        if (mapTilerActiveRef.current) {
+          mapTilerActiveRef.current = false
+          setDungCloud(false)
+          setLoiBanDo(
+            'Không tải được MapTiler; đang chuyển sang OpenFreeMap. Hãy kiểm tra API key và domain được phép nếu lỗi tiếp diễn.',
+          )
+          map.setStyle(STYLE_MIEN_PHI)
+        }
+        return
+      }
       setLoiBanDo(
         'Không tải được dữ liệu bản đồ nền. Hãy kiểm tra Internet hoặc cài gói bản đồ Offline.',
       )
@@ -73,6 +89,7 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
   // Pack offline cài sau thì đổi style khi có, markers giữ nguyên.
   useEffect(() => {
     if (mapRef.current !== null && stylePack !== undefined && stylePack !== null) {
+      mapTilerActiveRef.current = false
       mapRef.current.setStyle(stylePack)
     }
   }, [stylePack])

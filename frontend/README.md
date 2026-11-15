@@ -188,9 +188,13 @@ Chỉ có một biến: `VITE_MAPTILER_KEY`.
 Copy-Item .env.example .env.local
 ```
 
-Để trống thì bản đồ dùng nền demo miễn phí; có key thì `MapView` dùng style cloud của MapTiler.
+Để trống thì bản đồ dùng style Liberty miễn phí của OpenFreeMap; có key thì
+`MapView` dùng style cloud của MapTiler. Nếu tài nguyên MapTiler bị từ chối
+(ví dụ key/domain không hợp lệ), ứng dụng tự chuyển sang OpenFreeMap.
 
 Quy tắc của Vite: chỉ biến có tiền tố `VITE_` mới được đọc trong mã nguồn, và **giá trị đó được nhúng vào bundle gửi tới trình duyệt** — tức là ai cũng thấy. Key MapTiler vốn dĩ là công khai phía client, nên phải giới hạn theo domain ở phía MapTiler (task SEC-005). Không bao giờ đặt secret thật vào biến `VITE_`.
+
+Khi deploy lên Vercel, thêm `VITE_MAPTILER_KEY` trong Project Settings → Environment Variables, rồi cho phép domain production của ứng dụng ở phần HTTP referrers trong MapTiler. Nếu cần bản Preview cũng dùng MapTiler, thêm domain Preview tương ứng. Sau khi đổi biến, phải tạo deployment mới.
 
 ### Chạy E2E
 
