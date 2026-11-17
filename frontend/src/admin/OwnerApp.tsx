@@ -2,10 +2,11 @@ import { useState } from 'react'
 import { api, apiText } from './api'
 import PortalDashboard, { type PortalDashboardItem } from './PortalDashboard'
 import OwnerMenuManagement from './OwnerMenuManagement'
+import OwnerPoiQrCodes from './OwnerPoiQrCodes'
 import { layUrlAnh } from '../components/imageUtils'
 
 type OwnerAuthMode = 'login' | 'register'
-type OwnerDashboardTab = 'submission' | 'history' | 'places' | 'menu' | 'notifications'
+type OwnerDashboardTab = 'submission' | 'history' | 'places' | 'qr' | 'menu' | 'notifications'
 
 interface OwnerSubmission {
   id: string
@@ -24,6 +25,8 @@ interface OwnerPoi {
   lng: number
   trigger_radius: number
   audio_url: string | null
+  publication_status: string
+  is_active: boolean
 }
 
 export default function OwnerApp() {
@@ -302,6 +305,11 @@ export default function OwnerApp() {
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M21 10c0 7-9 13-9 13s-9-6-9-13a9 9 0 0 1 18 0Z" /><circle cx="12" cy="10" r="3" /></svg>,
     },
     {
+      key: 'qr',
+      label: 'Mã QR',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><rect x="3" y="3" width="7" height="7" rx="1" /><rect x="14" y="3" width="7" height="7" rx="1" /><rect x="3" y="14" width="7" height="7" rx="1" /><path d="M14 14h3v3h-3zm5 0h2m-7 5h3m2-2v4" /></svg>,
+    },
+    {
       key: 'menu',
       label: 'Thực đơn',
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 3v7a4 4 0 0 0 8 0V3M8 3v18m8-18v18m0-18c3 2 4 5 4 9h-4" /></svg>,
@@ -322,6 +330,7 @@ export default function OwnerApp() {
         submission: 'Gửi quán mới',
         history: 'Trạng thái gửi duyệt',
         places: 'Địa điểm của tôi',
+        qr: 'Mã QR địa điểm',
         menu: 'Quản lý thực đơn',
         notifications: 'Thông báo',
       }[dashboardTab]}
@@ -331,13 +340,15 @@ export default function OwnerApp() {
           ? 'Theo dõi kết quả kiểm duyệt các nội dung bạn đã gửi.'
           : dashboardTab === 'places'
             ? 'Xem các địa điểm thuộc quyền quản lý và gửi nội dung cập nhật.'
+            : dashboardTab === 'qr'
+              ? 'Tạo mã QR dẫn đến trang khám phá của các địa điểm đã được duyệt.'
             : dashboardTab === 'menu'
               ? 'Thêm, chỉnh sửa món ăn và cập nhật giá trên thực đơn của quán.'
               : 'Cập nhật tình trạng duyệt và thông tin dành cho quán của bạn.'}
       activeItem={dashboardTab}
       items={navItems}
       onNavigate={(key) => {
-        if (key === 'submission' || key === 'history' || key === 'places' || key === 'menu' || key === 'notifications') setDashboardTab(key)
+        if (key === 'submission' || key === 'history' || key === 'places' || key === 'qr' || key === 'menu' || key === 'notifications') setDashboardTab(key)
       }}
       onLogout={() => setUser(null)}
     >
@@ -546,6 +557,10 @@ export default function OwnerApp() {
 
       {dashboardTab === 'menu' && (
         <OwnerMenuManagement pois={poisCuaToi.map(({ id, name }) => ({ id, name }))} />
+      )}
+
+      {dashboardTab === 'qr' && (
+        <OwnerPoiQrCodes pois={poisCuaToi} />
       )}
 
       {dashboardTab === 'notifications' && (

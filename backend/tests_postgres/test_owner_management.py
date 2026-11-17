@@ -51,6 +51,8 @@ def test_owner_poi_list_is_scoped_to_authenticated_owner():
                     "lat": 10.7,
                     "lng": 106.6,
                     "trigger_radius": 30,
+                    "publication_status": "published",
+                    "is_active": True,
                     "images": ["https://example.test/cafe.jpg"],
                     "audio_url": "https://example.test/cafe.mp3",
                 }
@@ -68,6 +70,8 @@ def test_owner_poi_list_is_scoped_to_authenticated_owner():
     sql, params = session.statements[0]
     assert params == {"owner_id": owner_id}
     assert "WHERE p.owner_id = :owner_id" in sql
+    assert "p.publication_status" in sql
+    assert "p.is_active" in sql
     assert "poi_images AS i" in sql
     assert "poi_localizations AS l" in sql
     assert pois == [
@@ -78,6 +82,8 @@ def test_owner_poi_list_is_scoped_to_authenticated_owner():
             "lat": 10.7,
             "lng": 106.6,
             "trigger_radius": 30,
+            "publication_status": "published",
+            "is_active": True,
             "images": ["https://example.test/cafe.jpg"],
             "audio_url": "https://example.test/cafe.mp3",
         }

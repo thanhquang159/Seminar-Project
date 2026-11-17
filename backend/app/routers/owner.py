@@ -357,6 +357,8 @@ async def pois_cua_toi(
                    p.latitude::double precision AS lat,
                    p.longitude::double precision AS lng,
                    p.trigger_radius_m AS trigger_radius,
+                   p.publication_status,
+                   p.is_active,
                    COALESCE(img.images, '[]'::json) AS images,
                    loc.audio_url
             FROM pois AS p

@@ -1,0 +1,159 @@
+.owner-qr-management {
+  max-width: 980px;
+}
+
+.owner-qr-layout {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) minmax(230px, .75fr);
+  gap: 20px;
+  margin-top: 20px;
+}
+
+.owner-qr-list {
+  display: grid;
+  align-content: start;
+  gap: 8px;
+}
+
+.owner-qr-list__label {
+  margin: 0 0 3px;
+  color: #818b9d;
+  font-size: .68rem;
+  font-weight: 700;
+  letter-spacing: .08em;
+}
+
+.owner-qr-poi {
+  display: flex;
+  width: 100%;
+  min-width: 0;
+  align-items: center;
+  gap: 10px;
+  padding: 12px;
+  border: 1px solid #e6eaf0;
+  border-radius: 9px;
+  background: #fff;
+  text-align: left;
+  cursor: pointer;
+}
+
+.owner-qr-poi:hover,
+.owner-qr-poi--selected {
+  border-color: #9db8a2;
+  background: #f5faf6;
+}
+
+.owner-qr-poi__icon {
+  display: grid;
+  width: 34px;
+  height: 34px;
+  flex: 0 0 auto;
+  place-items: center;
+  border-radius: 8px;
+  color: #3e7654;
+  background: #eaf3ec;
+  font-size: 1.15rem;
+}
+
+.owner-qr-poi__icon svg {
+  width: 19px;
+  height: 19px;
+}
+
+.owner-qr-poi__copy {
+  display: grid;
+  min-width: 0;
+  flex: 1;
+  gap: 4px;
+}
+
+.owner-qr-poi__copy strong {
+  overflow: hidden;
+  color: #293348;
+  font-size: .8rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner-qr-poi__copy small {
+  overflow: hidden;
+  color: #818b9d;
+  font-size: .65rem;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.owner-qr-poi .badge {
+  flex: 0 0 auto;
+}
+
+.owner-qr-result {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 12px;
+  padding: 18px;
+  border: 1px solid #e6eaf0;
+  border-radius: 11px;
+  background: #fbfcfe;
+}
+
+.owner-qr-preview {
+  display: grid;
+  width: min(100%, 220px);
+  aspect-ratio: 1;
+  place-items: center;
+  padding: 10px;
+  border-radius: 10px;
+  background: white;
+  box-shadow: 0 2px 12px rgb(34 51 84 / 9%);
+}
+
+.owner-qr-preview img {
+  display: block;
+  width: 100%;
+  height: 100%;
+  image-rendering: pixelated;
+}
+
+.owner-qr-preview p {
+  padding: 10px;
+  font-size: .78rem;
+  text-align: center;
+}
+
+.owner-qr-result__name {
+  color: #293348;
+  font-size: .9rem;
+  text-align: center;
+}
+
+.owner-qr-result .field__label {
+  align-self: stretch;
+}
+
+.owner-qr-url {
+  width: 100%;
+  min-width: 0;
+  font-size: .72rem;
+}
+
+.owner-qr-actions {
+  display: grid;
+  width: 100%;
+  gap: 8px;
+}
+
+.owner-qr-actions .btn {
+  justify-content: center;
+}
+
+@media (max-width: 700px) {
+  .owner-qr-layout {
+    grid-template-columns: 1fr;
+  }
+
+  .owner-qr-result {
+    grid-row: 1;
+  }
+}
