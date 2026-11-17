@@ -14,7 +14,7 @@
 
 | Method | Đường dẫn | Truy cập | Mô tả |
 |---|---|---|---|
-| GET | `/poi/load-all` | P | Tải toàn bộ POI. Tham số: `lang`, `updated_after`; header `If-None-Match`. Trả `dataset_version`, `sync_mode` (full/delta), `removed_poi_ids`, `sync_cursor`, danh sách POI. 304 nếu không đổi. Chỉ trả POI đã sẵn sàng tiếng Anh. |
+| GET | `/poi/load-all` | P | Tải toàn bộ POI đang hoạt động và đã xuất bản. Tham số: `lang`; header `If-None-Match`. Trả `version`, `sync_cursor`, danh sách POI. 304 nếu không đổi. |
 | GET | `/poi/nearby` | P | POI gần vị trí (`lat`, `lng`, `radius_m`, `lang`). Dùng `ST_DWithin`/`ST_Distance` của PostGIS. |
 | GET | `/poi/{id}` [Đề xuất] | P | Chi tiết một POI. |
 | GET | `/poi/{id}/menu` [Đề xuất] | P | Thực đơn của POI. |

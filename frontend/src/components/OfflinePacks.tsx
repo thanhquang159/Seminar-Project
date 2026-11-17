@@ -58,6 +58,11 @@ export default function OfflinePacks({ pack }: { pack: PackHook }) {
     }
   }
 
+  const loiTaiMapPack =
+    trangThai.startsWith('Không đủ dung lượng') ||
+    trangThai.startsWith('Không cài được') ||
+    trangThai.startsWith('Không khôi phục được')
+
   return (
     <div className="offline-packs-container">
       <div className="section-header">
@@ -159,7 +164,7 @@ export default function OfflinePacks({ pack }: { pack: PackHook }) {
         )}
 
         {trangThai !== '' && (
-          <div className="notice notice--info mt">
+          <div className={`notice notice--${loiTaiMapPack ? 'error' : 'info'} mt`} role={loiTaiMapPack ? 'alert' : 'status'}>
             Tiến độ gói bản đồ: <strong>{trangThai}</strong>
           </div>
         )}

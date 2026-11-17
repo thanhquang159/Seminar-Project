@@ -109,7 +109,7 @@
 | TC-051 | Offline, ngôn ngữ chọn thiếu dữ liệu | Fallback chọn, en, vi; không màn hình trống |
 | TC-052 | Cài Offline Pack | Tuần tự map, POI, ảnh, audio; kiểm tra SHA-256 |
 | TC-053 | Làm hỏng một tệp (sai checksum) | Không kích hoạt, trạng thái `repairRequired` |
-| TC-054 | Hết dung lượng khi tải pack | `QuotaExceededError` thì xóa cache audio/ảnh runtime rồi tiếp tục |
+| TC-054 | Hết dung lượng khi tải pack | `QuotaExceededError` chỉ xóa phần tải dở; cache ứng dụng và pack đang hoạt động còn nguyên, hiển thị hướng xử lý |
 | TC-055 | Có phiên bản pack mới | Hiển thị `updateAvailable` |
 | TC-056 | Cài pack khác scope khi đã có pack | Yêu cầu `replace_update` |
 | TC-057 | Xóa gói | `MAP_PACK_DEACTIVATE` hoặc `AUDIO_PACK_REMOVE_LANG`, quay về cloud |

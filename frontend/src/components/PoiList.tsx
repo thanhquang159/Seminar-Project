@@ -1,5 +1,7 @@
 import { useState } from 'react'
 import type { Poi } from '../stores/poiStore'
+import { usePoiStore } from '../stores/poiStore'
+import { useUiBundle } from '../i18n/bundles'
 import { layUrlAnh } from './imageUtils'
 import { PoiGallery } from './PoiGallery'
 
@@ -42,12 +44,14 @@ interface DanhSachProps {
 
 export function PoiList({ pois, selectedId, onChon }: DanhSachProps) {
   const [anhLoiMap, setAnhLoiMap] = useState<Record<string, boolean>>({})
+  const lang = usePoiStore((state) => state.lang)
+  const { t } = useUiBundle(lang)
 
   return (
     <div className="poi-list-section">
       <div className="section-header">
-        <h2 className="section-title">Danh sách điểm ẩm thực</h2>
-        <span className="badge badge--neutral">{pois.length} quán ăn</span>
+        <h2 className="section-title">{t('poi_list_title')}</h2>
+        <span className="badge badge--neutral">{t('poi_count', { count: pois.length })}</span>
       </div>
 
       {pois.length === 0 ? (
@@ -56,7 +60,7 @@ export function PoiList({ pois, selectedId, onChon }: DanhSachProps) {
             <circle cx="12" cy="12" r="10" />
             <line x1="8" y1="12" x2="16" y2="12" />
           </svg>
-          <p className="muted">Chưa có điểm ẩm thực nào trong danh sách.</p>
+          <p className="muted">{t('poi_list_empty')}</p>
         </div>
       ) : (
         <ul className="poi-list" role="list">
@@ -90,7 +94,7 @@ export function PoiList({ pois, selectedId, onChon }: DanhSachProps) {
                     </div>
                   )}
                   {coAnh && (
-                    <span className="poi-card__img-count" title={`${poi.images!.length} ảnh`}>
+                    <span className="poi-card__img-count" title={t('image_count', { count: poi.images!.length })}>
                       {poi.images!.length}
                     </span>
                   )}
@@ -112,7 +116,7 @@ export function PoiList({ pois, selectedId, onChon }: DanhSachProps) {
                     {poi.audio_url && (
                       <span className="poi-card__tag poi-card__tag--audio">
                         <VolumeIcon />
-                        Thuyết minh
+                        {t('poi_card_audio')}
                       </span>
                     )}
                   </div>
@@ -134,16 +138,19 @@ interface ChiTietProps {
 }
 
 export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
+  const lang = usePoiStore((state) => state.lang)
+  const { t } = useUiBundle(lang)
+
   return (
-    <section className="card poi-detail-card" aria-label="Chi tiết điểm tham quan">
+    <section className="card poi-detail-card" aria-label={t('poi_details_aria')}>
       {/* Nút đóng nếu được nhúng trong modal / bottom sheet / panel */}
       {onDong && (
         <button
           type="button"
           className="poi-detail__close-btn btn-icon btn-icon--sm"
           onClick={onDong}
-          title="Đóng chi tiết quán"
-          aria-label="Đóng chi tiết quán"
+          title={t('close_poi')}
+          aria-label={t('close_poi')}
         >
           <CloseIcon />
         </button>
@@ -155,7 +162,7 @@ export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
       <div className="poi-detail__header mt">
         <div className="spread">
           <h2 className="poi-detail__title">{poi.name}</h2>
-          {poi.is_fallback && <span className="badge badge--warn">Bản dịch máy tạm</span>}
+          {poi.is_fallback && <span className="badge badge--warn">{t('translation_fallback')}</span>}
         </div>
 
         <div className="poi-detail__badges">
@@ -164,29 +171,29 @@ export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
             {poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}
           </span>
           <span className="badge badge--info">
-            Vùng phát: {poi.trigger_radius} m
+            {t('trigger_radius', { radius: poi.trigger_radius })}
           </span>
           {poi.images && poi.images.length > 0 && (
             <span className="badge badge--accent">
-              {poi.images.length} ảnh thực tế
+              {t('image_count_real', { count: poi.images.length })}
             </span>
           )}
         </div>
       </div>
 
       <div className="poi-detail__body mt">
-        <h4 className="poi-detail__section-heading">Giới thiệu quán ăn</h4>
+        <h4 className="poi-detail__section-heading">{t('poi_intro')}</h4>
         <p className="poi-detail__description">{poi.description}</p>
       </div>
 
       <div className="poi-detail__actions mt">
         <div className="poi-detail__audio-box">
           <div className="poi-detail__audio-header">
-            <span className="poi-detail__audio-label">Thuyết minh GPS đa ngôn ngữ</span>
+            <span className="poi-detail__audio-label">{t('audio_multilingual')}</span>
             {poi.is_fallback ? (
-              <span className="badge badge--warn">Bản dịch máy tạm</span>
+              <span className="badge badge--warn">{t('translation_fallback')}</span>
             ) : (
-              <span className="badge badge--ok">Bản địa</span>
+              <span className="badge badge--ok">{t('audio_native')}</span>
             )}
           </div>
           <button
@@ -197,7 +204,7 @@ export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
             <svg className="btn__icon" viewBox="0 0 24 24" fill="currentColor" aria-hidden="true">
               <polygon points="5 3 19 12 5 21 5 3" />
             </svg>
-            Nghe thuyết minh hướng dẫn
+            {t('audio_listen')}
           </button>
         </div>
       </div>

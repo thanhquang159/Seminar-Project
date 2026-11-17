@@ -1,8 +1,8 @@
 /// <reference lib="webworker" />
 // Service Worker: precache app shell, POI NetworkFirst, audio CacheFirst theo ngôn ngữ.
 
-import { cleanupOutdatedCaches, precacheAndRoute } from 'workbox-precaching'
-import { registerRoute } from 'workbox-routing'
+import { cleanupOutdatedCaches, createHandlerBoundToURL, precacheAndRoute } from 'workbox-precaching'
+import { NavigationRoute, registerRoute } from 'workbox-routing'
 import { CacheFirst, NetworkFirst } from 'workbox-strategies'
 import { ExpirationPlugin } from 'workbox-expiration'
 
@@ -13,6 +13,7 @@ const BUILD_SYNC = 'quan4-build-v1'
 
 precacheAndRoute(self.__WB_MANIFEST)
 cleanupOutdatedCaches()
+registerRoute(new NavigationRoute(createHandlerBoundToURL('/index.html')))
 void caches.keys().then((ten) => {
   for (const t of ten) {
     if (t.startsWith('quan4-build-') && t !== BUILD_SYNC) void caches.delete(t)
@@ -26,6 +27,16 @@ registerRoute(
     cacheName: 'poi-load-all-cache',
     networkTimeoutSeconds: 8,
     plugins: [new ExpirationPlugin({ maxAgeSeconds: 15 * 60, maxEntries: 50 })],
+  }),
+)
+
+// Bundle giao diện ít thay đổi, ưu tiên mạng nhưng vẫn dùng bản đã tải khi offline.
+registerRoute(
+  ({ url }) => url.pathname.startsWith('/ui-bundles/'),
+  new NetworkFirst({
+    cacheName: 'ui-bundles-cache',
+    networkTimeoutSeconds: 3,
+    plugins: [new ExpirationPlugin({ maxAgeSeconds: 30 * 24 * 60 * 60, maxEntries: 5 })],
   }),
 )
 
@@ -45,15 +56,6 @@ registerRoute(
     })
     return chienLuoc.handle({ request, event } as never) as Promise<Response>
   },
-)
-
-// Gói bản đồ bất biến, tải một lần dùng mãi.
-registerRoute(
-  ({ url }) => url.pathname.startsWith('/maps/pack/'),
-  new CacheFirst({
-    cacheName: 'map-pack-cache',
-    plugins: [new ExpirationPlugin({ maxEntries: 20 })],
-  }),
 )
 
 self.addEventListener('message', (e) => {

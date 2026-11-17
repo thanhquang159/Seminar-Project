@@ -83,6 +83,7 @@ def test_list_pois_uses_postgres_response_shape():
     assert response.json()[0]["id"] == poi_id
     assert response.json()[0]["name"] == "Quán ăn"
     assert "FROM pois AS p" in session.statements[0][0]
+    assert "p.publication_status = 'published'" in session.statements[0][0]
 
 
 def test_count_pois_returns_zero_without_changing_poi_list():
@@ -230,7 +231,31 @@ def test_delta_cursor_does_not_regress_when_active_poi_is_removed():
     assert response.json()["sync_cursor"] == 790
     assert response.json()["removed_poi_ids"] == [removed_id]
     assert "FROM poi_sync_state" in session.statements[0][0]
-    assert "is_active IS TRUE" not in session.statements[0][0]
+    assert "WHERE c.change_cursor > :updated_after" in session.statements[1][0]
+
+
+def test_delta_treats_unpublished_active_poi_as_removed():
+    poi_id = str(uuid4())
+    session = FakeSession(
+        version=790,
+        changes=[
+            {
+                "changed_poi_id": poi_id,
+                "operation": "upsert",
+                "id": None,
+            }
+        ],
+    )
+
+    async def request():
+        async with create_client(session) as client:
+            return await client.get("/poi/delta?updated_after=789")
+
+    response = asyncio.run(request())
+    assert response.status_code == 200
+    assert response.json()["updated"] == []
+    assert response.json()["removed_poi_ids"] == [poi_id]
+    assert "p.publication_status = 'published'" in session.statements[1][0]
 
 
 def test_delta_rejects_a_cursor_newer_than_database_state():

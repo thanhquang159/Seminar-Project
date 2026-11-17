@@ -2,12 +2,22 @@
   "version": 8,
   "name": "Bản đồ Offline Quận 4",
   "metadata": {
-    "description": "Gói bản đồ số ngoại tuyến Quận 4"
+    "description": "Bản đồ ngoại tuyến Quận 4 từ OpenStreetMap, lược đồ Shortbread 1.0.",
+    "offline:camera": {
+      "center": [106.704351, 10.760734],
+      "zoom": 14
+    }
   },
+  "glyphs": "fonts/{fontstack}/{range}.pbf",
   "sources": {
     "quan4-offline": {
       "type": "vector",
-      "url": "pmtiles://http://127.0.0.1:8000/maps/pack/quan4/quan4.pmtiles"
+      "url": "pmtiles://quan4.pmtiles",
+      "attribution": "\u00a9 OpenStreetMap contributors \u00b7 Geofabrik GmbH"
+    },
+    "quan4-boundary": {
+      "type": "geojson",
+      "data": "quan4-boundary.geojson"
     }
   },
   "layers": [
@@ -15,7 +25,241 @@
       "id": "background",
       "type": "background",
       "paint": {
-        "background-color": "#f8fafc"
+        "background-color": "#f2efe8"
+      }
+    },
+    {
+      "id": "land-use",
+      "type": "fill",
+      "source": "quan4-offline",
+      "source-layer": "land",
+      "paint": {
+        "fill-color": [
+          "match",
+          ["get", "kind"],
+          ["forest", "grass", "meadow", "orchard", "allotments", "village_green", "recreation_ground", "park", "garden", "playground", "grassland", "scrub", "wetland", "marsh"],
+          "#d8e8ce",
+          ["residential"],
+          "#ebe6dc",
+          ["industrial", "commercial", "retail", "railway", "garages", "construction"],
+          "#e5e0d7",
+          "#e9e5dc"
+        ],
+        "fill-outline-color": "#e1ddd4"
+      }
+    },
+    {
+      "id": "water-polygons",
+      "type": "fill",
+      "source": "quan4-offline",
+      "source-layer": "water_polygons",
+      "paint": {
+        "fill-color": "#a9d8e8",
+        "fill-outline-color": "#91c8db"
+      }
+    },
+    {
+      "id": "water-lines",
+      "type": "line",
+      "source": "quan4-offline",
+      "source-layer": "water_lines",
+      "paint": {
+        "line-color": "#8fc7dc",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 7, 0.7, 14, 2.2, 18, 4]
+      }
+    },
+    {
+      "id": "buildings",
+      "type": "fill",
+      "source": "quan4-offline",
+      "source-layer": "buildings",
+      "minzoom": 14,
+      "paint": {
+        "fill-color": "#d6d0c5",
+        "fill-outline-color": "#c5beb2",
+        "fill-opacity": 0.88
+      }
+    },
+    {
+      "id": "street-polygons",
+      "type": "fill",
+      "source": "quan4-offline",
+      "source-layer": "street_polygons",
+      "paint": {
+        "fill-color": "#fdfcf8",
+        "fill-outline-color": "#d2cabc"
+      }
+    },
+    {
+      "id": "streets",
+      "type": "line",
+      "source": "quan4-offline",
+      "source-layer": "streets",
+      "paint": {
+        "line-color": [
+          "match",
+          ["get", "kind"],
+          ["motorway", "trunk", "primary"],
+          "#efb85f",
+          ["secondary", "tertiary"],
+          "#f4d28a",
+          ["rail", "narrow_gauge", "tram", "light_rail", "subway", "monorail"],
+          "#9b8cb5",
+          "#fffdf8"
+        ],
+        "line-width": [
+          "interpolate",
+          ["linear"],
+          ["zoom"],
+          12, 0.5,
+          14, 1.2,
+          18, 4.5
+        ],
+        "line-opacity": 0.98
+      }
+    },
+    {
+      "id": "places",
+      "type": "symbol",
+      "source": "quan4-offline",
+      "source-layer": "place_labels",
+      "layout": {
+        "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 7, 10, 12, 14, 14, 16],
+        "text-max-width": 8,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#514c45",
+        "text-halo-color": "#f8f6f0",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "boundary-lines",
+      "type": "line",
+      "source": "quan4-offline",
+      "source-layer": "boundaries",
+      "paint": {
+        "line-color": "#aa8f78",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 4, 0.5, 12, 1.2]
+      }
+    },
+    {
+      "id": "boundary-labels",
+      "type": "symbol",
+      "source": "quan4-offline",
+      "source-layer": "boundary_labels",
+      "layout": {
+        "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 12,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#78614f",
+        "text-halo-color": "#f8f6f0",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "water-line-labels",
+      "type": "symbol",
+      "source": "quan4-offline",
+      "source-layer": "water_lines_labels",
+      "layout": {
+        "symbol-placement": "line",
+        "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+        "text-max-width": 8,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#397b91",
+        "text-halo-color": "#eaf6f8",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "street-labels",
+      "type": "symbol",
+      "source": "quan4-offline",
+      "source-layer": "street_labels",
+      "minzoom": 12,
+      "layout": {
+        "symbol-placement": "line",
+        "text-field": ["coalesce", ["get", "name"], ["get", "name_en"], ["get", "ref"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": ["interpolate", ["linear"], ["zoom"], 12, 9, 14, 11, 18, 13],
+        "text-max-width": 8,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#5c554b",
+        "text-halo-color": "#fffdf8",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "water-polygon-labels",
+      "type": "symbol",
+      "source": "quan4-offline",
+      "source-layer": "water_polygons_labels",
+      "minzoom": 14,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 11,
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#397b91",
+        "text-halo-color": "#eaf6f8",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "poi-points",
+      "type": "circle",
+      "source": "quan4-offline",
+      "source-layer": "pois",
+      "minzoom": 14,
+      "paint": {
+        "circle-radius": ["interpolate", ["linear"], ["zoom"], 14, 2, 18, 4],
+        "circle-color": "#b86b43",
+        "circle-stroke-color": "#fffdf8",
+        "circle-stroke-width": 1
+      }
+    },
+    {
+      "id": "poi-labels",
+      "type": "symbol",
+      "source": "quan4-offline",
+      "source-layer": "pois",
+      "minzoom": 16,
+      "layout": {
+        "text-field": ["coalesce", ["get", "name"], ["get", "name_en"]],
+        "text-font": ["Noto Sans Regular"],
+        "text-size": 10,
+        "text-offset": [0, 1.2],
+        "text-allow-overlap": false
+      },
+      "paint": {
+        "text-color": "#514c45",
+        "text-halo-color": "#fffdf8",
+        "text-halo-width": 1.5
+      }
+    },
+    {
+      "id": "quan4-boundary",
+      "type": "line",
+      "source": "quan4-boundary",
+      "paint": {
+        "line-color": "#c5564b",
+        "line-width": ["interpolate", ["linear"], ["zoom"], 10, 1.5, 16, 3],
+        "line-dasharray": [2, 1]
       }
     }
   ]

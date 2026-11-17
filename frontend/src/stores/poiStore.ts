@@ -24,9 +24,16 @@ export const NGON_NGU: { ma: string; ten: string }[] = [
   { ma: 'ko', ten: '한국어' },
 ]
 
+const ngonNguDaLuu = localStorage.getItem('quan4-lang')
+const ngonNguMacDinh =
+  ngonNguDaLuu !== null && NGON_NGU.some((ngonNgu) => ngonNgu.ma === ngonNguDaLuu)
+    ? ngonNguDaLuu
+    : 'en'
+
 interface PoiState {
   pois: Poi[]
   loading: boolean
+  daTaiDuLieu: boolean
   error: string
   lang: string
   setLang: (lang: string) => void
@@ -37,9 +44,10 @@ interface PoiState {
 export const usePoiStore = create<PoiState>((set, get) => ({
   pois: [],
   loading: false,
+  daTaiDuLieu: false,
   error: '',
   // Cài đặt ngôn ngữ nội dung, không phải bí mật nên lưu localStorage được.
-  lang: localStorage.getItem('quan4-lang') ?? 'vi',
+  lang: ngonNguMacDinh,
   setLang: (lang: string) => {
     localStorage.setItem('quan4-lang', lang)
     set({ lang })
@@ -50,9 +58,13 @@ export const usePoiStore = create<PoiState>((set, get) => ({
     try {
       // Online thì delta sync, offline thì IDB fallback (không màn hình trống).
       const { pois } = await dongBo(get().lang, taiLaiToanBo)
-      set({ pois, loading: false })
+      set({ pois, loading: false, daTaiDuLieu: true })
     } catch (err) {
-      set({ error: err instanceof Error ? err.message : 'Lỗi không rõ', loading: false })
+      set({
+        error: err instanceof Error ? err.message : 'Lỗi không rõ',
+        loading: false,
+        daTaiDuLieu: true,
+      })
     }
   },
 }))

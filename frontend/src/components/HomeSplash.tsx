@@ -1,6 +1,7 @@
 import { usePoiStore } from '../stores/poiStore'
 import { useViTri } from '../geofence/useViTri'
 import { useStartup } from '../startup'
+import { useUiBundle } from '../i18n/bundles'
 
 interface HomeSplashProps {
   onStart: () => void
@@ -86,6 +87,7 @@ function CheckIcon() {
 
 export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplashProps) {
   const { lang, setLang, pois, loading } = usePoiStore()
+  const { t } = useUiBundle(lang)
   const viTri = useViTri()
   const khoiDong = useStartup()
 
@@ -108,7 +110,7 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
           </span>
           <span className={`badge ${viTri ? 'badge--ok' : 'badge--neutral'}`}>
             <span className={`pulse-dot ${viTri ? 'pulse-dot--active' : ''}`} />
-            {viTri ? 'GPS Đã định vị' : 'Đang tìm GPS'}
+            {viTri ? t('home_gps_ready') : t('home_gps_searching')}
           </span>
         </div>
 
@@ -120,27 +122,27 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
 
           <div className="home-hero-tagline">
             <span className="badge badge--accent">
-              Phố ẩm thực Vĩnh Khánh &amp; Quận 4
+              {t('home_tagline')}
             </span>
           </div>
 
           <h1 className="home-hero-title">
-            Ẩm Thực Quận 4
+            {t('home_title')}
           </h1>
           <p className="home-hero-desc">
-            Hướng dẫn du lịch ẩm thực đường phố Quận 4 với bản đồ số thông minh và thuyết minh âm thanh tự động theo vị trí bước chân.
+            {t('home_description')}
           </p>
         </section>
 
         {/* 3. Three Core Pillars (3 gạch đầu dòng tính năng cốt lõi) */}
-        <section className="home-hero-features" aria-label="Tính năng chính">
+        <section className="home-hero-features" aria-label={t('home_features_aria')}>
           <div className="home-feature-item">
             <div className="home-feature-icon">
               <CompassIcon />
             </div>
             <div className="home-feature-text">
-              <strong>Bản đồ định vị GPS</strong>
-              <span>Dẫn lối qua các ngõ hẻm ốc, phá lấu, bánh tráng nướng</span>
+              <strong>{t('home_map_feature')}</strong>
+              <span>{t('home_map_description')}</span>
             </div>
           </div>
 
@@ -149,8 +151,8 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
               <HeadphonesIcon />
             </div>
             <div className="home-feature-text">
-              <strong>Thuyết minh tự động</strong>
-              <span>Tự động phát audio thuyết minh khi bạn tới gần từng quán</span>
+              <strong>{t('home_audio_feature')}</strong>
+              <span>{t('home_audio_description')}</span>
             </div>
           </div>
 
@@ -159,17 +161,17 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
               <OfflineIcon />
             </div>
             <div className="home-feature-text">
-              <strong>Ngoại tuyến 100%</strong>
-              <span>Hoạt động mượt mà không cần mạng Internet hay 4G</span>
+              <strong>{t('home_offline_feature')}</strong>
+              <span>{t('home_offline_description')}</span>
             </div>
           </div>
         </section>
 
         {/* 4. Minimalist Language Selector Chips */}
-        <section className="home-hero-languages" aria-label="Chọn ngôn ngữ">
+        <section className="home-hero-languages" aria-label={t('home_language_aria')}>
           <div className="home-section-label">
-            <span>Ngôn ngữ thuyết minh / Language</span>
-            <span className="badge badge--neutral" style={{ fontSize: '0.72rem' }}>5 Bản ngữ</span>
+            <span>{t('home_language_label')}</span>
+            <span className="badge badge--neutral" style={{ fontSize: '0.72rem' }}>{t('home_language_count')}</span>
           </div>
 
           <div className="home-lang-grid" role="group">
@@ -204,8 +206,8 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
             <div className="home-warmup-fill" style={{ width: `${progress}%` }} />
           </div>
           <div className="home-warmup-info">
-            <span>Khởi tạo hệ thống ({progress}%)</span>
-            <span>{pois.length > 0 ? `${pois.length} quán đã nạp` : 'Đang đồng bộ dữ liệu…'}</span>
+            <span>{t('home_progress', { progress })}</span>
+            <span>{pois.length > 0 ? t('home_places_loaded', { count: pois.length }) : t('home_syncing')}</span>
           </div>
         </div>
 
@@ -216,7 +218,7 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
             onClick={onStart}
             className="btn btn--primary btn--lg btn--block"
           >
-            <span>Bắt đầu khám phá</span>
+            <span>{t('home_start')}</span>
             <ArrowRightIcon />
           </button>
 
@@ -226,19 +228,19 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
             className="btn btn--secondary btn--lg btn--block"
           >
             <OfflineIcon />
-            <span>Tải dữ liệu Offline</span>
+            <span>{t('home_download_offline')}</span>
           </button>
         </div>
 
         {/* 7. Secondary Footer Navigation */}
         {onNavigate && (
-          <nav className="home-secondary-nav" aria-label="Liên kết phụ">
+          <nav className="home-secondary-nav" aria-label={t('home_secondary_aria')}>
             <button
               type="button"
               onClick={() => onNavigate('chu-quan')}
               className="home-nav-link"
             >
-              Chủ quán
+              {t('nav_owner')}
             </button>
             <span className="home-nav-divider">·</span>
             <button
@@ -246,7 +248,7 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
               onClick={() => onNavigate('admin')}
               className="home-nav-link"
             >
-              Quản trị
+              {t('nav_admin')}
             </button>
             <span className="home-nav-divider">·</span>
             <button
@@ -254,7 +256,7 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
               onClick={() => onNavigate('goi-offline')}
               className="home-nav-link"
             >
-              Gói offline
+              {t('nav_packs')}
             </button>
             <span className="home-nav-divider">·</span>
             <button
@@ -262,7 +264,7 @@ export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplas
               onClick={() => onNavigate('cai-dat')}
               className="home-nav-link"
             >
-              Cài đặt
+              {t('nav_settings')}
             </button>
           </nav>
         )}

@@ -102,6 +102,6 @@
 |---|---|
 | GPS nhiễu, sai lệch trong khu dân cư đông | Debounce 3 giây, throttle 5 giây, cooldown 5 phút, chấp nhận độ chính xác tới 100 m. |
 | Dịch vụ miễn phí (Edge-TTS, Google Translate wrapper) bị giới hạn hoặc thay đổi | Cache MD5 trên đĩa, rate limit, fallback sang speechSynthesis của trình duyệt. |
-| Hết dung lượng thiết bị khi tải Offline Pack | Workbox tự xóa runtime cache để nhường chỗ cho pack. |
+| Hết dung lượng thiết bị khi tải Offline Pack | Giữ nguyên app shell, dữ liệu POI và pack đang hoạt động; hủy phần tải dở và báo người dùng xử lý dung lượng. |
 | Lạm dụng AI/dịch on-demand | Quota 10/ngày cho owner; giới hạn 30 yêu cầu/10 phút cho on-demand. |
 | Lộ thông tin cá nhân chủ quán | Mã hóa Fernet, che sau 180 ngày, không trả PII khi giải mã lỗi. |

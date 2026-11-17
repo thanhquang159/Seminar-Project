@@ -123,12 +123,18 @@ python scripts\seed_roles.py           # xác nhận role ADMIN/OWNER đã đư�
 python scripts\seed_admin.py           # tạo admin từ ADMIN_USERNAME/ADMIN_PASSWORD
 python scripts\seed_poi.py             # upsert POI mẫu và bản tiếng Việt
 python scripts\migrate_localizations.py # đồng bộ bản tiếng Việt từ bảng pois
+python scripts\backfill_demo_poi_localizations.py # bổ sung dịch Bakery và ẩn POI nháp bị bật nhầm
 ```
 
 `seed_roles.py` chỉ kiểm tra, không tạo hoặc sửa role/permission trong schema.
 `seed_admin.py` không đổi mật khẩu khi user đã tồn tại; để cập nhật, dùng luồng
 đổi mật khẩu trong ứng dụng. Các script seed dữ liệu thay đổi database; hãy
 kiểm tra `DB_NAME` trước khi chạy.
+
+`backfill_demo_poi_localizations.py` chỉ thêm các locale còn thiếu cho POI demo
+Tiệm Bánh Khánh Hội, không ghi đè bản dịch đã có, và tắt trạng thái hoạt động
+nếu POI Quầy Món Ngon nháp đang bị bật nhầm. Cả hai thay đổi làm POI sync trigger
+cập nhật cursor để thiết bị hiện có nhận được dữ liệu mới.
 
 ## Đồng bộ POI
 

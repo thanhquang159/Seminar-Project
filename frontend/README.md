@@ -89,6 +89,9 @@ Sửa bất kỳ file nào trong `src/` và trình duyệt tự cập nhật —
 | `npm run lint` | chạy ESLint trên toàn bộ project | trước khi commit |
 | `npm test` | chạy Vitest (34 test logic thuần) | trước khi commit |
 | `npm run test:e2e` | chạy Playwright (4 kịch bản, tự bật backend và frontend) | khi sửa luồng chính |
+| `npm run test:e2e:pwa` | build production rồi kiểm tra app shell và POI cache khi offline, không cần PostgreSQL | khi sửa Service Worker hoặc offline |
+
+`test:e2e:pwa` cần Chromium của Playwright hoặc Chrome đã cài (`PW_CHANNEL=chrome`).
 
 ### Kiểm tra trước khi commit
 
@@ -142,6 +145,10 @@ frontend/
 `package-lock.json` **phải** commit — đó là thứ bảo đảm mọi người cài cùng phiên bản. Xoá nó sẽ khiến mỗi máy ra một phiên bản khác nhau.
 
 File `*.test.ts` đặt cạnh code nó kiểm thử, không gom vào một thư mục riêng. Vitest chỉ quét `src/**/*.test.ts` — không quét `e2e/*.spec.ts`, vì hai runner dùng chung đuôi `.spec.ts`.
+
+### Ngôn ngữ giao diện
+
+Các chuỗi giao diện Visitor được lưu trong `backend/static/ui/{locale}.json` và tải qua `/ui-bundles/{locale}`. Hiện có `en`, `vi`, `zh`, `ja` và `ko`; các bundle cần giữ cùng tập khóa. Lựa chọn ngôn ngữ Visitor áp dụng cho giao diện, nội dung POI và thuyết minh; người dùng mới mặc định là tiếng Anh, còn lựa chọn đã lưu trong `quan4-lang` được giữ lại. Bundle đã tải được lưu trên thiết bị để dùng lại khi ngoại tuyến.
 
 ---
 

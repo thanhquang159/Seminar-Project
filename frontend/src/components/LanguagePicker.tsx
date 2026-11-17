@@ -1,4 +1,5 @@
 import { NGON_NGU, usePoiStore } from '../stores/poiStore'
+import { useUiBundle } from '../i18n/bundles'
 
 function InfoIcon() {
   return (
@@ -22,10 +23,11 @@ function InfoIcon() {
 
 export default function LanguagePicker() {
   const { lang, setLang, pois } = usePoiStore()
+  const { t } = useUiBundle(lang)
   const duPhong = pois.some((p) => p.is_fallback)
 
   return (
-    <div className="language-bar" aria-label="Bộ chọn ngôn ngữ">
+    <div className="language-bar" aria-label={t('home_language_aria')}>
       <div className="language-bar__scroll" role="group">
         {NGON_NGU.map((n) => {
           const isSelected = n.ma === lang
@@ -48,11 +50,11 @@ export default function LanguagePicker() {
         })}
       </div>
       {duPhong && (
-        <div className="language-fallback-hint" title="Bản dịch máy dự phòng cho một số nội dung">
+        <div className="language-fallback-hint" title={t('lang_note_fallback')}>
           <span className="language-fallback-icon" aria-hidden="true">
             <InfoIcon />
           </span>
-          <span className="sr-only">Đang sử dụng bản dịch máy dự phòng cho một số nội dung chưa có bản dịch chính thức.</span>
+          <span className="sr-only">{t('lang_note_fallback')}</span>
         </div>
       )}
     </div>

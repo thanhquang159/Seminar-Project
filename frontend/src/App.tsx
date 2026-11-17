@@ -14,6 +14,7 @@ import { batDauAnalytics, batDauChiaSeMacDinh, ghiSuKienNgay } from './analytics
 import { baoMau, batDauQuanSatVịTri } from './telemetry/location'
 import { laySessionId, useConsentStore } from './stores/consentStore'
 import { usePoiStore } from './stores/poiStore'
+import { useUiBundle } from './i18n/bundles'
 
 import HomeSplash from './components/HomeSplash'
 import './App.css'
@@ -181,22 +182,40 @@ function CloseIcon({ className }: { className?: string }) {
   )
 }
 
-interface TabItem {
-  ma: TabType
-  ten: string
-  icon: ComponentType<{ className?: string }>
-}
-
-const TAB: TabItem[] = [
-  { ma: 'trang-chu', ten: 'Trang chủ', icon: LanternIcon },
-  { ma: 'kham-pha', ten: 'Khám phá', icon: FoodIcon },
-  { ma: 'chu-quan', ten: 'Chủ quán', icon: StoreIcon },
-  { ma: 'admin', ten: 'Quản trị', icon: ShieldIcon },
-  { ma: 'goi-offline', ten: 'Gói offline', icon: OfflineIcon },
-  { ma: 'cai-dat', ten: 'Cài đặt', icon: SettingsIcon },
+const TAB: { ma: TabType; khoaTen: string; icon: ComponentType<{ className?: string }> }[] = [
+  { ma: 'trang-chu', khoaTen: 'nav_home', icon: LanternIcon },
+  { ma: 'kham-pha', khoaTen: 'nav_explore', icon: FoodIcon },
+  { ma: 'chu-quan', khoaTen: 'nav_owner', icon: StoreIcon },
+  { ma: 'admin', khoaTen: 'nav_admin', icon: ShieldIcon },
+  { ma: 'goi-offline', khoaTen: 'nav_packs', icon: OfflineIcon },
+  { ma: 'cai-dat', khoaTen: 'nav_settings', icon: SettingsIcon },
 ]
 
+function layPoiIdTuDuongDan(pathname = window.location.pathname): string | null {
+  const path = pathname.replace(/\/+$/, '') || '/'
+  if (path === '/' || path === '/admin/login' || path === '/owner/login') return null
+
+  const segment = path.slice(1)
+  if (segment.includes('/')) return null
+  try {
+    return decodeURIComponent(segment)
+  } catch {
+    return segment
+  }
+}
+
+function capNhatDuongDan(path: string, thayThe = false) {
+  const diaChiHienTai = `${window.location.pathname}${window.location.search}`
+  if (diaChiHienTai === path) return
+  if (thayThe) {
+    window.history.replaceState(null, '', path)
+  } else {
+    window.history.pushState(null, '', path)
+  }
+}
+
 function khoiTaoTab(): TabType {
+  if (layPoiIdTuDuongDan() !== null) return 'kham-pha'
   try {
     const params = new URLSearchParams(window.location.search)
     const t = params.get('tab') as TabType | null
@@ -210,8 +229,9 @@ function khoiTaoTab(): TabType {
 }
 
 function MainApp() {
-  const { pois, loading, error, fetchPOIs, lang } = usePoiStore()
-  const [selectedId, setSelectedId] = useState<string | null>(null)
+  const { pois, loading, daTaiDuLieu, error, fetchPOIs, lang } = usePoiStore()
+  const { t } = useUiBundle(lang)
+  const [selectedId, setSelectedId] = useState<string | null>(() => layPoiIdTuDuongDan())
   const [dangDoc, setDangDoc] = useState<string | null>(null)
   const [tab, setTab] = useState<TabType>(khoiTaoTab)
   const pack = useMapPack()
@@ -220,8 +240,39 @@ function MainApp() {
   const trangThaiConsent = useConsentStore((s) => s.trangThai)
   const langRef = useRef(lang)
   useEffect(() => {
+    document.documentElement.lang = lang
+    document.title = `AMDS — ${t('app_title')}`
+  }, [lang, t])
+
+  useEffect(() => {
     langRef.current = lang
   })
+
+  useEffect(() => {
+    const dongBoTheoDuongDan = () => {
+      const poiId = layPoiIdTuDuongDan()
+      setSelectedId(poiId)
+      setTab(poiId === null ? khoiTaoTab() : 'kham-pha')
+    }
+
+    window.addEventListener('popstate', dongBoTheoDuongDan)
+    return () => window.removeEventListener('popstate', dongBoTheoDuongDan)
+  }, [])
+
+  useEffect(() => {
+    const poiId = layPoiIdTuDuongDan()
+    if (poiId === null || !daTaiDuLieu || pois.some((poi) => poi.id === poiId)) return
+
+    capNhatDuongDan('/?tab=kham-pha', true)
+  }, [daTaiDuLieu, pois])
+
+  const chuyenTab = useCallback((tabMoi: TabType) => {
+    if (tabMoi !== 'kham-pha' && layPoiIdTuDuongDan() !== null) {
+      setSelectedId(null)
+      capNhatDuongDan(`/?tab=${encodeURIComponent(tabMoi)}`)
+    }
+    setTab(tabMoi)
+  }, [])
 
   useEffect(() => {
     if (trangThaiConsent !== 'chua-chon') return
@@ -312,13 +363,20 @@ function MainApp() {
   const chonPoi = useCallback(
     (id: string) => {
       setSelectedId(id)
+      setTab('kham-pha')
       const poi = pois.find((item) => item.id === id)
       if (poi !== undefined) {
+        capNhatDuongDan(`/${encodeURIComponent(id)}`)
         void ghiSuKienNgay('poi_viewed', { poi_id: poi.id, lang: langRef.current })
       }
     },
     [pois],
   )
+  const dongChiTiet = useCallback(() => {
+    setSelectedId(null)
+    setTab('kham-pha')
+    capNhatDuongDan('/?tab=kham-pha')
+  }, [])
   const vaoCong = useCallback((cong: 'admin' | 'chu-quan') => {
     window.location.assign(cong === 'admin' ? '/admin/login' : '/owner/login')
   }, [])
@@ -357,14 +415,14 @@ function MainApp() {
   if (tab === 'trang-chu') {
     return (
       <HomeSplash
-        onStart={() => setTab('kham-pha')}
-        onOffline={() => setTab('goi-offline')}
+        onStart={() => chuyenTab('kham-pha')}
+        onOffline={() => chuyenTab('goi-offline')}
         onNavigate={(target) => {
           if (target === 'admin' || target === 'chu-quan') {
             vaoCong(target)
             return
           }
-          setTab(target)
+          chuyenTab(target)
         }}
       />
     )
@@ -379,25 +437,25 @@ function MainApp() {
             className="brand-badge"
             role="button"
             tabIndex={0}
-            onClick={() => setTab('trang-chu')}
+            onClick={() => chuyenTab('trang-chu')}
             onKeyDown={(e) => {
-              if (e.key === 'Enter' || e.key === ' ') setTab('trang-chu')
+              if (e.key === 'Enter' || e.key === ' ') chuyenTab('trang-chu')
             }}
             style={{ cursor: 'pointer' }}
-            title="Quay về trang chủ"
+            title={t('home_link')}
           >
             <span className="brand-badge__icon" aria-hidden="true">
               <LanternIcon />
             </span>
             <div className="brand-badge__text">
-              <h1 className="brand-badge__title">AMDS · Ẩm Thực Quận 4</h1>
-              <p className="brand-badge__subtitle">Bản đồ số &amp; Thuyết minh tự động theo vị trí</p>
+              <h1 className="brand-badge__title">{t('brand_title')}</h1>
+              <p className="brand-badge__subtitle">{t('brand_subtitle')}</p>
               <h1 className="sr-only">Linh Ứng Guide</h1>
             </div>
           </div>
 
           <div className="app-header__right">
-            <div className="network-status" title={navigator.onLine !== false ? 'Đang trực tuyến' : 'Ngoại tuyến'}>
+            <div className="network-status" title={navigator.onLine !== false ? t('network_online') : t('network_offline')}>
               <span className="network-status__dot" />
               <span className="network-status__label">{navigator.onLine !== false ? 'Online' : 'Offline'}</span>
             </div>
@@ -407,31 +465,31 @@ function MainApp() {
       </header>
 
       {/* Thanh điều hướng chính (Laptop: tab ngang tinh gọn / Mobile: Bottom Navigation Bar) */}
-      <nav className="nav-container" aria-label="Điều hướng chính">
+      <nav className="nav-container" aria-label={t('nav_main_aria')}>
         <div className="nav-tabs" role="tablist">
-          {TAB.map((t) => {
-            const isActive = tab === t.ma
-            const Icon = t.icon
+          {TAB.map((muc) => {
+            const isActive = tab === muc.ma
+            const Icon = muc.icon
             return (
               <button
-                key={t.ma}
+                key={muc.ma}
                 type="button"
                 role="tab"
                 aria-selected={isActive}
-                aria-label={t.ma === 'admin' ? 'Admin · Quản trị' : t.ten}
+                aria-label={muc.ma === 'admin' ? `${t('nav_admin')} · ${t('nav_admin')}` : t(muc.khoaTen)}
                 className={`nav-tab-item${isActive ? ' nav-tab-item--active' : ''}`}
                 onClick={() => {
-                  if (t.ma === 'admin' || t.ma === 'chu-quan') {
-                    vaoCong(t.ma)
+                  if (muc.ma === 'admin' || muc.ma === 'chu-quan') {
+                    vaoCong(muc.ma)
                     return
                   }
-                  setTab(t.ma)
+                  chuyenTab(muc.ma)
                 }}
               >
                 <span className="nav-tab-item__icon" aria-hidden="true">
                   <Icon />
                 </span>
-                <span className="nav-tab-item__label">{t.ten}</span>
+                <span className="nav-tab-item__label">{t(muc.khoaTen)}</span>
               </button>
             )
           })}
@@ -443,7 +501,10 @@ function MainApp() {
         {/* Banner khởi động và consent */}
         {!khoiDong.hoanTat && (
           <div className="notice notice--info mb">
-            Đang khởi động… (nội dung {khoiDong.noiDungSanSang ? 'sẵn sàng' : 'đang tải'}, giao diện {khoiDong.uiSanSang ? 'sẵn sàng' : 'đang tải'})
+            {t('startup_working', {
+              content: khoiDong.noiDungSanSang ? t('startup_ready') : t('startup_loading'),
+              interface: khoiDong.uiSanSang ? t('startup_ready') : t('startup_loading'),
+            })}
           </div>
         )}
 
@@ -456,21 +517,21 @@ function MainApp() {
               <span className="wave-bar" />
             </div>
             <span className="audio-playing-bar__text">
-              Đang phát thuyết minh: <strong>{dangDoc}</strong>
+              {t('audio_playing_prefix')}<strong>{dangDoc}</strong>
             </span>
             <button
               type="button"
               className="btn-icon btn-icon--sm"
               onClick={() => setDangDoc(null)}
-              title="Đóng thông báo âm thanh"
-              aria-label="Đóng thông báo âm thanh"
+              title={t('close_audio')}
+              aria-label={t('close_audio')}
             >
               <CloseIcon />
             </button>
           </div>
         )}
 
-        <Suspense fallback={<div className="notice notice--info">Đang tải giao diện…</div>}>
+        <Suspense fallback={<div className="notice notice--info">{t('suspense_loading')}</div>}>
           {tab === 'admin' && <AdminApp onPoisChanged={fetchPOIs} />}
           {tab === 'chu-quan' && <OwnerApp />}
           {tab === 'goi-offline' && <OfflinePacks pack={pack} />}
@@ -479,15 +540,15 @@ function MainApp() {
           {tab === 'kham-pha' && (
             <div className="kham-pha-layout">
               {/* Lỗi hoặc trạng thái rỗng */}
-              {loading && <div className="notice notice--info mb">Đang tải danh sách quán ăn…</div>}
+              {loading && <div className="notice notice--info mb">{t('explore_loading')}</div>}
               {error !== '' && (
                 <div className="notice notice--error mb">
-                  Không kết nối được máy chủ (uvicorn app.main:app --reload). Lỗi: {error}
+                  {t('explore_error', { error })}
                 </div>
               )}
               {!loading && error === '' && pois.length === 0 && (
                 <div className="notice notice--warn mb">
-                  Chưa có POI công khai trong PostgreSQL. Hãy tạo địa điểm trong Quản trị hoặc nạp dữ liệu mẫu.
+                  {t('no_public_pois')}
                 </div>
               )}
 
@@ -510,7 +571,7 @@ function MainApp() {
                       <PoiDetail
                         poi={dangChon}
                         onNghe={() => nghePoi(dangChon.id)}
-                        onDong={() => setSelectedId(null)}
+                        onDong={dongChiTiet}
                       />
                     </div>
                   )}
@@ -525,7 +586,7 @@ function MainApp() {
       {/* Footer bản quyền & thông tin: Tối giản, ẩn trên Khám phá để tối đa diện tích bản đồ */}
       {tab !== 'kham-pha' && (
         <footer className="app-footer">
-          <p>Hệ thống hướng dẫn du lịch ẩm thực Quận 4 · Hỗ trợ PWA &amp; Ngoại tuyến hoàn toàn</p>
+          <p>{t('brand_subtitle')}</p>
         </footer>
       )}
     </div>

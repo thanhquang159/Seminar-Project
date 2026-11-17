@@ -20,7 +20,7 @@ async def gan_khoang_cach(
     gioi_han_m: float,
     lang: str,
 ) -> list[dict]:
-    """Return active POIs ordered by their PostGIS geography distance."""
+    """Return public POIs ordered by their PostGIS geography distance."""
     result = await db.execute(
         text(
             f"""
@@ -35,6 +35,7 @@ async def gan_khoang_cach(
             FROM pois AS p
             {_POI_JOINS}
             WHERE p.is_active IS TRUE
+              AND p.publication_status = 'published'
               AND ST_DWithin(
                   COALESCE(
                       p.location,

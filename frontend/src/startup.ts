@@ -10,7 +10,7 @@ const API_GOC = API_BASE_URL
 // FE-004: tiếng Anh khởi động nhanh, đích đến khi cả hai làn sẵn sàng.
 export function useStartup() {
   const { pois, loading, lang, fetchPOIs } = usePoiStore()
-  const { sanSang: uiSanSang } = useUiBundle(lang === 'vi' ? 'en' : lang)
+  const { sanSang: uiSanSang } = useUiBundle(lang)
   const [mangSanSang, setMangSanSang] = useState(false)
 
   useEffect(() => {

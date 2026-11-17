@@ -11,27 +11,68 @@ test.describe('Khám phá', () => {
 
     await expect(page.getByRole('heading', { name: 'Linh Ứng Guide' })).toBeVisible()
     await expect(page.locator('.map-frame')).toBeVisible()
+    await expect(page.getByRole('heading', { name: 'Food spots' })).toBeVisible()
+    await expect(page.getByRole('button', { name: 'English' })).toBeDisabled()
     // Seed 5 quán; danh sách phải đủ 5 để biết API và store đồng bộ.
     await expect(page.locator('.poi-btn')).toHaveCount(5)
   })
 
-  test('chọn tiếng Anh thì nội dung POI đổi sang bản tiếng Anh', async ({ page }) => {
+  test('đổi ngôn ngữ thì giao diện và nội dung POI cùng được dịch', async ({ page }) => {
     await page.goto('/')
     await expect(page.locator('.poi-btn')).toHaveCount(5)
     const dauTien = page.locator('.poi-btn').first()
+    const tiengAnh = await dauTien.innerText()
+
+    await page.getByRole('button', { name: 'Tiếng Việt' }).click()
+    await expect(page.getByRole('heading', { name: 'Danh sách điểm ẩm thực' })).toBeVisible()
+    await expect(dauTien).not.toHaveText(tiengAnh, { timeout: 15_000 })
     const tiengViet = await dauTien.innerText()
 
     await page.getByRole('button', { name: 'English' }).click()
 
-    // Tên quán tiếng Anh khác hẳn tiếng Việt nên phải đổi thật, không phải chỉ
-    // đổi nhãn nút. Chờ tới khi danh sách về lại trước rồi so nội dung.
+    // Chờ nội dung POI về tiếng Anh thay vì chỉ kiểm tra nhãn giao diện.
+    await expect(page.getByRole('heading', { name: 'Food spots' })).toBeVisible()
     await expect(dauTien).not.toHaveText(tiengViet, { timeout: 15_000 })
   })
 
   test('bấm vào một quán thì hiện chi tiết', async ({ page }) => {
     await page.goto('/')
     await page.locator('.poi-btn').first().click()
-    await expect(page.getByRole('region', { name: 'Chi tiết điểm tham quan' })).toBeVisible()
+    await expect(page.getByRole('region', { name: 'Place details' })).toBeVisible()
+  })
+
+  test('mở trực tiếp link POI và đóng chi tiết thì trở về danh sách khám phá', async ({ page }) => {
+    await page.goto('/?tab=kham-pha')
+    await expect(page.locator('.poi-btn')).toHaveCount(5)
+    await page.locator('.poi-btn').first().click()
+    await expect(page).toHaveURL(/\/[^/?#]+$/)
+
+    await page.reload()
+    await expect(page.getByRole('region', { name: 'Place details' })).toBeVisible()
+
+    await page.getByRole('button', { name: 'Close place details' }).click()
+    await expect(page).toHaveURL(/\/\?tab=kham-pha$/)
+    await expect(page.locator('.poi-btn')).toHaveCount(5)
+  })
+
+  test('mã POI không tồn tại sẽ chuyển về danh sách khám phá', async ({ page }) => {
+    await page.goto('/poi-khong-ton-tai')
+    await expect(page).toHaveURL(/\/\?tab=kham-pha$/)
+    await expect(page.locator('.poi-btn')).toHaveCount(5)
+  })
+
+  test('nút quay lại và tiến tới đồng bộ chi tiết với URL', async ({ page }) => {
+    await page.goto('/?tab=kham-pha')
+    await expect(page.locator('.poi-btn')).toHaveCount(5)
+    await page.locator('.poi-btn').first().click()
+    await expect(page.getByRole('region', { name: 'Place details' })).toBeVisible()
+
+    await page.goBack()
+    await expect(page).toHaveURL(/\/\?tab=kham-pha$/)
+    await expect(page.getByRole('region', { name: 'Place details' })).toHaveCount(0)
+
+    await page.goForward()
+    await expect(page.getByRole('region', { name: 'Place details' })).toBeVisible()
   })
 })
 

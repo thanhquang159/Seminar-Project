@@ -20,7 +20,7 @@ async function catAPI(page: Page): Promise<void> {
 test.describe('Offline', () => {
   test('mất backend sau khi đã xem thì vẫn thấy danh sách quán', async ({ page }) => {
     // 1. Còn mạng: nạp dữ liệu vào IndexedDB.
-    await page.goto('/')
+    await page.goto('/?tab=kham-pha')
     await expect(page.locator('.poi-btn')).toHaveCount(5)
 
     // 2. Backend biến mất.
@@ -32,7 +32,7 @@ test.describe('Offline', () => {
   })
 
   test('mất backend thì đổi ngôn ngữ vẫn ra danh sách nhờ chuỗi fallback', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?tab=kham-pha')
     await expect(page.locator('.poi-btn')).toHaveCount(5)
 
     await catAPI(page)
@@ -46,7 +46,7 @@ test.describe('Offline', () => {
   })
 
   test('mất backend không được báo sai lỗi "bật backend"', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?tab=kham-pha')
     await expect(page.locator('.poi-btn')).toHaveCount(5)
 
     await catAPI(page)
@@ -57,7 +57,7 @@ test.describe('Offline', () => {
   })
 
   test('bật lại backend thì đồng bộ được dữ liệu mới', async ({ page }) => {
-    await page.goto('/')
+    await page.goto('/?tab=kham-pha')
     await expect(page.locator('.poi-btn')).toHaveCount(5)
 
     await catAPI(page)

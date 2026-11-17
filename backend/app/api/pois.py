@@ -56,7 +56,7 @@ LEFT JOIN LATERAL (
 ) AS img ON TRUE
 """
 
-_PUBLIC_FILTER = "p.is_active IS TRUE"
+_PUBLIC_FILTER = "p.is_active IS TRUE AND p.publication_status = 'published'"
 
 
 def _uuid(value: str) -> UUID:
@@ -140,7 +140,9 @@ async def tai_delta(
                    {_POI_FIELDS}
             FROM latest_changes AS c
             LEFT JOIN pois AS p
-              ON p.id = c.poi_id AND p.is_active IS TRUE
+              ON p.id = c.poi_id
+             AND p.is_active IS TRUE
+             AND p.publication_status = 'published'
             {_POI_JOINS}
             ORDER BY c.change_cursor
             """
@@ -151,9 +153,13 @@ async def tai_delta(
     updated = [
         {key: value for key, value in row.items() if key not in {"changed_poi_id", "operation"}}
         for row in changes
-        if row["operation"] == "upsert"
+        if row["operation"] == "upsert" and row.get("id") is not None
     ]
-    removed = [row["changed_poi_id"] for row in changes if row["operation"] == "delete"]
+    removed = [
+        row["changed_poi_id"]
+        for row in changes
+        if row["operation"] == "delete" or row.get("id") is None
+    ]
     return {
         "version": version,
         "sync_cursor": version,

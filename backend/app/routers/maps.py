@@ -12,6 +12,7 @@ from app.services.maps import (
     SCOPES,
     THU_MUC_MAPS,
     duong_an_toan,
+    la_pmtiles_co_du_lieu,
     manifest_audio_pack,
     manifest_scope,
 )
@@ -21,7 +22,8 @@ router = APIRouter(prefix="/maps", tags=["maps"])
 
 @router.get("/offline-options", summary="Các gói bản đồ offline")
 async def tuy_chon() -> dict:
-    return {"scopes": list(SCOPES), "note": "Chép tệp .pmtiles vào static/maps/<scope>/ rồi tải"}
+    scopes = [scope for scope in SCOPES if manifest_scope(scope)["files"]]
+    return {"scopes": scopes, "note": "Chép PMTiles hợp lệ và style.json vào static/maps/<scope>/ rồi tải"}
 
 
 @router.get("/manifest", summary="Manifest SHA-256 của scope")
@@ -36,8 +38,10 @@ async def tai_pack(scope: str, ten_tep: str) -> FileResponse:
     if scope not in SCOPES:
         raise HTTPException(status_code=404, detail="Không có scope")
     tep = duong_an_toan(f"{scope}/{ten_tep}")
-    if not tep.is_file() or tep.suffix not in (".pmtiles", ".json"):
+    if not tep.is_file() or tep.suffix not in (".pmtiles", ".json", ".geojson", ".pbf", ".txt"):
         raise HTTPException(status_code=404, detail="Không tìm thấy tệp")
+    if tep.suffix == ".pmtiles" and not la_pmtiles_co_du_lieu(tep):
+        raise HTTPException(status_code=404, detail="Gói PMTiles không hợp lệ hoặc không có dữ liệu")
     return FileResponse(
         str(tep),
         headers={"Cache-Control": "public, max-age=31536000, immutable", "Accept-Ranges": "bytes"},

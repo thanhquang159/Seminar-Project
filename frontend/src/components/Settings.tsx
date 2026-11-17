@@ -3,6 +3,7 @@ import { NGON_NGU, usePoiStore } from '../stores/poiStore'
 import { useConsentStore } from '../stores/consentStore'
 import { xinDongY, thuHoiDongY } from '../analytics/service'
 import { type PackHook, type CheDo } from './useMapPack'
+import { useUiBundle } from '../i18n/bundles'
 
 const MA_NGON_NGU: Record<string, string> = {
   vi: 'VI',
@@ -18,6 +19,7 @@ interface SettingsProps {
 
 export default function Settings({ pack }: SettingsProps) {
   const { lang, setLang } = usePoiStore()
+  const { t } = useUiBundle(lang)
   const trangThaiConsent = useConsentStore((s) => s.trangThai)
   const [dangCapNhatConsent, setDangCapNhatConsent] = useState(false)
   const [loiConsent, setLoiConsent] = useState('')
@@ -37,15 +39,15 @@ export default function Settings({ pack }: SettingsProps) {
     try {
       if (muc === 'granted') {
         if (!(await xinDongY())) {
-          setLoiConsent('Không cập nhật được lựa chọn. Hãy kiểm tra kết nối máy chủ rồi thử lại.')
+          setLoiConsent(t('settings_error_update'))
         }
       } else {
         if (!(await thuHoiDongY())) {
-          setLoiConsent('Đã tắt thu thập trên thiết bị này nhưng chưa đồng bộ được với máy chủ.')
+          setLoiConsent(t('settings_error_sync'))
         }
       }
     } catch {
-      setLoiConsent('Không kết nối được máy chủ để cập nhật lựa chọn chia sẻ dữ liệu.')
+      setLoiConsent(t('settings_error_connection'))
     } finally {
       setDangCapNhatConsent(false)
     }
@@ -55,15 +57,15 @@ export default function Settings({ pack }: SettingsProps) {
     <div className="settings-container">
       <div className="section-header">
         <div>
-          <h2 className="section-title">Cài đặt Ứng dụng</h2>
-          <p className="card__subtitle">Tùy chỉnh ngôn ngữ hiển thị, phương thức tải bản đồ và quyền riêng tư</p>
+          <h2 className="section-title">{t('settings_title')}</h2>
+          <p className="card__subtitle">{t('settings_description')}</p>
         </div>
       </div>
 
       {/* 1. Ngôn ngữ nội dung */}
       <div className="card mt">
-        <h3 className="card__title">Ngôn ngữ thuyết minh & Hiển thị</h3>
-        <p className="card__subtitle">Ứng dụng sẽ đồng bộ bản dịch và âm thanh theo ngôn ngữ bạn chọn</p>
+        <h3 className="card__title">{t('settings_language_title')}</h3>
+        <p className="card__subtitle">{t('settings_language_description')}</p>
 
         <div className="settings-pill-group mt">
           {NGON_NGU.map((n) => {
@@ -88,17 +90,17 @@ export default function Settings({ pack }: SettingsProps) {
 
       {/* 2. Chế độ bản đồ */}
       <div className="card mt">
-        <h3 className="card__title">Cấu hình bản đồ số</h3>
+        <h3 className="card__title">{t('settings_map_title')}</h3>
         <p className="card__subtitle">
-          Chế độ hiện tại: <strong>{cheDoBanDo.toUpperCase()}</strong>
+          {t('settings_map_current')}: <strong>{cheDoBanDo.toUpperCase()}</strong>
           {pack?.trangThai && ` · ${pack.trangThai}`}
         </p>
 
         <div className="settings-pill-group mt">
           {([
-            { ma: 'cloud', ten: 'Cloud Trực tuyến', desc: 'Dùng MapTiler Cloud' },
-            { ma: 'hybrid', ten: 'Lai (Hybrid)', desc: 'Tự động chuyển khi mất mạng' },
-            { ma: 'offline', ten: 'Ngoại tuyến (Offline)', desc: 'Chỉ dùng gói tải sẵn' },
+            { ma: 'cloud', ten: t('settings_map_cloud') },
+            { ma: 'hybrid', ten: t('settings_map_hybrid') },
+            { ma: 'offline', ten: t('settings_map_offline') },
           ] as const).map((c) => {
             const isSelected = c.ma === cheDoBanDo
             return (
@@ -118,25 +120,25 @@ export default function Settings({ pack }: SettingsProps) {
 
       {/* 3. Chính sách quyền riêng tư */}
       <div className="card mt">
-        <h3 className="card__title">Chính sách Riêng tư & Đo lường</h3>
+        <h3 className="card__title">{t('settings_privacy_title')}</h3>
         <p className="card__subtitle">
-          Analytics được bật mặc định trên thiết bị mới để thống kê lượt xem POI và lượt nghe. Bạn có thể tắt bất cứ lúc nào tại đây.
+          {t('settings_privacy_description')}
         </p>
         <p className="card__subtitle">
-          Mức độ hiện tại:{' '}
+          {t('settings_privacy_current')}{' '}
           <strong>
             {trangThaiConsent === 'granted'
-              ? 'Tiêu chuẩn ẩn danh (Đang chia sẻ)'
+              ? t('settings_privacy_shared')
               : trangThaiConsent === 'revoked'
-              ? 'Chặn hoàn toàn (Không chia sẻ)'
-              : 'Chưa thiết lập'}
+              ? t('settings_privacy_blocked')
+              : t('settings_privacy_unset')}
           </strong>
         </p>
 
         <div className="settings-pill-group mt">
           {[
-            { ma: 'granted', ten: 'Tiêu chuẩn (Góp phần cải thiện chất lượng)' },
-            { ma: 'revoked', ten: 'Chặn hoàn toàn (Không chia sẻ)' },
+            { ma: 'granted', ten: t('settings_privacy_option_shared') },
+            { ma: 'revoked', ten: t('settings_privacy_option_blocked') },
           ].map((m) => {
             const isSelected = m.ma === trangThaiConsent
             return (

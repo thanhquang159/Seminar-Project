@@ -90,17 +90,17 @@ Dịch vụ vị trí đẩy tọa độ mỗi 5 giây vào bộ máy geofence. 
 Khi admin lưu POI, backend cập nhật dữ liệu trong PostgreSQL. Trình quản lý tác vụ audio dịch văn bản, kiểm tra cache MD5 trên đĩa, gọi Edge-TTS khi cần, lưu MP3 và cập nhật bản địa hóa cùng trạng thái tác vụ trong các bảng PostgreSQL. Tiến độ được đẩy qua SSE; trạng thái tác vụ có thể được nạp lại từ PostgreSQL sau khi backend khởi động lại.
 
 ### 4.4 Gói offline
-Frontend gọi manifest (audio, map) để biết danh sách tệp, kích thước và SHA-256. Tải từng tệp, kiểm tra hash, lưu vào cache riêng của pack, rồi nhắn Service Worker kích hoạt để ưu tiên đọc từ pack.
+Frontend gọi manifest (audio, map) để biết danh sách tệp, kích thước và SHA-256. Map được tải vào cache phiên bản riêng, xác minh hash và cấu trúc PMTiles/style trước khi cập nhật chỉ mục pack đang hoạt động. Pack hiện tại được giữ nguyên nếu tải mới lỗi. Bộ đọc PMTiles dùng nguồn tùy biến để đọc các range từ Cache API, kể cả khi API khác origin với PWA.
 
 ### 4.5 Duyệt nội dung chủ quán
 Chủ quán gửi submission vào `poi_submissions`; admin duyệt; hệ thống cập nhật `poi`, tăng phiên bản dataset, xếp việc sinh audio, tạo `owner_notifications`. Thiết bị của du khách thấy thay đổi ở lần đồng bộ delta kế tiếp.
 
 ## 5. Chiến lược cache và offline (4 lớp)
 
-1. **Service Worker (Workbox):** POI NetworkFirst; audio CacheFirst theo từng ngôn ngữ; ảnh và chunk tùy chọn CacheFirst có dọn khi hết quota; gói bản đồ có cache bất biến riêng.
+1. **Service Worker (Workbox):** POI NetworkFirst; audio CacheFirst theo từng ngôn ngữ; ảnh và chunk tùy chọn CacheFirst. Map pack do trình quản lý pack sở hữu riêng, không bị cache trùng qua Workbox.
 2. **Phân mảnh ngôn ngữ và đồng bộ build:** mỗi ngôn ngữ một cache, tối đa 300 tệp, tối đa 3 ngôn ngữ, LRU, ghim ngôn ngữ đang dùng; xóa chunk cũ khi build đổi.
 3. **IndexedDB:** `pois_by_lang` và UI bundle; thứ tự dự phòng chọn, en, vi.
-4. **Offline Pack:** bản đồ, POI, ảnh, audio; cài tuần tự, kiểm tra SHA-256, cache tách biệt, hy sinh runtime cache khi đầy.
+4. **Offline Pack:** bản đồ, POI, ảnh, audio; cài tuần tự, kiểm tra SHA-256, cache tách biệt. Khi hết quota, chỉ xóa phần tải dở và giữ pack đang hoạt động cùng cache ứng dụng.
 
 Thông điệp giữa frontend và Service Worker: `SET_ACTIVE_LANGUAGE`, `APP_BUILD_SYNC`, `AUDIO_PACK_ACTIVATE`, `AUDIO_PACK_REMOVE_LANG`, `MAP_PACK_ACTIVATE`, `MAP_PACK_DEACTIVATE`.
 
@@ -108,8 +108,8 @@ Thông điệp giữa frontend và Service Worker: `SET_ACTIVE_LANGUAGE`, `APP_B
 
 1. **Chọn chế độ:** `mapConfig` quyết định Cloud, Offline hoặc Hybrid theo trạng thái mạng và pack đã kích hoạt.
 2. **Công bố pack:** backend phục vụ `/static/maps/*` và lớp tương thích `/api/v1/maps/*`; manifest nêu phiên bản, checksum, scope, ngày nguồn, bbox, URL tuyệt đối.
-3. **Kích hoạt pack:** frontend tải, kiểm tra SHA-256, kích hoạt; cập nhật an toàn hoặc thay thế khi khác scope.
-4. **Hiển thị:** MapLibre đọc từ cache cục bộ qua `pmtiles://`; hybrid giữ cloud làm dự phòng và thăm dò dựa trên style cloud đang dùng.
+3. **Kích hoạt pack:** frontend tải vào cache theo fingerprint, kiểm tra SHA-256 và đọc được PMTiles/style trước khi ghi chỉ mục active; lỗi tải/cài không thay đổi pack đang dùng.
+4. **Hiển thị:** nguồn PMTiles tùy biến đọc byte range từ Cache API và dùng mạng làm fallback; hybrid giữ cloud làm dự phòng.
 
 ## 7. Ranh giới tin cậy và bảo mật kiến trúc
 

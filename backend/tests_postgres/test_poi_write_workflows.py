@@ -109,6 +109,7 @@ def test_geo_query_uses_parameterized_postgis_distance():
     assert result[0]["distance_m"] == 21.3
     assert "ST_DWithin" in sql
     assert "ST_Distance" in sql
+    assert "p.publication_status = 'published'" in sql
     assert params == {"lang": "vi", "lat": 10.7, "lng": 106.6, "radius_m": 1000}
 
 

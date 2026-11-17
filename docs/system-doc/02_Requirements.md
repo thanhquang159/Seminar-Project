@@ -62,7 +62,7 @@
 | FR-42 | Giới hạn cache audio: tối đa 300 file mỗi ngôn ngữ, tối đa 3 ngôn ngữ đồng thời, loại bỏ theo LRU (ghim ngôn ngữ đang dùng). | M |
 | FR-43 | Offline Pack theo ngôn ngữ gồm 4 phần cài tuần tự: map, POI, images, audio; kiểm tra SHA-256 từng tài sản trước khi kích hoạt. | M |
 | FR-44 | Hiển thị trạng thái pack: `updateAvailable`, `repairRequired`, `poiMissing`. | S |
-| FR-45 | Khi tải pack gặp `QuotaExceededError`, tự xóa runtime cache audio/ảnh để nhường chỗ. | M |
+| FR-45 | Khi tải pack gặp `QuotaExceededError`, chỉ xóa phần pack đang cài dở; giữ app shell, dữ liệu POI và pack đang hoạt động, đồng thời báo người dùng giải phóng dung lượng. | M |
 | FR-46 | Khi kiểm tra bản cập nhật từ xa lỗi liên tiếp, vào cooldown thay vì gọi lặp. | S |
 | FR-47 | Gói bản đồ PMTiles: tải, xác thực, kích hoạt; cho phép nhiều pack theo scope (Quận 4, TP.HCM) và `replace_update` khi trùng scope. | M |
 | FR-48 | Đồng bộ build: khi phiên bản app đổi, xóa cache chunk tùy chọn cũ (`APP_BUILD_SYNC`). | S |
