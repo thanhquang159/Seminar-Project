@@ -159,31 +159,33 @@ export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
       {/* Thư viện ảnh quán ăn */}
       <PoiGallery images={poi.images} poiName={poi.name} />
 
-      <div className="poi-detail__header mt">
-        <div className="spread">
-          <h2 className="poi-detail__title">{poi.name}</h2>
-          {poi.is_fallback && <span className="badge badge--warn">{t('translation_fallback')}</span>}
-        </div>
+      <div className="poi-detail__info">
+        <div className="poi-detail__header mt">
+          <div className="spread">
+            <h2 className="poi-detail__title">{poi.name}</h2>
+            {poi.is_fallback && <span className="badge badge--warn">{t('translation_fallback')}</span>}
+          </div>
 
-        <div className="poi-detail__badges">
-          <span className="badge badge--neutral">
-            <LocationPinIcon />
-            {poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}
-          </span>
-          <span className="badge badge--info">
-            {t('trigger_radius', { radius: poi.trigger_radius })}
-          </span>
-          {poi.images && poi.images.length > 0 && (
-            <span className="badge badge--accent">
-              {t('image_count_real', { count: poi.images.length })}
+          <div className="poi-detail__badges">
+            <span className="badge badge--neutral">
+              <LocationPinIcon />
+              {poi.lat.toFixed(4)}, {poi.lng.toFixed(4)}
             </span>
-          )}
+            <span className="badge badge--info">
+              {t('trigger_radius', { radius: poi.trigger_radius })}
+            </span>
+            {poi.images && poi.images.length > 0 && (
+              <span className="badge badge--accent">
+                {t('image_count_real', { count: poi.images.length })}
+              </span>
+            )}
+          </div>
         </div>
-      </div>
 
-      <div className="poi-detail__body mt">
-        <h4 className="poi-detail__section-heading">{t('poi_intro')}</h4>
-        <p className="poi-detail__description">{poi.description}</p>
+        <div className="poi-detail__body mt">
+          <h4 className="poi-detail__section-heading">{t('poi_intro')}</h4>
+          <p className="poi-detail__description">{poi.description}</p>
+        </div>
       </div>
 
       <div className="poi-detail__actions mt">

@@ -35,10 +35,112 @@ test.describe('Khám phá', () => {
     await expect(dauTien).not.toHaveText(tiengViet, { timeout: 15_000 })
   })
 
+  test('trên mobile hiển thị bộ chọn ngôn ngữ bo góc dạng gọn', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?tab=kham-pha')
+    const languageSelect = page.locator('.mobile-language-select')
+
+    await expect(languageSelect).toBeVisible()
+    await expect(languageSelect).toHaveCSS('border-radius', '12px')
+    await languageSelect.selectOption('vi')
+    await expect(languageSelect).toHaveValue('vi')
+    await expect(page.locator('.language-bar__scroll')).toBeHidden()
+  })
+
   test('bấm vào một quán thì hiện chi tiết', async ({ page }) => {
     await page.goto('/')
     await page.locator('.poi-btn').first().click()
     await expect(page.getByRole('region', { name: 'Place details' })).toBeVisible()
+  })
+
+  test('trên mobile danh sách cuộn riêng còn bản đồ đứng yên', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?tab=kham-pha')
+    const listColumn = page.locator('.kham-pha-grid__list-col')
+    const mapColumn = page.locator('.kham-pha-grid__map-col')
+    await expect(page.locator('.poi-btn')).toHaveCount(5)
+    await expect(page.getByRole('button', { name: 'Toggle attribution' })).toHaveCount(0)
+    await expect(page.locator('.maplibregl-ctrl-attrib')).toBeVisible()
+
+    await expect
+      .poll(() => listColumn.evaluate((element) => getComputedStyle(element).overflowY))
+      .toBe('auto')
+
+    const mapTop = await mapColumn.evaluate((element) => element.getBoundingClientRect().top)
+    await listColumn.evaluate((element) => {
+      element.scrollTop = 100
+    })
+    await expect.poll(() => listColumn.evaluate((element) => element.scrollTop)).toBeGreaterThan(0)
+    await expect.poll(() => mapColumn.evaluate((element) => element.getBoundingClientRect().top)).toBe(mapTop)
+
+    await page.locator('.poi-btn').first().click()
+    await expect(page.getByRole('region', { name: 'Place details' })).toBeVisible()
+    await expect(page.locator('.poi-list-section')).toBeVisible()
+    await expect(page.locator('.poi-btn')).toHaveCount(5)
+
+    await page.getByRole('button', { name: 'Close place details' }).click()
+    await expect(page.locator('.poi-list-section')).toBeVisible()
+  })
+
+  test('không hiển thị thanh thay đổi kích thước bản đồ trên mobile', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?tab=kham-pha')
+    await expect(page.locator('.mobile-map-resize-handle')).toHaveCount(0)
+    const mapHeight = await page.locator('.kham-pha-grid__map-col').evaluate(
+      (element) => element.getBoundingClientRect().height,
+    )
+    expect(mapHeight / 844).toBeGreaterThan(0.64)
+    expect(mapHeight / 844).toBeLessThan(0.66)
+  })
+
+  test('mở POI trên mobile thu bản đồ còn 35% và đặt ảnh cạnh mô tả', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?tab=kham-pha')
+    await page.locator('.poi-btn').first().click()
+
+    const mapColumn = page.locator('.kham-pha-grid__map-col')
+    const mapHeight = await mapColumn.evaluate((element) => element.getBoundingClientRect().height)
+    expect(mapHeight / 844).toBeGreaterThan(0.32)
+    expect(mapHeight / 844).toBeLessThan(0.38)
+
+    const photo = await page.locator('.poi-gallery__main').boundingBox()
+    const info = await page.locator('.poi-detail__info').boundingBox()
+    const actions = await page.locator('.poi-detail__actions').boundingBox()
+    if (photo === null || info === null || actions === null) {
+      throw new Error('Không tìm thấy bố cục ảnh, mô tả hoặc nút nghe POI')
+    }
+
+    expect(info.x).toBeGreaterThan(photo.x)
+    expect(Math.abs(info.y - photo.y)).toBeLessThan(12)
+    expect(actions.y).toBeGreaterThan(Math.max(photo.y + photo.height, info.y + info.height) - 4)
+    await expect(page.getByRole('button', { name: 'Listen to the audio guide' })).toBeVisible()
+  })
+
+  test('menu Tài khoản trên mobile chứa lối vào Chủ quán, Quản trị và Cài đặt', async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 844 })
+    await page.goto('/?tab=kham-pha')
+    const navigation = page.getByRole('navigation', { name: 'Main navigation' })
+
+    await expect(navigation.getByRole('tab', { name: 'Explore' })).toBeVisible()
+    await expect(navigation.getByRole('tab', { name: 'Offline packs' })).toBeVisible()
+    await expect(navigation.getByRole('tab', { name: 'Restaurant owners' })).toBeHidden()
+
+    await navigation.getByRole('button', { name: 'Account' }).click()
+    await expect(navigation.getByRole('menuitem')).toHaveCount(3)
+    await expect(navigation.getByRole('menuitem', { name: 'Restaurant owners' })).toBeVisible()
+    await expect(navigation.getByRole('menuitem', { name: 'Administration' })).toBeVisible()
+    await navigation.getByRole('menuitem', { name: 'Settings' }).click()
+
+    await expect(navigation.getByRole('button', { name: 'Account' })).toHaveAttribute('aria-current', 'page')
+    await expect(navigation.getByRole('menu')).toHaveCount(0)
+  })
+
+  test('không hiển thị nút Tài khoản trên laptop', async ({ page }) => {
+    await page.setViewportSize({ width: 1280, height: 800 })
+    await page.goto('/?tab=kham-pha')
+    await expect(
+      page.getByRole('navigation', { name: 'Main navigation' }).getByRole('button', { name: 'Account' }),
+    ).toBeHidden()
   })
 
   test('mở trực tiếp link POI và đóng chi tiết thì trở về danh sách khám phá', async ({ page }) => {

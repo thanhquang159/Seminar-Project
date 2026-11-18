@@ -162,6 +162,26 @@ function SettingsIcon({ className }: { className?: string }) {
   )
 }
 
+function AccountIcon({ className }: { className?: string }) {
+  return (
+    <svg
+      className={className}
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="1.75"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden="true"
+    >
+      <circle cx="12" cy="8" r="4" />
+      <path d="M5 21a7 7 0 0 1 14 0" />
+    </svg>
+  )
+}
+
 function CloseIcon({ className }: { className?: string }) {
   return (
     <svg
@@ -234,6 +254,9 @@ function MainApp() {
   const [selectedId, setSelectedId] = useState<string | null>(() => layPoiIdTuDuongDan())
   const [dangDoc, setDangDoc] = useState<string | null>(null)
   const [tab, setTab] = useState<TabType>(khoiTaoTab)
+  const [mobileAccountOpen, setMobileAccountOpen] = useState(false)
+  const mobileAccountRef = useRef<HTMLDivElement | null>(null)
+  const mobileAccountButtonRef = useRef<HTMLButtonElement | null>(null)
   const pack = useMapPack()
   const khoiDong = useStartup()
   const viTri = useViTri()
@@ -260,6 +283,28 @@ function MainApp() {
   }, [])
 
   useEffect(() => {
+    if (!mobileAccountOpen) return
+
+    const dongKhiBamNgoai = (event: PointerEvent) => {
+      if (event.target instanceof Node && !mobileAccountRef.current?.contains(event.target)) {
+        setMobileAccountOpen(false)
+      }
+    }
+    const dongKhiNhanEscape = (event: KeyboardEvent) => {
+      if (event.key !== 'Escape') return
+      setMobileAccountOpen(false)
+      mobileAccountButtonRef.current?.focus()
+    }
+
+    document.addEventListener('pointerdown', dongKhiBamNgoai)
+    document.addEventListener('keydown', dongKhiNhanEscape)
+    return () => {
+      document.removeEventListener('pointerdown', dongKhiBamNgoai)
+      document.removeEventListener('keydown', dongKhiNhanEscape)
+    }
+  }, [mobileAccountOpen])
+
+  useEffect(() => {
     const poiId = layPoiIdTuDuongDan()
     if (poiId === null || !daTaiDuLieu || pois.some((poi) => poi.id === poiId)) return
 
@@ -267,6 +312,7 @@ function MainApp() {
   }, [daTaiDuLieu, pois])
 
   const chuyenTab = useCallback((tabMoi: TabType) => {
+    setMobileAccountOpen(false)
     if (tabMoi !== 'kham-pha' && layPoiIdTuDuongDan() !== null) {
       setSelectedId(null)
       capNhatDuongDan(`/?tab=${encodeURIComponent(tabMoi)}`)
@@ -429,7 +475,7 @@ function MainApp() {
   }
 
   return (
-    <div className="app-layout">
+    <div className={`app-layout${tab === 'kham-pha' ? ' app-layout--explore' : ''}`}>
       {/* Header thương hiệu chính: 56px, cố định phía trên, hiệu ứng kính mờ */}
       <header className="app-header">
         <div className="app-header__container">
@@ -477,7 +523,7 @@ function MainApp() {
                 role="tab"
                 aria-selected={isActive}
                 aria-label={muc.ma === 'admin' ? `${t('nav_admin')} · ${t('nav_admin')}` : t(muc.khoaTen)}
-                className={`nav-tab-item${isActive ? ' nav-tab-item--active' : ''}`}
+                className={`nav-tab-item${isActive ? ' nav-tab-item--active' : ''}${muc.ma === 'kham-pha' || muc.ma === 'goi-offline' ? '' : ' nav-tab-item--desktop-only'}`}
                 onClick={() => {
                   if (muc.ma === 'admin' || muc.ma === 'chu-quan') {
                     vaoCong(muc.ma)
@@ -493,6 +539,61 @@ function MainApp() {
               </button>
             )
           })}
+        </div>
+        <div className="mobile-account" ref={mobileAccountRef}>
+          <button
+            ref={mobileAccountButtonRef}
+            type="button"
+            className={`mobile-account-toggle${tab === 'cai-dat' ? ' mobile-account-toggle--active' : ''}`}
+            aria-label={t('nav_account')}
+            aria-haspopup="menu"
+            aria-expanded={mobileAccountOpen}
+            aria-controls="mobile-account-menu"
+            aria-current={tab === 'cai-dat' ? 'page' : undefined}
+            onClick={() => setMobileAccountOpen((open) => !open)}
+          >
+            <span className="nav-tab-item__icon" aria-hidden="true">
+              <AccountIcon />
+            </span>
+            <span className="nav-tab-item__label">{t('nav_account')}</span>
+          </button>
+          {mobileAccountOpen && (
+            <div className="mobile-account-menu" id="mobile-account-menu" role="menu" aria-label={t('nav_account')}>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMobileAccountOpen(false)
+                  vaoCong('chu-quan')
+                }}
+              >
+                <StoreIcon />
+                <span>{t('nav_owner')}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMobileAccountOpen(false)
+                  vaoCong('admin')
+                }}
+              >
+                <ShieldIcon />
+                <span>{t('nav_admin')}</span>
+              </button>
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => {
+                  setMobileAccountOpen(false)
+                  chuyenTab('cai-dat')
+                }}
+              >
+                <SettingsIcon />
+                <span>{t('nav_settings')}</span>
+              </button>
+            </div>
+          )}
         </div>
       </nav>
 
@@ -538,7 +639,7 @@ function MainApp() {
           {tab === 'cai-dat' && <Settings pack={pack} />}
 
           {tab === 'kham-pha' && (
-            <div className="kham-pha-layout">
+            <div className={`kham-pha-layout${dangChon !== null ? ' kham-pha-layout--selected' : ''}`}>
               {/* Lỗi hoặc trạng thái rỗng */}
               {loading && <div className="notice notice--info mb">{t('explore_loading')}</div>}
               {error !== '' && (

@@ -49,6 +49,18 @@ export default function LanguagePicker() {
           )
         })}
       </div>
+      <select
+        className="mobile-language-select"
+        value={lang}
+        aria-label={t('home_language_aria')}
+        onChange={(event) => setLang(event.currentTarget.value)}
+      >
+        {NGON_NGU.map((n) => (
+          <option key={n.ma} value={n.ma}>
+            {n.ma.toUpperCase()} · {n.ten}
+          </option>
+        ))}
+      </select>
       {duPhong && (
         <div className="language-fallback-hint" title={t('lang_note_fallback')}>
           <span className="language-fallback-icon" aria-hidden="true">

@@ -209,6 +209,51 @@ body {
   .brand-badge__subtitle {
     display: none;
   }
+
+  .brand-badge__title {
+    white-space: nowrap;
+    font-size: 0.9rem;
+  }
+
+  .app-header__right .network-status {
+    display: none;
+  }
+
+  .app-header__right .language-bar__scroll {
+    display: none;
+  }
+
+  .app-header__right .mobile-language-select {
+    appearance: none;
+    display: block;
+    width: 132px;
+    max-width: 42vw;
+    height: 36px;
+    padding: 0 28px 0 10px;
+    border: 1px solid var(--amds-primary);
+    border-radius: 12px;
+    background-color: var(--amds-surface);
+    background-image: url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' viewBox='0 0 16 16'%3E%3Cpath d='m4 6 4 4 4-4' fill='none' stroke='%23ea580c' stroke-linecap='round' stroke-linejoin='round' stroke-width='1.5'/%3E%3C/svg%3E");
+    background-position: right 8px center;
+    background-repeat: no-repeat;
+    background-size: 12px;
+    color: var(--amds-primary);
+    font: inherit;
+    font-size: 0.76rem;
+    font-weight: 600;
+    text-align: left;
+    text-overflow: ellipsis;
+    cursor: pointer;
+  }
+
+  .app-header__right .mobile-language-select:focus-visible {
+    outline: 2px solid var(--amds-primary);
+    outline-offset: 2px;
+  }
+}
+
+.mobile-language-select {
+  display: none;
 }
 
 .app-header__right {
@@ -245,6 +290,10 @@ body {
 .nav-container {
   background-color: var(--amds-surface);
   border-bottom: 1px solid var(--amds-border);
+}
+
+.mobile-account {
+  display: none;
 }
 
 /* Trên Laptop (> 768px): Thanh tab ngang tinh gọn */
@@ -326,6 +375,8 @@ body {
   }
 
   .nav-container {
+    display: flex;
+    align-items: stretch;
     position: fixed;
     bottom: 0;
     left: 0;
@@ -342,6 +393,7 @@ body {
   }
 
   .nav-tabs {
+    flex: 2;
     height: 100%;
     display: flex;
     align-items: center;
@@ -400,6 +452,83 @@ body {
 
   .nav-tab-item--active .nav-tab-item__label {
     font-weight: 700;
+  }
+
+  .nav-tab-item--desktop-only {
+    display: none;
+  }
+
+  .mobile-account {
+    position: relative;
+    display: flex;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+  }
+
+  .mobile-account-toggle {
+    appearance: none;
+    border: 0;
+    background: transparent;
+    flex: 1;
+    min-width: 0;
+    height: 100%;
+    min-height: 44px;
+    display: flex;
+    flex-direction: column;
+    align-items: center;
+    justify-content: center;
+    gap: 2px;
+    padding: 4px 2px;
+    border-radius: var(--amds-radius);
+    font: inherit;
+    color: var(--amds-text-secondary);
+    cursor: pointer;
+    user-select: none;
+  }
+
+  .mobile-account-toggle--active {
+    color: var(--amds-primary);
+  }
+
+  .mobile-account-toggle:active {
+    transform: scale(0.95);
+  }
+
+  .mobile-account-menu {
+    position: absolute;
+    right: 4px;
+    bottom: calc(100% + 8px);
+    z-index: 60;
+    min-width: 210px;
+    padding: 6px;
+    background: var(--amds-surface);
+    border: 1px solid var(--amds-border);
+    border-radius: var(--amds-radius-card);
+    box-shadow: var(--amds-shadow);
+  }
+
+  .mobile-account-menu button {
+    appearance: none;
+    width: 100%;
+    min-height: 44px;
+    display: flex;
+    align-items: center;
+    gap: 10px;
+    padding: 8px 10px;
+    border: 0;
+    border-radius: var(--amds-radius);
+    background: transparent;
+    color: var(--amds-text);
+    font: inherit;
+    text-align: left;
+    cursor: pointer;
+  }
+
+  .mobile-account-menu button:hover,
+  .mobile-account-menu button:focus-visible {
+    background: var(--amds-surface-subtle);
+    color: var(--amds-primary);
   }
 }
 
@@ -544,6 +673,204 @@ body {
 
   .kham-pha-detail-wrap {
     animation: slide-up-card 0.25s cubic-bezier(0.16, 1, 0.3, 1);
+  }
+}
+
+@media (max-width: 768px) {
+  .app-layout--explore {
+    padding-top: calc(56px + env(safe-area-inset-top, 0px));
+    padding-bottom: 0;
+  }
+
+  .app-layout--explore .app-header {
+    position: fixed;
+    top: env(safe-area-inset-top, 0px);
+    left: 0;
+    right: 0;
+    z-index: 50;
+    width: 100%;
+  }
+
+  .app-layout--explore .app-main-content {
+    position: fixed;
+    top: calc(56px + env(safe-area-inset-top, 0px));
+    right: 0;
+    bottom: calc(60px + env(safe-area-inset-bottom, 0px));
+    left: 0;
+    max-width: none;
+    min-height: 0;
+    margin: 0;
+    padding: 10px 12px !important;
+    overflow: hidden;
+    display: flex;
+    flex-direction: column;
+  }
+
+  .app-layout--explore .kham-pha-layout {
+    display: flex;
+    flex: 1;
+    flex-direction: column;
+    min-height: 0;
+  }
+
+  .kham-pha-grid {
+    flex: 1;
+    min-height: 0;
+    gap: 12px;
+    overflow: hidden;
+  }
+
+  .kham-pha-grid__map-col {
+    flex: 0 0 auto;
+    height: 65vh;
+    min-height: 320px;
+    max-height: 72vh;
+  }
+
+  .kham-pha-grid__map-col .map-frame {
+    min-height: 0;
+  }
+
+  .kham-pha-grid__list-col {
+    flex: 1;
+    min-height: 0;
+    max-height: none;
+    overflow-x: hidden;
+    overflow-y: auto;
+    padding: 0;
+    background: transparent;
+    border: 0;
+    border-radius: 0;
+    box-shadow: none;
+    overscroll-behavior-y: contain;
+  }
+
+  .kham-pha-layout .poi-list {
+    gap: 10px;
+  }
+
+  .kham-pha-layout .poi-card {
+    gap: 10px;
+    padding: 10px;
+  }
+
+  .kham-pha-layout .poi-card__media {
+    width: 68px;
+    height: 68px;
+  }
+
+  .kham-pha-layout--selected .kham-pha-grid__map-col {
+    height: 35vh;
+    min-height: 220px;
+    max-height: 40vh;
+  }
+
+  .kham-pha-layout--selected .poi-detail-card {
+    display: grid;
+    grid-template-columns: minmax(88px, 30%) minmax(0, 1fr);
+    grid-template-areas:
+      "photo info"
+      "actions actions";
+    column-gap: 12px;
+    row-gap: 10px;
+    padding: 10px;
+  }
+
+  .kham-pha-layout--selected .poi-gallery {
+    grid-area: photo;
+    min-width: 0;
+    align-self: start;
+    border-radius: var(--amds-radius);
+    overflow: hidden;
+  }
+
+  .kham-pha-layout--selected .poi-gallery__main,
+  .kham-pha-layout--selected .poi-gallery__placeholder {
+    height: 116px;
+  }
+
+  .kham-pha-layout--selected .poi-gallery__thumbs {
+    display: none;
+  }
+
+  .kham-pha-layout--selected .poi-gallery__nav-btn {
+    width: 28px;
+    height: 28px;
+  }
+
+  .kham-pha-layout--selected .poi-gallery__nav-btn--prev {
+    left: 4px;
+  }
+
+  .kham-pha-layout--selected .poi-gallery__nav-btn--next {
+    right: 4px;
+  }
+
+  .kham-pha-layout--selected .poi-gallery__counter {
+    right: 4px;
+    bottom: 4px;
+    font-size: 0.65rem;
+    padding: 2px 6px;
+  }
+
+  .kham-pha-layout--selected .poi-detail__info {
+    grid-area: info;
+    min-width: 0;
+  }
+
+  .kham-pha-layout--selected .poi-detail__header {
+    margin-top: 0;
+    padding: 0 24px 0 0;
+  }
+
+  .kham-pha-layout--selected .poi-detail__title {
+    font-size: 0.96rem;
+    line-height: 1.3;
+  }
+
+  .kham-pha-layout--selected .poi-detail__badges {
+    display: none;
+  }
+
+  .kham-pha-layout--selected .poi-detail__body {
+    margin-top: 6px;
+    padding: 0 4px 0 0;
+  }
+
+  .kham-pha-layout--selected .poi-detail__section-heading {
+    margin-bottom: 4px;
+    font-size: 0.65rem;
+  }
+
+  .kham-pha-layout--selected .poi-detail__description {
+    font-size: 0.76rem;
+    line-height: 1.4;
+    display: -webkit-box;
+    -webkit-line-clamp: 4;
+    -webkit-box-orient: vertical;
+    overflow: hidden;
+  }
+
+  .kham-pha-layout--selected .poi-detail__actions {
+    grid-area: actions;
+    margin-top: 0;
+    padding: 0;
+  }
+
+  .kham-pha-layout--selected .poi-detail__audio-box {
+    gap: 0;
+    padding: 0;
+    border: 0;
+    background: transparent;
+  }
+
+  .kham-pha-layout--selected .poi-detail__audio-header {
+    display: none;
+  }
+
+  .kham-pha-layout--selected .poi-detail__close-btn {
+    top: 6px;
+    right: 6px;
   }
 }
 
@@ -1050,12 +1377,6 @@ body {
 
 .lang-chip__label {
   font-size: 0.78rem;
-}
-
-@media (max-width: 640px) {
-  .lang-chip__label {
-    display: none;
-  }
 }
 
 .language-fallback-hint {

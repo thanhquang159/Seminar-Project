@@ -88,6 +88,7 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
       style: styleLanDau.current ?? style,
       center: TAM_Q4,
       zoom: 14.5,
+      attributionControl: { compact: false },
     })
     map.addControl(new maplibregl.NavigationControl(), 'top-right')
     map.on('error', (event) => {
@@ -140,6 +141,18 @@ export default function MapView({ pois, selectedId, onSelect, stylePack }: Props
       for (const m of markers) m.remove()
     }
   }, [pois, selectedId, onSelect])
+
+  useEffect(() => {
+    const map = mapRef.current
+    const selectedPoi = pois.find((poi) => poi.id === selectedId)
+    if (map === null || selectedPoi === undefined) return
+
+    map.flyTo({
+      center: [selectedPoi.lng, selectedPoi.lat],
+      zoom: 16.5,
+      duration: 700,
+    })
+  }, [pois, selectedId])
 
   // MAP-004 + MAP-005: chấm xanh vị trí user, xử lý 3 lỗi mà bản đồ vẫn dùng được.
   useEffect(() => {
