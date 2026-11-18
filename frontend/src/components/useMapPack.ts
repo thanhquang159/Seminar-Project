@@ -2,6 +2,15 @@ import { useEffect, useRef, useState } from 'react'
 import type { StyleSpecification } from 'maplibre-gl'
 import type { Protocol } from 'pmtiles'
 import { API_BASE_URL } from '../config'
+import {
+  docMapPack,
+  docMapPackDangHoatDong,
+  docMapPackTheoScope,
+  kichHoatMapPack,
+  luuMapPack,
+  xoaMapPack,
+  type MapPackMetadata,
+} from '../offline/idb'
 
 const API_GOC = API_BASE_URL
 const CACHE_CHI_MUC = 'map-pack-index'
@@ -38,6 +47,19 @@ async function damBaoPmtiles() {
           }
 
           const tep = `${scope}/${segments.join('/')}`
+          const asset = await docTaiSanPack(scope, fingerprint, tep)
+          if (asset !== null) {
+            if (abortController.signal.aborted) {
+              throw new DOMException('Tải tài nguyên offline đã bị hủy', 'AbortError')
+            }
+            if (request.type === 'json') {
+              return { data: JSON.parse(await asset.text()) }
+            }
+            if (request.type === 'string') {
+              return { data: await asset.text() }
+            }
+            return { data: await asset.arrayBuffer() }
+          }
           const cache = await caches.open(`map-pack-${scope}-${fingerprint}`)
           const cached = await cache.match(urlTepPack(scope, tep))
           if (cached === undefined) {
@@ -67,12 +89,10 @@ interface ManifestPack {
   fingerprint: string
 }
 
-interface BanGhiPack {
-  scope: string
-  cacheName: string
-  fingerprint: string
-  styleUrl: string
-  files: TepPack[]
+type BanGhiPack = MapPackMetadata
+
+interface GoiMapPack extends BanGhiPack {
+  assets: Record<string, Blob>
 }
 
 // Hysteresis: vào offline ngay khi mất mạng, về cloud trễ để chống nhấp nháy.
@@ -110,6 +130,45 @@ function urlTepPack(scope: string, file: string): string {
     throw new Error(`Đường dẫn tệp pack không hợp lệ: ${file}`)
   }
   return `${API_GOC}/maps/pack/${phan.map(encodeURIComponent).join('/')}`
+}
+
+async function docGoiMapPack(scope: string, fingerprint: string): Promise<GoiMapPack | null> {
+  try {
+    return await docMapPack(scope, fingerprint)
+  } catch (error) {
+    console.warn('Không đọc được gói bản đồ trong IndexedDB:', error)
+    return null
+  }
+}
+
+async function docTaiSanPack(
+  scope: string,
+  fingerprint: string,
+  file: string,
+): Promise<Blob | null> {
+  const pack = await docGoiMapPack(scope, fingerprint)
+  const asset = pack?.assets[file]
+  return asset ?? null
+}
+
+async function docResponsePack(ghi: BanGhiPack, file: string): Promise<Response | undefined> {
+  const asset = await docTaiSanPack(ghi.scope, ghi.fingerprint, file)
+  if (asset !== null) return new Response(asset)
+  const cache = await caches.open(ghi.cacheName)
+  return cache.match(urlTepPack(ghi.scope, file))
+}
+
+async function damBaoPackTrongIDB(ghi: BanGhiPack): Promise<void> {
+  if ((await docGoiMapPack(ghi.scope, ghi.fingerprint)) !== null) return
+  const assets: Record<string, ArrayBuffer> = {}
+  for (const tep of ghi.files) {
+    const response = await docResponsePack(ghi, tep.file)
+    if (response === undefined) {
+      throw new Error(`Thiếu tệp ${tep.file} trong pack; cần tải lại gói bản đồ`)
+    }
+    assets[tep.file] = await response.arrayBuffer()
+  }
+  await luuMapPack(ghi, assets)
 }
 
 function pmtilesCoDuLieu(buf: ArrayBuffer): boolean {
@@ -241,6 +300,13 @@ async function dangKyNguonPMTiles(ghi: BanGhiPack): Promise<void> {
     const source = {
       getKey: () => url,
       getBytes: async (offset: number, length: number, signal?: AbortSignal) => {
+        const asset = await docTaiSanPack(ghi.scope, ghi.fingerprint, tep.file)
+        if (asset !== null) {
+          if (signal?.aborted) {
+            throw new DOMException('Tải tài nguyên offline đã bị hủy', 'AbortError')
+          }
+          return { data: await asset.slice(offset, offset + length).arrayBuffer() }
+        }
         const cache = await caches.open(ghi.cacheName)
         const cached = await cache.match(url)
         if (cached !== undefined) {
@@ -271,6 +337,12 @@ async function dangKyNguonPMTiles(ghi: BanGhiPack): Promise<void> {
 }
 
 async function docBanGhiPack(scope: string): Promise<BanGhiPack | null> {
+  try {
+    const saved = await docMapPackTheoScope(scope)
+    if (saved !== null) return saved
+  } catch (error) {
+    console.warn('Không đọc được chỉ mục gói bản đồ trong IndexedDB:', error)
+  }
   const index = await caches.open(CACHE_CHI_MUC)
   const response = await index.match(urlChiMuc(scope))
   if (response === undefined) return null
@@ -279,19 +351,26 @@ async function docBanGhiPack(scope: string): Promise<BanGhiPack | null> {
 }
 
 async function kichHoatBanGhiPack(ghi: BanGhiPack): Promise<StyleSpecification> {
-  const cache = await caches.open(ghi.cacheName)
-  const styleResponse = await cache.match(ghi.styleUrl)
+  const styleFile = ghi.files.find((tep) => urlTepPack(ghi.scope, tep.file) === ghi.styleUrl)
+  if (styleFile === undefined) throw new Error('Pack thiếu style.json')
+  const styleResponse = await docResponsePack(ghi, styleFile.file)
   if (styleResponse === undefined) {
     throw new Error('Thiếu style.json trong pack; cần tải lại gói bản đồ')
   }
   for (const tep of ghi.files) {
-    if (!(await cache.match(urlTepPack(ghi.scope, tep.file)))) {
+    if (!(await docResponsePack(ghi, tep.file))) {
       throw new Error(`Thiếu tệp ${tep.file} trong pack; cần tải lại gói bản đồ`)
     }
   }
   const style = await styleResponse.json()
+  const normalizedStyle = taoStyleDaChuanHoa(
+    style,
+    ghi.scope,
+    ghi.fingerprint,
+    ghi.files,
+  )
   await dangKyNguonPMTiles(ghi)
-  return style as StyleSpecification
+  return normalizedStyle
 }
 
 export function useMapPack() {
@@ -322,18 +401,49 @@ export function useMapPack() {
   useEffect(() => {
     let huy = false
     const phucHoi = async () => {
-      const index = await caches.open(CACHE_CHI_MUC)
-      const activeResponse = await index.match(urlPackDangHoatDong())
-      if (activeResponse === undefined) return
+      let ghi: BanGhiPack | null = null
+      try {
+        ghi = await docMapPackDangHoatDong()
+      } catch (error) {
+        console.warn('Không đọc được gói bản đồ đang dùng trong IndexedDB:', error)
+      }
 
-      const raw: unknown = await activeResponse.json()
-      if (!laBanGhiPack(raw)) {
+      if (ghi === null) {
+        const index = await caches.open(CACHE_CHI_MUC)
+        const activeResponse = await index.match(urlPackDangHoatDong())
+        if (activeResponse !== undefined) {
+          const raw: unknown = await activeResponse.json()
+          if (!laBanGhiPack(raw)) {
+            setTrangThai('Thông tin pack đã lưu không hợp lệ; cần tải lại gói bản đồ')
+            return
+          }
+          ghi = raw
+        }
+      }
+
+      if (ghi === null) {
+        try {
+          ghi = await docMapPackTheoScope('quan4')
+        } catch (error) {
+          console.warn('Không đọc được gói Quận 4 trong IndexedDB:', error)
+        }
+      }
+
+      if (ghi === null) {
+        if (navigator.onLine) await taiPack('quan4')
+        return
+      }
+
+      if (!laBanGhiPack(ghi)) {
         setTrangThai('Thông tin pack đã lưu không hợp lệ; cần tải lại gói bản đồ')
         return
       }
 
-      const style = await kichHoatBanGhiPack(raw)
-      if (!huy) setStylePack(style)
+      await damBaoPackTrongIDB(ghi)
+      const style = await kichHoatBanGhiPack(ghi)
+      if (huy) return
+      await kichHoatMapPack(ghi)
+      setStylePack(style)
     }
     void phucHoi().catch((error: unknown) => {
       if (!huy) setTrangThai(`Không khôi phục được map pack: ${thongBaoLoi(error)}`)
@@ -343,7 +453,7 @@ export function useMapPack() {
     }
   }, [])
 
-  const taiPack = async (scope: string, thayThe = false) => {
+  async function taiPack(scope: string, thayThe = false) {
     if (dangTaiRef.current) {
       setTrangThai('Đang có một gói bản đồ khác được tải')
       return
@@ -352,6 +462,9 @@ export function useMapPack() {
     let cacheName: string | null = null
     let cacheLaPackDangHoatDong = false
     let daLuuBanGhiPack = false
+    let daLuuTrongIDB = false
+    let daKichHoatTrongIDB = false
+    let fingerprintDaLuu: string | null = null
 
     try {
       setTrangThai('Đang tải manifest...')
@@ -360,6 +473,7 @@ export function useMapPack() {
       const raw: unknown = await response.json()
       if (!laManifestPack(raw)) throw new Error('Manifest gói bản đồ không hợp lệ')
       const manifest = raw
+      fingerprintDaLuu = manifest.fingerprint
       const filesPmtiles = manifest.files.filter((tep) => tep.file.endsWith('.pmtiles'))
       const filesStyle = manifest.files.filter((tep) => tep.file.endsWith('/style.json'))
       if (filesPmtiles.length === 0 || filesStyle.length === 0) {
@@ -368,6 +482,7 @@ export function useMapPack() {
 
       const index = await caches.open(CACHE_CHI_MUC)
       const banGhiCu = await docBanGhiPack(scope)
+      const packDaLuu = await docGoiMapPack(scope, manifest.fingerprint)
       const banGhiDangHoatDongResponse = await index.match(urlPackDangHoatDong())
       const rawDangHoatDong: unknown = banGhiDangHoatDongResponse === undefined
         ? null
@@ -378,7 +493,10 @@ export function useMapPack() {
         rawDangHoatDong.fingerprint === manifest.fingerprint
 
       if (!thayThe && banGhiCu?.fingerprint === manifest.fingerprint) {
+        await damBaoPackTrongIDB(banGhiCu)
         const style = await kichHoatBanGhiPack(banGhiCu)
+        await kichHoatMapPack(banGhiCu)
+        daKichHoatTrongIDB = true
         const responseIndex = new Response(JSON.stringify(banGhiCu), {
           headers: { 'Content-Type': 'application/json' },
         })
@@ -390,13 +508,26 @@ export function useMapPack() {
 
       cacheName = `map-pack-${scope}-${manifest.fingerprint}`
       const cache = await caches.open(cacheName)
+      const assets: Record<string, ArrayBuffer> = {}
       let styleUrl: string | null = null
 
       for (const tep of manifest.files) {
         const url = urlTepPack(scope, tep.file)
         let buf: ArrayBuffer | null = null
-        const cached = await cache.match(url)
-        if (cached !== undefined) {
+        const fromIdb = packDaLuu?.assets[tep.file]
+        const fromIdbBuffer = fromIdb === undefined ? null : await fromIdb.arrayBuffer()
+        if (
+          fromIdbBuffer !== null &&
+          fromIdbBuffer.byteLength === tep.bytes &&
+          (await sha256Hex(fromIdbBuffer)) === tep.sha256
+        ) {
+          buf = fromIdbBuffer
+        } else if (fromIdbBuffer !== null) {
+          console.warn(`Tệp ${tep.file} trong IndexedDB sai kích thước hoặc SHA-256`)
+        }
+
+        const cached = buf === null ? await cache.match(url) : undefined
+        if (buf === null && cached !== undefined) {
           const cachedBuffer = await cached.arrayBuffer()
           if (cachedBuffer.byteLength === tep.bytes && (await sha256Hex(cachedBuffer)) === tep.sha256) {
             buf = cachedBuffer
@@ -433,6 +564,7 @@ export function useMapPack() {
           }))
           styleUrl = url
         }
+        assets[tep.file] = buf
       }
 
       if (styleUrl === null) throw new Error('Pack thiếu style.json')
@@ -443,8 +575,12 @@ export function useMapPack() {
         styleUrl,
         files: manifest.files,
       }
+      await luuMapPack(ghiMoi, assets)
+      daLuuTrongIDB = true
       const style = await kichHoatBanGhiPack(ghiMoi)
 
+      await kichHoatMapPack(ghiMoi)
+      daKichHoatTrongIDB = true
       await index.put(urlChiMuc(scope), new Response(JSON.stringify(ghiMoi), {
         headers: { 'Content-Type': 'application/json' },
       }))
@@ -456,10 +592,18 @@ export function useMapPack() {
 
       if (banGhiCu !== null && banGhiCu.cacheName !== cacheName) {
         await caches.delete(banGhiCu.cacheName)
+        await xoaMapPack(banGhiCu.scope, banGhiCu.fingerprint)
       }
       await caches.delete(`map-pack-${scope}`)
       setTrangThai(`Cài xong pack ${scope}`)
     } catch (error) {
+      if (daLuuTrongIDB && !daKichHoatTrongIDB) {
+        try {
+          if (fingerprintDaLuu !== null) await xoaMapPack(scope, fingerprintDaLuu)
+        } catch (cleanupError) {
+          console.warn('Không dọn được gói bản đồ lỗi trong IndexedDB:', cleanupError)
+        }
+      }
       if (cacheName !== null && !cacheLaPackDangHoatDong && !daLuuBanGhiPack) {
         await caches.delete(cacheName)
       }
@@ -472,6 +616,14 @@ export function useMapPack() {
       dangTaiRef.current = false
     }
   }
+
+  useEffect(() => {
+    const taiKhiCoMang = () => {
+      if (stylePack === null && !dangTaiRef.current) void taiPack('quan4')
+    }
+    window.addEventListener('online', taiKhiCoMang)
+    return () => window.removeEventListener('online', taiKhiCoMang)
+  }, [stylePack])
 
   // Hybrid: rớt mạng thì giữ pack, có mạng lại thì chờ 10s mới về cloud.
   const [tamOffline, setTamOffline] = useState(false)

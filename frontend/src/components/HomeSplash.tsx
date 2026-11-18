@@ -1,6 +1,5 @@
 import { usePoiStore } from '../stores/poiStore'
 import { useViTri } from '../geofence/useViTri'
-import { useStartup } from '../startup'
 import { useUiBundle } from '../i18n/bundles'
 
 interface HomeSplashProps {
@@ -87,15 +86,14 @@ function CheckIcon() {
 
 export default function HomeSplash({ onStart, onOffline, onNavigate }: HomeSplashProps) {
   const { lang, setLang, pois, loading } = usePoiStore()
-  const { t } = useUiBundle(lang)
+  const { t, sanSang: uiSanSang } = useUiBundle(lang)
   const viTri = useViTri()
-  const khoiDong = useStartup()
 
   // Tiến trình sẵn sàng hệ thống
   let progress = 65
   if (viTri) progress += 15
   if (pois.length > 0 && !loading) progress += 10
-  if (khoiDong.uiSanSang) progress += 10
+  if (uiSanSang) progress += 10
   if (progress > 100) progress = 100
 
   return (

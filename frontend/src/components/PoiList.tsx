@@ -4,6 +4,7 @@ import { usePoiStore } from '../stores/poiStore'
 import { useUiBundle } from '../i18n/bundles'
 import { layUrlAnh } from './imageUtils'
 import { PoiGallery } from './PoiGallery'
+import PublicPoiMenu from './PublicPoiMenu'
 
 // OWN-005: tên quán và mô tả là dữ liệu chủ quán gửi lên — tức là nội dung
 // không đáng tin. Ở đây chỉ đặt chúng vào vị trí text của JSX (React escape sẵn),
@@ -182,22 +183,10 @@ export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
       </div>
 
       <div className="poi-detail__body mt">
-        <h4 className="poi-detail__section-heading">{t('poi_intro')}</h4>
-        <p className="poi-detail__description">{poi.description}</p>
-      </div>
-
-      <div className="poi-detail__actions mt">
-        <div className="poi-detail__audio-box">
-          <div className="poi-detail__audio-header">
-            <span className="poi-detail__audio-label">{t('audio_multilingual')}</span>
-            {poi.is_fallback ? (
-              <span className="badge badge--warn">{t('translation_fallback')}</span>
-            ) : (
-              <span className="badge badge--ok">{t('audio_native')}</span>
-            )}
-          </div>
+        <div className="poi-detail__intro-heading-row">
+          <h4 className="poi-detail__section-heading">{t('poi_intro')}</h4>
           <button
-            className="btn btn--primary btn--lg btn--block"
+            className="btn btn--primary btn--sm poi-detail__listen-btn"
             type="button"
             onClick={() => onNghe(poi.id)}
           >
@@ -207,6 +196,16 @@ export function PoiDetail({ poi, onNghe, onDong }: ChiTietProps) {
             {t('audio_listen')}
           </button>
         </div>
+        <div className="poi-detail__audio-status">
+          <span>{t('audio_multilingual')}</span>
+          {poi.is_fallback ? (
+            <span className="badge badge--warn">{t('translation_fallback')}</span>
+          ) : (
+            <span className="badge badge--ok">{t('audio_native')}</span>
+          )}
+        </div>
+        <p className="poi-detail__description">{poi.description}</p>
+        <PublicPoiMenu key={poi.id} poiId={poi.id} />
       </div>
     </section>
   )

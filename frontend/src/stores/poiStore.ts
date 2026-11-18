@@ -1,5 +1,6 @@
 import { create } from 'zustand'
 import { dongBo } from '../offline/sync'
+import { docPois } from '../offline/idb'
 
 // Một POI như backend trả về ở GET /poi (đã hydrate ngôn ngữ).
 export interface Poi {
@@ -55,11 +56,23 @@ export const usePoiStore = create<PoiState>((set, get) => ({
   },
   fetchPOIs: async (taiLaiToanBo = false) => {
     set({ loading: true, error: '' })
+    const lang = get().lang
     try {
-      // Online thì delta sync, offline thì IDB fallback (không màn hình trống).
-      const { pois } = await dongBo(get().lang, taiLaiToanBo)
+      try {
+        const banLuu = await docPois(lang)
+        if (banLuu !== null && get().lang === lang) {
+          set({ pois: banLuu.pois, loading: false, daTaiDuLieu: true })
+        }
+      } catch (error) {
+        console.warn('Không đọc được POI trong IndexedDB:', error)
+      }
+
+      // Hiển thị bản lưu trước; đồng bộ delta hoặc tải snapshot nếu chưa có.
+      const { pois } = await dongBo(lang, taiLaiToanBo)
+      if (get().lang !== lang) return
       set({ pois, loading: false, daTaiDuLieu: true })
     } catch (err) {
+      if (get().lang !== lang) return
       set({
         error: err instanceof Error ? err.message : 'Lỗi không rõ',
         loading: false,

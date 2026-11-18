@@ -216,6 +216,50 @@ async def hotset(
     return nearby[:10]
 
 
+@router.get("/{poi_id}/menus", summary="Lấy thực đơn công khai của POI")
+async def lay_thuc_don_cong_khai(
+    poi_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[dict]:
+    result = await db.execute(
+        text(
+            """
+            SELECT m.id::text AS id, m.poi_id::text AS poi_id,
+                   m.name, m.description, m.is_active, m.created_at, m.updated_at,
+                   COALESCE(
+                       jsonb_agg(
+                           jsonb_build_object(
+                               'id', mi.id::text,
+                               'menu_id', mi.menu_id::text,
+                               'name', mi.name,
+                               'description', mi.description,
+                               'price', mi.price,
+                               'currency_code', mi.currency_code,
+                               'image_url', mi.image_url,
+                               'is_available', mi.is_available,
+                               'sort_order', mi.sort_order,
+                               'created_at', mi.created_at,
+                               'updated_at', mi.updated_at
+                           ) ORDER BY mi.sort_order, mi.created_at, mi.id
+                       ) FILTER (WHERE mi.id IS NOT NULL),
+                       '[]'::jsonb
+                   ) AS items
+            FROM menus AS m
+            JOIN pois AS p ON p.id = m.poi_id
+            LEFT JOIN menu_items AS mi ON mi.menu_id = m.id
+            WHERE p.id = :poi_id
+              AND p.is_active IS TRUE
+              AND p.publication_status = 'published'
+              AND m.is_active IS TRUE
+            GROUP BY m.id
+            ORDER BY m.name, m.id
+            """
+        ),
+        {"poi_id": _uuid(poi_id)},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
 @router.get("/{poi_id}", summary="Lấy một POI theo id")
 async def lay_mot(
     poi_id: str,

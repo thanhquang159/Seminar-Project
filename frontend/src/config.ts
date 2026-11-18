@@ -1,25 +1,39 @@
 
 // API configuration for local development and production.
 
-// Read API URL from Vite environment variables.
-const configuredApiUrl = import.meta.env.VITE_API_URL?.trim();
-
-// Preserve LAN access during local development.
+const configuredApiUrl = import.meta.env.VITE_API_URL?.trim()
 const defaultApiHost =
   typeof window !== 'undefined' && window.location.hostname !== ''
     ? window.location.hostname
-    : 'localhost';
+    : 'localhost'
 
-const localApiUrl = `http://${defaultApiHost}:8000`;
+export function resolveApiBaseUrl(
+  configuredUrl: string | undefined,
+  pageHostname: string,
+  production: boolean,
+): string {
+  if (!configuredUrl && production) {
+    throw new Error(
+      'Missing VITE_API_URL. Please configure it in Vercel Environment Variables.',
+    )
+  }
 
-// In production, VITE_API_URL must be explicitly configured.
-if (!configuredApiUrl && import.meta.env.PROD) {
-  throw new Error(
-    'Missing VITE_API_URL. Please configure it in Vercel Environment Variables.'
-  );
+  const resolvedUrl = new URL(configuredUrl || `http://${pageHostname}:8000`)
+  const loopbackHosts = new Set(['localhost', '127.0.0.1'])
+  // Keep local API requests same-site so browsers send the Lax auth cookies.
+  if (
+    !production
+    && loopbackHosts.has(pageHostname)
+    && loopbackHosts.has(resolvedUrl.hostname)
+  ) {
+    resolvedUrl.hostname = pageHostname
+  }
+
+  return resolvedUrl.toString().replace(/\/+$/, '')
 }
 
-// Remove trailing slash to avoid duplicated slashes in API requests.
-export const API_BASE_URL = (
-  configuredApiUrl || localApiUrl
-).replace(/\/+$/, '');
+export const API_BASE_URL = resolveApiBaseUrl(
+  configuredApiUrl,
+  defaultApiHost,
+  import.meta.env.PROD,
+)

@@ -114,7 +114,7 @@ async def list_poi_menus(
             LEFT JOIN menu_items AS mi ON mi.menu_id = m.id
             WHERE p.id = :poi_id AND p.owner_id = :owner_id
             GROUP BY m.id
-            ORDER BY p.name, m.name, m.id
+            ORDER BY m.name, m.id
             """
         ),
         {"poi_id": poi_uuid, "owner_id": owner_id},

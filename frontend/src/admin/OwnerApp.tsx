@@ -1,9 +1,15 @@
-import { useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, apiText } from './api'
 import PortalDashboard, { type PortalDashboardItem } from './PortalDashboard'
 import OwnerMenuManagement from './OwnerMenuManagement'
 import OwnerPoiQrCodes from './OwnerPoiQrCodes'
 import { layUrlAnh } from '../components/imageUtils'
+import {
+  getOwnerPortalPage,
+  getPortalPath,
+  isStaleLoginSessionCheck,
+  navigateToPath,
+} from './portalRoutes'
 
 type OwnerAuthMode = 'login' | 'register'
 type OwnerDashboardTab = 'submission' | 'history' | 'places' | 'qr' | 'menu' | 'notifications'
@@ -32,7 +38,10 @@ interface OwnerPoi {
 export default function OwnerApp() {
   const [user, setUser] = useState<string | null>(null)
   const [authMode, setAuthMode] = useState<OwnerAuthMode>('login')
-  const [dashboardTab, setDashboardTab] = useState<OwnerDashboardTab>('submission')
+  const [dashboardTab, setDashboardTab] = useState<OwnerDashboardTab>(
+    () => getOwnerPortalPage(window.location.pathname) ?? 'submission',
+  )
+  const [checkingSession, setCheckingSession] = useState(true)
   const [ten, setTen] = useState('')
   const [matKhau, setMatKhau] = useState('')
   const [cccd, setCccd] = useState('')
@@ -48,25 +57,15 @@ export default function OwnerApp() {
   const [lichSu, setLichSu] = useState<OwnerSubmission[]>([])
   const [poisCuaToi, setPoisCuaToi] = useState<OwnerPoi[]>([])
 
-  const dangNhap = async () => {
-    setLoi('')
-    const res = await apiText('/admin/auth/login', {
-      method: 'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ username: ten, password: matKhau }),
-    })
-    if (!res.ok) {
-      setLoi('Sai tên đăng nhập hoặc mật khẩu')
-      return
-    }
-    setUser(ten)
-    setMatKhau('')
+  const taiThongTinChuQuan = useCallback(async (isActive: () => boolean = () => true) => {
     let ownerStatus: string
     try {
       const st = await api<{ status: string }>('/owner/registration-status')
+      if (!isActive()) return
       ownerStatus = st.status
       setTrangThai(st.status)
     } catch (error) {
+      if (!isActive()) return
       if (error instanceof Error && error.message === 'HTTP 404') {
         setTrangThai('admin')
       } else {
@@ -74,16 +73,19 @@ export default function OwnerApp() {
       }
       return
     }
-    // Tách riêng vì chủ quán chưa duyệt bị 403 ở endpoint thông báo; nếu để
-    // chung try thì lỗi này sẽ ghi đè trạng thái thật thành "admin" và giao
-    // diện hiện sai (mất cảnh báo chờ duyệt lẫn ô gửi quán).
+
+    // Keep this separate: pending owners may get 403 from notifications and
+    // must not lose the registration status already loaded above.
     try {
-      setThongBao(await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications'))
+      const notifications = await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications')
+      if (!isActive()) return
+      setThongBao(notifications)
       if (ownerStatus === 'approved') {
         const [submissions, pois] = await Promise.all([
           api<OwnerSubmission[]>('/owner/submissions/mine'),
           api<OwnerPoi[]>('/owner/pois'),
         ])
+        if (!isActive()) return
         setLichSu(submissions)
         setPoisCuaToi(pois)
       } else {
@@ -91,7 +93,82 @@ export default function OwnerApp() {
         setPoisCuaToi([])
       }
     } catch {
-      setLoi('Đăng nhập được nhưng chưa tải được thông tin Chủ quán. Hãy tải lại trang.')
+      if (isActive()) setLoi('Đăng nhập được nhưng chưa tải được thông tin Chủ quán. Hãy tải lại trang.')
+    }
+  }, [])
+
+  useEffect(() => {
+    let mounted = true
+    const syncRoute = () => {
+      const page = getOwnerPortalPage(window.location.pathname)
+      if (page !== null) {
+        setDashboardTab(page)
+      } else if (window.location.pathname.startsWith('/owner/') && window.location.pathname !== '/owner/login') {
+        navigateToPath('/owner', true)
+      }
+    }
+    window.addEventListener('popstate', syncRoute)
+    syncRoute()
+
+    const restoreSession = async () => {
+      const pathAtStart = window.location.pathname
+      try {
+        const me = await api<{ username: string }>('/admin/auth/me')
+        if (!mounted) return
+        if (isStaleLoginSessionCheck(pathAtStart, window.location.pathname, '/owner/login')) return
+        setUser(me.username)
+        await taiThongTinChuQuan(() => mounted)
+        if (mounted && window.location.pathname === '/owner/login') {
+          navigateToPath('/owner', true)
+        }
+      } catch {
+        if (!mounted) return
+        if (isStaleLoginSessionCheck(pathAtStart, window.location.pathname, '/owner/login')) return
+        setUser(null)
+        if (window.location.pathname !== '/owner/login') {
+          navigateToPath('/owner/login', true)
+        }
+      } finally {
+        if (mounted) setCheckingSession(false)
+      }
+    }
+    void restoreSession()
+
+    return () => {
+      mounted = false
+      window.removeEventListener('popstate', syncRoute)
+    }
+  }, [taiThongTinChuQuan])
+
+  const dangNhap = async () => {
+    setLoi('')
+    try {
+      const res = await apiText('/admin/auth/login', {
+        method: 'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body: JSON.stringify({ username: ten, password: matKhau }),
+      })
+      if (!res.ok) {
+        setLoi('Sai tên đăng nhập hoặc mật khẩu')
+        return
+      }
+      setUser(ten)
+      setMatKhau('')
+      await taiThongTinChuQuan()
+      navigateToPath('/owner')
+    } catch {
+      setLoi('Không kết nối được máy chủ. Hãy kiểm tra backend và thử lại.')
+    }
+  }
+
+  const dangXuat = async () => {
+    try {
+      const response = await apiText('/admin/auth/logout', { method: 'POST' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      setUser(null)
+      navigateToPath('/owner/login', true)
+    } catch {
+      setLoi('Không thể đăng xuất. Vui lòng thử lại.')
     }
   }
 
@@ -182,6 +259,10 @@ export default function OwnerApp() {
     } catch {
       setLoi('Gửi quán thất bại, vui lòng kiểm tra lại thông tin')
     }
+  }
+
+  if (user === null && checkingSession) {
+    return <div className="notice notice--info">Đang khôi phục phiên chủ quán…</div>
   }
 
   if (user === null) {
@@ -348,9 +429,12 @@ export default function OwnerApp() {
       activeItem={dashboardTab}
       items={navItems}
       onNavigate={(key) => {
-        if (key === 'submission' || key === 'history' || key === 'places' || key === 'qr' || key === 'menu' || key === 'notifications') setDashboardTab(key)
+        if (key === 'submission' || key === 'history' || key === 'places' || key === 'qr' || key === 'menu' || key === 'notifications') {
+          setDashboardTab(key)
+          navigateToPath(getPortalPath('owner', key))
+        }
       }}
-      onLogout={() => setUser(null)}
+      onLogout={() => void dangXuat()}
     >
       <section className="dashboard-metrics dashboard-metrics--owner" aria-label="Tổng quan tài khoản">
         <div className="dashboard-metric">

@@ -95,6 +95,8 @@ def test_menu_listing_returns_only_the_owned_poi_menus_with_items():
     assert menus[0]["items"][0]["name"] == "Bánh mì"
     assert "JOIN pois AS p ON p.id = m.poi_id" in sql
     assert "WHERE p.id = :poi_id AND p.owner_id = :owner_id" in sql
+    assert "ORDER BY m.name, m.id" in sql
+    assert "ORDER BY p.name" not in sql
     assert params == {"poi_id": poi_id, "owner_id": owner_id}
 
 

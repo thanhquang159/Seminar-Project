@@ -63,6 +63,13 @@ describe('OWN-005 — nội dung chủ quán không được thành mã chạy �
     expect(dom.textContent).toContain('Mô tả')
   })
 
+  it('đặt nút nghe cùng hàng với tiêu đề giới thiệu', () => {
+    const dom = render(<PoiDetail poi={POI} onNghe={() => {}} />)
+    const hangTieuDe = dom.querySelector('.poi-detail__intro-heading-row')
+    expect(hangTieuDe?.querySelector('h4')).not.toBeNull()
+    expect(hangTieuDe?.querySelector('button')?.textContent).toContain('audio_listen')
+  })
+
   it('mô tả dài 20.000 ký tự không làm treo render', () => {
     const dai = { ...POI, description: 'x'.repeat(20_000) }
     const dom = render(<PoiDetail poi={dai} onNghe={() => {}} />)

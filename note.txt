@@ -3,3 +3,15 @@ Hoàn thiện offline thật: cung cấp PMTiles có dữ liệu tile, xác minh
 Hoàn thiện nghiệp vụ Owner/Admin: biểu mẫu Owner đầy đủ, sửa/quản lý nội dung POI, từ chối submission, quản lý user/role/permission, Menu và publish workflow.
 Tạo đường dựng database đáng tin cậy: bổ sung migration/schema bootstrap và quy trình CI có PostgreSQL cùng E2E trên database riêng; không chạy seed lên database dữ liệu thật.
 Chốt Open Issues và cập nhật tài liệu: sửa presentation để phản ánh PostgreSQL và trạng thái thực tế; gắn trạng thái từng yêu cầu PRD với test/evidence cụ thể.
+
+
+
+Chỉnh hệ thống để tải toàn bộ POI từ Database vào indexDB ở frontend .
+Tải sẵn Maptile vào indexDB luôn.
+
+Khi load frontend sẽ kiểm tra xem đã có POI và MapTile trong indexDB chưa nếu chưa thì tải.
+Nếu đã có thì ưu tiên load từ indexDB.
+
+Ngôn ngữ mặc định khi khách hàng truy cập vào trang web sẽ luôn là tiếng anh. 
+Khi khách hàng chọn 1 ngôn ngữ thì frontend sẽ kiểm tra indexDB đã có ui_stranslation_bundles của ngôn ngữ đó chưa.
+Nếu chưa có thì tải từ backend, nếu đã có thì ưu tiên load từ indexDB.

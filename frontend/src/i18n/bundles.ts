@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from 'react'
 import { API_BASE_URL } from '../config'
+import { docUiBundle, luuUiBundle } from '../offline/idb'
 
 const API_GOC = API_BASE_URL
 type UiBundle = Record<string, string>
@@ -16,18 +17,17 @@ function laUiBundle(value: unknown): value is UiBundle {
   )
 }
 
-function docBundleDaLuu(locale: string): UiBundle | null {
+async function docBundleDaLuu(locale: string): Promise<UiBundle | null> {
   try {
-    const raw = localStorage.getItem(`quan4-ui-${locale}`)
-    if (raw === null) return null
-    const parsed: unknown = JSON.parse(raw)
-    if (!laUiBundle(parsed)) {
+    const saved = await docUiBundle(locale)
+    if (saved === null) return null
+    if (!laUiBundle(saved.translations)) {
       throw new Error(`Bundle giao diện đã lưu cho ${locale} không hợp lệ`)
     }
-    boNhoBundle.set(locale, parsed)
-    return parsed
+    boNhoBundle.set(locale, saved.translations)
+    return saved.translations
   } catch (error) {
-    console.error(`Không đọc được bundle giao diện đã lưu cho ${locale}:`, error)
+    console.error(`Không đọc được bundle giao diện trong IndexedDB cho ${locale}:`, error)
     return null
   }
 }
@@ -37,6 +37,9 @@ function taiBundle(locale: string): Promise<UiBundle> {
   if (daTai !== undefined) return daTai
 
   const request = (async () => {
+    const daLuu = boNhoBundle.get(locale) ?? await docBundleDaLuu(locale)
+    if (daLuu !== null && daLuu !== undefined) return daLuu
+
     const res = await fetch(`${API_GOC}/ui-bundles/${locale}`)
     if (!res.ok) {
       throw new Error(`Tải bundle giao diện ${locale} thất bại: HTTP ${res.status}`)
@@ -54,9 +57,13 @@ function taiBundle(locale: string): Promise<UiBundle> {
     }
     boNhoBundle.set(locale, raw.bundle)
     try {
-      localStorage.setItem(`quan4-ui-${locale}`, JSON.stringify(raw.bundle))
+      const version =
+        'source_hash' in raw && typeof raw.source_hash === 'string'
+          ? raw.source_hash
+          : '1'
+      await luuUiBundle(locale, raw.bundle, version)
     } catch (error) {
-      console.error(`Không lưu được bundle giao diện ${locale} để dùng ngoại tuyến:`, error)
+      console.error(`Không lưu được bundle giao diện ${locale} vào IndexedDB:`, error)
     }
     return raw.bundle
   })()
@@ -76,7 +83,7 @@ function taiBundle(locale: string): Promise<UiBundle> {
 // ngôn ngữ.
 export function useUiBundle(locale: string): { t: Translator; sanSang: boolean } {
   const [bundleState, setBundleState] = useState(() => {
-    const bundle = boNhoBundle.get(locale) ?? docBundleDaLuu(locale) ?? {}
+    const bundle = boNhoBundle.get(locale) ?? {}
     return { locale, bundle, sanSang: Object.keys(bundle).length > 0 }
   })
 
@@ -90,7 +97,7 @@ export function useUiBundle(locale: string): { t: Translator; sanSang: boolean }
       .catch((error: unknown) => {
         if (huy) return
         console.error(`Không tải được bundle giao diện ${locale}:`, error)
-        const daLuu = boNhoBundle.get(locale) ?? docBundleDaLuu(locale)
+        const daLuu = boNhoBundle.get(locale) ?? null
         setBundleState({ locale, bundle: daLuu ?? {}, sanSang: daLuu !== null })
       })
     return () => {

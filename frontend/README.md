@@ -70,8 +70,8 @@ Output mong đợi:
 | Địa chỉ | Nội dung |
 |---|---|
 | <http://localhost:5173> | ứng dụng: tab Khám phá, Quản trị, Chủ quán, Gói offline, Cài đặt |
-| <http://localhost:5173/admin/login> | cổng đăng nhập và quản trị Admin riêng |
-| <http://localhost:5173/owner/login> | cổng đăng nhập, đăng ký và quản lý Chủ quán riêng |
+| <http://localhost:5173/admin/login> | đăng nhập Admin; dashboard tại `/admin`, các mục như `/admin/approvals`, `/admin/audio`, `/admin/analytics`, `/admin/access`, `/admin/audit` |
+| <http://localhost:5173/owner/login> | đăng nhập/đăng ký Owner; dashboard tại `/owner`, các mục như `/owner/history`, `/owner/places`, `/owner/qr`, `/owner/menu`, `/owner/notifications` |
 
 Dừng server bằng `Ctrl+C`.
 
@@ -127,7 +127,7 @@ frontend/
 ├── e2e/                     # kịch bản Playwright: khám phá, offline, chủ quán, thực địa
 └── src/
     ├── main.tsx             # điểm vào: mount React vào #root
-    ├── App.tsx              # khung app, chuyển tab bằng state (không dùng router)
+    ├── App.tsx              # khung app, định tuyến cổng Owner/Admin và tab Visitor
     ├── startup.ts           # điều phối lúc khởi động: sẵn sàng rồi mới bật geofence
     ├── sw.ts                # service worker (injectManifest của Workbox)
     ├── index.css            # style toàn cục
@@ -219,7 +219,7 @@ npm run test:e2e
 |---|---|---|
 | Địa chỉ API viết cứng ở 8 chỗ | đổi cổng hoặc deploy thật thì phải sửa từng file | gom vào một module cấu hình, đọc `VITE_API_BASE` |
 | Không có proxy | phụ thuộc CORS của backend đúng danh sách origin | thu hẹp/thu rộng CORS khi có domain thật (SEC-003) |
-| Không có router | 5 tab dùng `useState` trong `App.tsx` | khi cần điều hướng có URL, ví dụ gửi link sâu vào một quán |
+| Không dùng router thư viện | Tab Visitor dùng state; cổng Owner/Admin đồng bộ mục dashboard với URL qua History API | nếu cần thêm nhiều luồng URL phức tạp, cân nhắc dùng router |
 | CSS thuần | style nằm trong `index.css`, không có CSS framework | khi giao diện phức tạp hơn |
 | ESLint chưa bật type-aware rules | đang dùng `tseslint.configs.recommended`; bản nâng cao cần `parserOptions.project` | khi codebase lớn dần |
 | Không có path alias | đang import tương đối (`../components/...`) | khi cấu trúc thư mục sâu hơn |

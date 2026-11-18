@@ -1,14 +1,15 @@
 import type { ReactNode } from 'react'
+import { getPortalPath, type PortalPage, type PortalRole } from './portalRoutes'
 
 export interface PortalDashboardItem {
-  key: string
+  key: PortalPage
   label: string
   icon: ReactNode
   badge?: number
 }
 
 interface PortalDashboardProps {
-  role: 'admin' | 'owner'
+  role: PortalRole
   username: string
   title: string
   description: string
@@ -43,19 +44,23 @@ export default function PortalDashboard({
         <span className="portal-dashboard__section-label">MENU</span>
         <nav className="portal-dashboard__nav" aria-label="Điều hướng cổng">
           {items.map((item) => (
-            <button
+            <a
               key={item.key}
-              type="button"
+              href={getPortalPath(role, item.key)}
               className={`portal-dashboard__nav-item${activeItem === item.key ? ' portal-dashboard__nav-item--active' : ''}`}
               aria-current={activeItem === item.key ? 'page' : undefined}
-              onClick={() => onNavigate(item.key)}
+              onClick={(event) => {
+                if (event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return
+                event.preventDefault()
+                onNavigate(item.key)
+              }}
             >
               <span className="portal-dashboard__nav-icon" aria-hidden="true">{item.icon}</span>
               <span>{item.label}</span>
               {item.badge !== undefined && item.badge > 0 && (
                 <span className="portal-dashboard__nav-badge">{item.badge}</span>
               )}
-            </button>
+            </a>
           ))}
         </nav>
 

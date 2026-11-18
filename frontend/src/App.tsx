@@ -707,9 +707,30 @@ function PortalPage({ portal }: { portal: 'admin' | 'owner' }) {
 }
 
 function App() {
-  const path = window.location.pathname.replace(/\/+$/, '') || '/'
+  const [path, setPath] = useState(() => window.location.pathname.replace(/\/+$/, '') || '/')
+
+  useEffect(() => {
+    const syncPath = () => setPath(window.location.pathname.replace(/\/+$/, '') || '/')
+    window.addEventListener('popstate', syncPath)
+    return () => window.removeEventListener('popstate', syncPath)
+  }, [])
+
   if (path === '/admin/login') return <PortalPage portal="admin" />
   if (path === '/owner/login') return <PortalPage portal="owner" />
+  if (path === '/admin' || path.startsWith('/admin/')) {
+    return (
+      <Suspense fallback={<div className="notice notice--info">Đang tải cổng quản trị…</div>}>
+        <AdminApp onPoisChanged={() => void usePoiStore.getState().fetchPOIs()} />
+      </Suspense>
+    )
+  }
+  if (path === '/owner' || path.startsWith('/owner/')) {
+    return (
+      <Suspense fallback={<div className="notice notice--info">Đang tải cổng chủ quán…</div>}>
+        <OwnerApp />
+      </Suspense>
+    )
+  }
   return <MainApp />
 }
 

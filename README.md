@@ -12,7 +12,7 @@ Kèm theo là giao diện quản trị cho admin/staff (duyệt nội dung, qu�
 - Tự động phát thuyết minh khi người dùng đi vào bán kính quanh một POI, có hàng đợi và tôn trọng tầng phát âm thanh của trình duyệt.
 - Đa ngôn ngữ `vi` / `en` / `zh` / `ja` / `ko` với chuỗi dự phòng 3 tầng (yêu cầu → tiếng Anh → tiếng Việt).
 - Dịch và sinh audio (TTS) tự động ở phía server sau khi admin cập nhật nội dung; tiến độ xem được qua SSE.
-- PWA cache dữ liệu POI và audio để dùng khi mất mạng; gói nền bản đồ PMTiles hiện chưa có tile thực và cần được tạo/cài trước khi dùng bản đồ offline.
+- PWA ưu tiên dữ liệu POI, bundle giao diện và gói bản đồ Quận 4 trong IndexedDB; lần đầu có mạng sẽ tải các dữ liệu còn thiếu. Audio tiếp tục dùng Cache Storage để phát ngoại tuyến.
 - Chủ quán tự đăng ký và gửi quán mới; admin duyệt trước khi hiển thị.
 - Đăng nhập admin/staff bằng cookie `httpOnly`, phân quyền theo vai trò (RBAC).
 - Chatbot hỏi đáp về các quán (mặc định dùng provider `mock` khi phát triển).

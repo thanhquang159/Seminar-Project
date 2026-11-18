@@ -1537,8 +1537,16 @@ body {
   padding: 12px 20px;
 }
 
+.poi-detail__intro-heading-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px;
+}
+
 .poi-detail__section-heading {
-  margin: 0 0 6px 0;
+  min-width: 0;
+  margin: 0;
   font-size: 0.86rem;
   font-weight: 700;
   color: var(--amds-text-secondary);
@@ -1546,38 +1554,161 @@ body {
   letter-spacing: 0.03em;
 }
 
+.poi-detail__listen-btn {
+  flex: 0 0 auto;
+  white-space: nowrap;
+}
+
+.poi-detail__audio-status {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 6px;
+  font-size: 0.74rem;
+  color: var(--amds-text-secondary);
+}
+
 .poi-detail__description {
-  margin: 0;
+  margin: 8px 0 0;
   font-size: 0.92rem;
   color: var(--amds-text-secondary);
   line-height: 1.6;
 }
 
-.poi-detail__actions {
-  padding: 0 20px 20px;
+.poi-detail__menu {
+  margin-top: 16px;
+  padding-top: 14px;
+  border-top: 1px solid var(--amds-border);
 }
 
-.poi-detail__audio-box {
-  background-color: var(--amds-surface-subtle);
+.poi-detail__menu-heading {
+  margin-bottom: 10px;
+}
+
+.poi-detail__menu-eyebrow {
+  font-size: 0.76rem;
+  font-weight: 700;
+  color: var(--amds-text-secondary);
+  letter-spacing: 0.06em;
+  text-transform: uppercase;
+}
+
+.poi-detail__menu-message {
+  margin: 0;
+  color: var(--amds-text-secondary);
+  font-size: 0.84rem;
+}
+
+.poi-detail__menu-message--error {
+  color: var(--amds-danger, #b42318);
+}
+
+.poi-detail__menus {
+  display: grid;
+  gap: 12px;
+}
+
+.poi-detail__menu-list {
+  padding: 12px;
   border: 1px solid var(--amds-border);
   border-radius: var(--amds-radius);
-  padding: 14px;
-  display: flex;
-  flex-direction: column;
-  gap: 10px;
+  background: var(--amds-surface-subtle);
 }
 
-.poi-detail__audio-header {
+.poi-detail__menu-title-row {
   display: flex;
   align-items: center;
   justify-content: space-between;
-  gap: 8px;
+  gap: 12px;
 }
 
-.poi-detail__audio-label {
-  font-size: 0.8rem;
-  font-weight: 600;
+.poi-detail__menu-title {
+  margin: 0;
   color: var(--amds-text);
+  font-size: 0.94rem;
+  font-weight: 700;
+}
+
+.poi-detail__menu-description {
+  margin: 4px 0 0;
+  color: var(--amds-text-secondary);
+  font-size: 0.8rem;
+}
+
+.poi-detail__menu-count {
+  flex: 0 0 auto;
+  color: var(--amds-text-secondary);
+  font-size: 0.74rem;
+}
+
+.poi-detail__menu-items {
+  display: grid;
+  gap: 10px;
+  margin: 12px 0 0;
+  padding: 0;
+  list-style: none;
+}
+
+.poi-detail__menu-item {
+  display: flex;
+  align-items: flex-start;
+  justify-content: space-between;
+  gap: 12px;
+  padding-top: 10px;
+  border-top: 1px solid var(--amds-border);
+}
+
+.poi-detail__menu-item-copy {
+  min-width: 0;
+}
+
+.poi-detail__menu-item-copy strong {
+  color: var(--amds-text);
+  font-size: 0.86rem;
+}
+
+.poi-detail__menu-item-copy p {
+  margin: 3px 0 0;
+  color: var(--amds-text-secondary);
+  font-size: 0.78rem;
+  line-height: 1.45;
+}
+
+.poi-detail__menu-unavailable {
+  display: inline-block;
+  margin-top: 4px;
+  color: var(--amds-text-secondary);
+  font-size: 0.72rem;
+}
+
+.poi-detail__menu-price {
+  flex: 0 0 auto;
+  color: var(--amds-text);
+  font-size: 0.82rem;
+  font-weight: 700;
+  text-align: right;
+}
+
+@media (max-width: 420px) {
+  .poi-detail__body {
+    padding-right: 14px;
+    padding-left: 14px;
+  }
+
+  .poi-detail__section-heading {
+    font-size: 0.76rem;
+  }
+
+  .poi-detail__listen-btn {
+    gap: 5px;
+    padding-right: 9px;
+    padding-left: 9px;
+    font-size: 0.72rem;
+  }
+
+  .poi-detail__menu-list {
+    padding: 10px;
+  }
 }
 
 /* =========================================================================
@@ -2755,6 +2886,7 @@ body {
   font: inherit;
   font-size: 0.8rem;
   text-align: left;
+  text-decoration: none;
   cursor: pointer;
   transition: background 150ms ease, color 150ms ease;
 }

@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import { api, apiText } from './api'
 import AnalyticsPanel from './AnalyticsPanel'
 import AudioTasks from './AudioTasks'
@@ -9,6 +9,12 @@ import AdminGovernance from './AdminGovernance'
 import AdminAccessManagement from './AdminAccessManagement'
 import { layUrlAnh } from '../components/imageUtils'
 import type { Poi } from '../stores/poiStore'
+import {
+  getAdminPortalPage,
+  getPortalPath,
+  isStaleLoginSessionCheck,
+  navigateToPath,
+} from './portalRoutes'
 
 const TRONG: Poi = {
   id: '',
@@ -33,6 +39,7 @@ const CONG_KHACH = new Set(['poi_owner', 'user'])
 
 export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void }) {
   const [user, setUser] = useState<string | null>(null)
+  const [checkingSession, setCheckingSession] = useState(true)
   const [ten, setTen] = useState('')
   const [matKhau, setMatKhau] = useState('')
   const [loi, setLoi] = useState('')
@@ -41,24 +48,65 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   const [form, setForm] = useState<Poi>(TRONG)
   const [dangSua, setDangSua] = useState(false)
   const [poiQuanLyAnh, setPoiQuanLyAnh] = useState<Poi | null>(null)
-  const [adminTab, setAdminTab] = useState<'pois' | 'approvals' | 'audio' | 'analytics' | 'access' | 'audit'>('pois')
+  const [adminTab, setAdminTab] = useState(
+    () => getAdminPortalPage(window.location.pathname) ?? 'pois',
+  )
 
-  const taiPois = async () => {
+  const taiPois = useCallback(async () => {
     const [ketQuaDanhSach] = await Promise.allSettled([api<Poi[]>('/poi')])
     if (ketQuaDanhSach.status === 'fulfilled') {
       setPois(ketQuaDanhSach.value)
     }
-  }
+  }, [])
 
   useEffect(() => {
-    api<{ username: string; role: string }>('/admin/auth/me')
-      .then((me) => {
-        if (CONG_KHACH.has(me.role)) return
+    let mounted = true
+    const syncRoute = () => {
+      const page = getAdminPortalPage(window.location.pathname)
+      if (page !== null) {
+        setAdminTab(page)
+      } else if (window.location.pathname.startsWith('/admin/') && window.location.pathname !== '/admin/login') {
+        navigateToPath('/admin', true)
+      }
+    }
+    window.addEventListener('popstate', syncRoute)
+    syncRoute()
+
+    const restoreSession = async () => {
+      const pathAtStart = window.location.pathname
+      try {
+        const me = await api<{ username: string; role: string }>('/admin/auth/me')
+        if (!mounted) return
+        if (isStaleLoginSessionCheck(pathAtStart, window.location.pathname, '/admin/login')) return
+        if (CONG_KHACH.has(me.role)) {
+          if (window.location.pathname !== '/admin/login') {
+            navigateToPath('/admin/login', true)
+          }
+          return
+        }
         setUser(me.username)
-        void taiPois()
-      })
-      .catch(() => {})
-  }, [])
+        await taiPois()
+        if (mounted && window.location.pathname === '/admin/login') {
+          navigateToPath('/admin', true)
+        }
+      } catch {
+        if (!mounted) return
+        if (isStaleLoginSessionCheck(pathAtStart, window.location.pathname, '/admin/login')) return
+        setUser(null)
+        if (window.location.pathname !== '/admin/login') {
+          navigateToPath('/admin/login', true)
+        }
+      } finally {
+        if (mounted) setCheckingSession(false)
+      }
+    }
+    void restoreSession()
+
+    return () => {
+      mounted = false
+      window.removeEventListener('popstate', syncRoute)
+    }
+  }, [taiPois])
 
   const dangNhap = async () => {
     if (dangDangNhap) return
@@ -82,6 +130,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       setUser(me.username)
       setMatKhau('')
       await taiPois()
+      navigateToPath('/admin')
     } catch {
       setLoi('Không kết nối được máy chủ. Hãy kiểm tra backend và thử lại.')
     } finally {
@@ -90,9 +139,15 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   }
 
   const dangXuat = async () => {
-    await apiText('/admin/auth/logout', { method: 'POST' })
-    setUser(null)
-    setPois([])
+    try {
+      const response = await apiText('/admin/auth/logout', { method: 'POST' })
+      if (!response.ok) throw new Error(`HTTP ${response.status}`)
+      setUser(null)
+      setPois([])
+      navigateToPath('/admin/login', true)
+    } catch {
+      setLoi('Không thể đăng xuất. Vui lòng thử lại.')
+    }
   }
 
   const luu = async () => {
@@ -138,6 +193,10 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       setPoiQuanLyAnh((prev) => (prev ? { ...prev, images: danhSachMoi } : null))
     }
     onPoisChanged()
+  }
+
+  if (user === null && checkingSession) {
+    return <div className="notice notice--info">Đang khôi phục phiên quản trị…</div>
   }
 
   if (user === null) {
@@ -261,6 +320,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       onNavigate={(key) => {
         if (key === 'pois' || key === 'approvals' || key === 'audio' || key === 'analytics' || key === 'access' || key === 'audit') {
           setAdminTab(key)
+          navigateToPath(getPortalPath('admin', key))
         }
       }}
       onLogout={() => void dangXuat()}

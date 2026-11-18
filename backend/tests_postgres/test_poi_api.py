@@ -164,6 +164,60 @@ def test_detail_returns_matching_poi():
     assert session.statements[0][1]["poi_id"].hex == UUID(poi_id).hex
 
 
+def test_public_menus_only_return_active_menus_for_published_pois():
+    poi_id = str(uuid4())
+    menu_id = str(uuid4())
+    item_id = str(uuid4())
+    session = FakeSession(
+        rows=[
+            {
+                "id": menu_id,
+                "poi_id": poi_id,
+                "name": "Menu chính",
+                "description": None,
+                "is_active": True,
+                "items": [
+                    {
+                        "id": item_id,
+                        "menu_id": menu_id,
+                        "name": "Bánh mì",
+                        "price": 25000,
+                        "currency_code": "VND",
+                        "is_available": True,
+                    }
+                ],
+            }
+        ]
+    )
+
+    async def request():
+        async with create_client(session) as client:
+            return await client.get(f"/poi/{poi_id}/menus")
+
+    response = asyncio.run(request())
+    assert response.status_code == 200
+    assert response.json()[0]["items"][0]["id"] == item_id
+    sql, params = session.statements[0]
+    assert "p.is_active IS TRUE" in sql
+    assert "p.publication_status = 'published'" in sql
+    assert "m.is_active IS TRUE" in sql
+    assert "GROUP BY m.id" in sql
+    assert "ORDER BY m.name, m.id" in sql
+    assert params["poi_id"].hex == UUID(poi_id).hex
+
+
+def test_public_menu_endpoint_rejects_non_uuid_id_without_querying_database():
+    session = FakeSession()
+
+    async def request():
+        async with create_client(session) as client:
+            return await client.get("/poi/not-a-uuid/menus")
+
+    response = asyncio.run(request())
+    assert response.status_code == 400
+    assert session.statements == []
+
+
 def test_delta_returns_tombstones_and_current_pois_after_cursor():
     poi_id = str(uuid4())
     removed_id = str(uuid4())
