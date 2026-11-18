@@ -129,7 +129,7 @@ Các luồng được mô tả bằng lời, theo từng bước đánh số. M�
 
 - **Điều kiện trước:** Đã đăng nhập và `is_poi_owner_verified = true`.
 - **Luồng chính:**
-  1. Chủ quán tạo POI mới hoặc sửa POI của mình (`PUT /owner/pois/{id}`).
+  1. Chủ quán gửi tên, mô tả, địa chỉ và tọa độ; với POI mới có thể gửi kèm thực đơn và các món.
   2. Hệ thống lưu thành một submission trạng thái chờ duyệt (`poi_submissions`), chưa ảnh hưởng dữ liệu công khai.
   3. Chủ quán theo dõi trạng thái trong trang submissions và thông báo.
 - **Ngoại lệ:** Sửa POI không thuộc mình: bị từ chối (403). Chưa xác minh: bị chặn ở mọi lane nghiệp vụ.
@@ -139,8 +139,8 @@ Các luồng được mô tả bằng lời, theo từng bước đánh số. M�
 - **Luồng chính:**
   1. Admin xem submission kèm nội dung đề xuất.
   2. Duyệt hoặc từ chối kèm `admin_note`.
-  3. Khi duyệt: POI được tạo/cập nhật, hệ thống đưa việc sinh audio vào hàng đợi, tăng phiên bản dataset để các thiết bị đồng bộ delta.
-  4. Gửi thông báo kết quả cho chủ quán (`owner_notifications`).
+  3. Khi duyệt: POI được tạo/cập nhật cùng địa chỉ, tọa độ và thực đơn đã gửi; POI chưa công khai xuất hiện trong danh sách quản trị để tiếp tục xử lý.
+  4. Gửi thông báo kết quả cho chủ quán (`owner_notifications`); cổng chủ quán tải lại thông báo và địa điểm khi mở các trang tương ứng.
 - **Kết quả:** POI xuất hiện công khai sau khi bản tiếng Anh và audio sẵn sàng.
 
 ## UC-11. Admin quản lý POI và sinh audio

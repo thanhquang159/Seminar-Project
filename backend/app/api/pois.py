@@ -94,8 +94,11 @@ async def lay_danh_sach(
 
 
 @router.get("/count", summary="Lấy tổng số POI trên dashboard")
-async def dem_poi() -> dict[str, int]:
-    return {"count": 0}
+async def dem_poi(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, int]:
+    result = await db.execute(
+        text(f"SELECT count(*) FROM pois AS p WHERE {_PUBLIC_FILTER}")
+    )
+    return {"count": int(result.scalar_one())}
 
 
 @router.get("/load-all", summary="Tải toàn bộ POI kèm phiên bản sync")
@@ -256,6 +259,47 @@ async def lay_thuc_don_cong_khai(
             """
         ),
         {"poi_id": _uuid(poi_id)},
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
+@router.get("/menus", summary="Lấy toàn bộ thực đơn công khai để dùng ngoại tuyến")
+async def lay_tat_ca_thuc_don_cong_khai(
+    db: Annotated[AsyncSession, Depends(get_db)],
+) -> list[dict]:
+    result = await db.execute(
+        text(
+            """
+            SELECT m.id::text AS id, m.poi_id::text AS poi_id,
+                   m.name, m.description,
+                   COALESCE(
+                       jsonb_agg(
+                           jsonb_build_object(
+                               'id', mi.id::text,
+                               'menu_id', mi.menu_id::text,
+                               'name', mi.name,
+                               'description', mi.description,
+                               'price', mi.price,
+                               'currency_code', mi.currency_code,
+                               'image_url', mi.image_url,
+                               'is_available', mi.is_available,
+                               'sort_order', mi.sort_order,
+                               'created_at', mi.created_at,
+                               'updated_at', mi.updated_at
+                           ) ORDER BY mi.sort_order, mi.created_at, mi.id
+                       ) FILTER (WHERE mi.id IS NOT NULL),
+                       '[]'::jsonb
+                   ) AS items
+            FROM menus AS m
+            JOIN pois AS p ON p.id = m.poi_id
+            LEFT JOIN menu_items AS mi ON mi.menu_id = m.id
+            WHERE p.is_active IS TRUE
+              AND p.publication_status = 'published'
+              AND m.is_active IS TRUE
+            GROUP BY m.id
+            ORDER BY m.poi_id, m.name, m.id
+            """
+        )
     )
     return [dict(row) for row in result.mappings().all()]
 

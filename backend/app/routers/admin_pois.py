@@ -40,6 +40,7 @@ class PoiNhap(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=5000)
+    address_line: str = Field(default="", max_length=500)
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
     trigger_radius: float = Field(default=30, ge=5, le=200)
@@ -66,6 +67,48 @@ def _poi_response(row: Mapping[str, object]) -> dict:
     }
 
 
+@router.get("", summary="Danh sách POI quản trị")
+async def liet_ke_poi(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = DuocSuaPoi,
+) -> list[dict]:
+    result = await db.execute(
+        text(
+            """
+            SELECT p.id::text AS id, p.name,
+                   COALESCE(p.description, '') AS description,
+                   COALESCE(p.address_line, '') AS address_line,
+                   p.latitude::double precision AS lat,
+                   p.longitude::double precision AS lng,
+                   p.trigger_radius_m AS trigger_radius, p.audio_priority,
+                   p.publication_status, p.is_active,
+                   COALESCE(img.images, '[]'::json) AS images,
+                   COALESCE(loc.language_code, 'vi') AS lang,
+                   FALSE AS is_fallback, loc.audio_url
+            FROM pois AS p
+            LEFT JOIN LATERAL (
+                SELECT l.language_code, l.audio_url
+                FROM poi_localizations AS l
+                WHERE l.poi_id = p.id
+                ORDER BY CASE WHEN l.language_code = 'vi' THEN 0 ELSE 1 END,
+                         l.language_code
+                LIMIT 1
+            ) AS loc ON TRUE
+            LEFT JOIN LATERAL (
+                SELECT json_agg(i.public_url ORDER BY i.sort_order, i.created_at)
+                       FILTER (WHERE i.public_url IS NOT NULL) AS images
+                FROM poi_images AS i
+                WHERE i.poi_id = p.id
+            ) AS img ON TRUE
+            WHERE p.publication_status <> 'archived'
+            ORDER BY p.name, p.id
+            LIMIT 500
+            """
+        )
+    )
+    return [dict(row) for row in result.mappings().all()]
+
+
 @router.post("", status_code=201, summary="Tạo POI")
 async def tao_poi(
     body: PoiNhap,
@@ -84,7 +127,7 @@ async def tao_poi(
                     created_by, updated_by, updated_at
                 )
                 VALUES (
-                    :name, :description, 'other', '', :lat, :lng,
+                    :name, :description, 'other', :address_line, :lat, :lng,
                     :trigger_radius, :audio_priority, 'draft', FALSE,
                     :actor_id, :actor_id, now()
                 )
@@ -121,6 +164,7 @@ async def sua_poi(
                 UPDATE pois
                 SET name = :name,
                     description = :description,
+                    address_line = :address_line,
                     latitude = :lat,
                     longitude = :lng,
                     trigger_radius_m = :trigger_radius,

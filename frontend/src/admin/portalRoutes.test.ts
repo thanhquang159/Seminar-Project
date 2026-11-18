@@ -18,6 +18,7 @@ describe('portal routes', () => {
     expect(getAdminPortalPage('/admin')).toBe('pois')
     expect(getAdminPortalPage('/admin/pois')).toBe('pois')
     expect(getAdminPortalPage('/admin/approvals')).toBe('approvals')
+    expect(getAdminPortalPage('/admin/translations')).toBe('translations')
     expect(getAdminPortalPage('/admin/unknown')).toBeNull()
   })
 
@@ -26,6 +27,7 @@ describe('portal routes', () => {
     expect(getPortalPath('owner', 'notifications')).toBe('/owner/notifications')
     expect(getPortalPath('admin', 'pois')).toBe('/admin')
     expect(getPortalPath('admin', 'analytics')).toBe('/admin/analytics')
+    expect(getPortalPath('admin', 'translations')).toBe('/admin/translations')
   })
 
   it('ignores a failed login-page session probe after navigation has moved on', () => {

@@ -1,8 +1,15 @@
 import { act } from 'react'
 import { createRoot, type Root } from 'react-dom/client'
-import { afterEach, describe, expect, it, vi } from 'vitest'
+import { afterEach, beforeEach, describe, expect, it, vi } from 'vitest'
 import PublicPoiMenu from './PublicPoiMenu'
 
+const cache = vi.hoisted(() => ({
+  docPois: vi.fn().mockResolvedValue(null),
+  docThucDonCongKhai: vi.fn(),
+  luuThucDonCongKhai: vi.fn(),
+}))
+
+vi.mock('../offline/idb', () => cache)
 vi.mock('../i18n/bundles', () => ({
   useUiBundle: () => ({
     t: (key: string, values?: Record<string, string | number>) =>
@@ -33,6 +40,11 @@ afterEach(() => {
   container?.remove()
   container = null
   vi.unstubAllGlobals()
+  vi.resetAllMocks()
+})
+
+beforeEach(() => {
+  cache.docThucDonCongKhai.mockResolvedValue(null)
 })
 
 describe('PublicPoiMenu', () => {
@@ -41,6 +53,7 @@ describe('PublicPoiMenu', () => {
       ok: true,
       json: async () => [{
         id: 'menu-1',
+        poi_id: 'poi-1',
         name: 'Menu del dia',
         description: null,
         items: [{
@@ -79,5 +92,26 @@ describe('PublicPoiMenu', () => {
     })
 
     expect(dom.textContent).toContain('menu_empty')
+  })
+
+  it('hiển thị thực đơn đã cache khi không có kết nối mạng', async () => {
+    cache.docThucDonCongKhai.mockResolvedValue({
+      'poi-3': [{
+        id: 'menu-3',
+        poi_id: 'poi-3',
+        name: 'Thực đơn đã lưu',
+        description: null,
+        items: [],
+      }],
+    })
+    vi.stubGlobal('fetch', vi.fn().mockRejectedValue(new TypeError('Failed to fetch')))
+    const dom = renderMenu()
+
+    await act(async () => {
+      root!.render(<PublicPoiMenu poiId="poi-3" />)
+      await new Promise((resolve) => setTimeout(resolve, 0))
+    })
+
+    expect(dom.textContent).toContain('Thực đơn đã lưu')
   })
 })

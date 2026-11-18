@@ -27,12 +27,19 @@ interface OwnerPoi {
   id: string
   name: string
   description: string
+  address_line: string
   lat: number
   lng: number
   trigger_radius: number
   audio_url: string | null
   publication_status: string
   is_active: boolean
+}
+
+interface MenuItemDraft {
+  name: string
+  description: string
+  price: string
 }
 
 export default function OwnerApp() {
@@ -49,6 +56,14 @@ export default function OwnerApp() {
   const [trangThai, setTrangThai] = useState('')
   const [tenQuan, setTenQuan] = useState('')
   const [moTa, setMoTa] = useState('')
+  const [diaChi, setDiaChi] = useState('')
+  const [viDo, setViDo] = useState('')
+  const [kinhDo, setKinhDo] = useState('')
+  const [tenThucDon, setTenThucDon] = useState('Menu chính')
+  const [moTaThucDon, setMoTaThucDon] = useState('')
+  const [monTrongThucDon, setMonTrongThucDon] = useState<MenuItemDraft[]>([
+    { name: '', description: '', price: '' },
+  ])
   const [poiDangSua, setPoiDangSua] = useState('')
   const [dangXuLyAI, setDangXuLyAI] = useState(false)
   const [goiYAI, setGoiYAI] = useState('')
@@ -74,13 +89,16 @@ export default function OwnerApp() {
       return
     }
 
-    // Keep this separate: pending owners may get 403 from notifications and
-    // must not lose the registration status already loaded above.
-    try {
-      const notifications = await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications')
-      if (!isActive()) return
-      setThongBao(notifications)
-      if (ownerStatus === 'approved') {
+    if (ownerStatus === 'approved') {
+      try {
+        const notifications = await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications')
+        if (!isActive()) return
+        setThongBao(notifications)
+      } catch {
+        if (isActive()) setLoi('Không tải được thông báo của Chủ quán. Hãy tải lại trang.')
+      }
+
+      try {
         const [submissions, pois] = await Promise.all([
           api<OwnerSubmission[]>('/owner/submissions/mine'),
           api<OwnerPoi[]>('/owner/pois'),
@@ -88,14 +106,44 @@ export default function OwnerApp() {
         if (!isActive()) return
         setLichSu(submissions)
         setPoisCuaToi(pois)
-      } else {
-        setLichSu([])
-        setPoisCuaToi([])
+      } catch {
+        if (isActive()) setLoi('Đăng nhập được nhưng chưa tải được thông tin Chủ quán. Hãy tải lại trang.')
       }
-    } catch {
-      if (isActive()) setLoi('Đăng nhập được nhưng chưa tải được thông tin Chủ quán. Hãy tải lại trang.')
+    } else {
+      setThongBao([])
+      setLichSu([])
+      setPoisCuaToi([])
     }
   }, [])
+
+  useEffect(() => {
+    if (!user || trangThai !== 'approved') return
+    let active = true
+    const refresh = async () => {
+      if (dashboardTab === 'notifications') {
+        try {
+          const notifications = await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications')
+          if (active) setThongBao(notifications)
+        } catch {
+          if (active) setLoi('Không tải được thông báo của Chủ quán. Hãy thử lại.')
+        }
+      }
+      if (dashboardTab === 'places' || dashboardTab === 'menu' || dashboardTab === 'qr') {
+        try {
+          const pois = await api<OwnerPoi[]>('/owner/pois')
+          if (active) setPoisCuaToi(pois)
+        } catch {
+          if (active) setLoi('Không tải được danh sách địa điểm của bạn. Hãy thử lại.')
+        }
+      }
+    }
+    void refresh()
+    window.addEventListener('focus', refresh)
+    return () => {
+      active = false
+      window.removeEventListener('focus', refresh)
+    }
+  }, [dashboardTab, trangThai, user])
 
   useEffect(() => {
     let mounted = true
@@ -238,8 +286,32 @@ export default function OwnerApp() {
       setLoi('Vui lòng nhập tên quán ăn')
       return
     }
+    const lat = Number(viDo)
+    const lng = Number(kinhDo)
+    if (!diaChi.trim()) {
+      setLoi('Vui lòng nhập địa chỉ quán')
+      return
+    }
+    if (!viDo.trim() || !Number.isFinite(lat) || lat < -90 || lat > 90) {
+      setLoi('Vui lòng nhập vĩ độ hợp lệ trong khoảng -90 đến 90')
+      return
+    }
+    if (!kinhDo.trim() || !Number.isFinite(lng) || lng < -180 || lng > 180) {
+      setLoi('Vui lòng nhập kinh độ hợp lệ trong khoảng -180 đến 180')
+      return
+    }
+    const menuItems = monTrongThucDon
+      .filter((item) => item.name.trim() !== '')
+      .map((item) => ({
+        name: item.name.trim(),
+        description: item.description.trim(),
+        price: item.price.trim() ? Number(item.price) : null,
+      }))
+    if (menuItems.some((item) => item.price !== null && (!Number.isFinite(item.price) || item.price < 0))) {
+      setLoi('Giá món ăn phải là số không âm')
+      return
+    }
     try {
-      const poi = poisCuaToi.find((item) => item.id === poiDangSua)
       await api('/owner/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
@@ -247,13 +319,29 @@ export default function OwnerApp() {
           ...(poiDangSua ? { poi_id: poiDangSua } : {}),
           name: tenQuan,
           description: moTa,
-          lat: poi?.lat ?? 10.7569,
-          lng: poi?.lng ?? 106.7641,
+          address_line: diaChi.trim(),
+          lat,
+          lng,
+          ...(!poiDangSua && menuItems.length > 0
+            ? {
+                menu: {
+                  name: tenThucDon.trim() || 'Menu chính',
+                  description: moTaThucDon.trim(),
+                  items: menuItems,
+                },
+              }
+            : {}),
         }),
       })
       setThongBaoGui('Đã gửi thông tin quán thành công! Quán đang chờ Admin phê duyệt.')
       setTenQuan('')
       setMoTa('')
+      setDiaChi('')
+      setViDo('')
+      setKinhDo('')
+      setTenThucDon('Menu chính')
+      setMoTaThucDon('')
+      setMonTrongThucDon([{ name: '', description: '', price: '' }])
       setPoiDangSua('')
       setGoiYAI('')
     } catch {
@@ -482,6 +570,12 @@ export default function OwnerApp() {
                   const poi = poisCuaToi.find((item) => item.id === poiId)
                   setTenQuan(poi?.name ?? '')
                   setMoTa(poi?.description ?? '')
+                  setDiaChi(poi?.address_line ?? '')
+                  setViDo(poi ? String(poi.lat) : '')
+                  setKinhDo(poi ? String(poi.lng) : '')
+                  setTenThucDon('Menu chính')
+                  setMoTaThucDon('')
+                  setMonTrongThucDon([{ name: '', description: '', price: '' }])
                 }}
               >
                 <option value="">Đề xuất quán mới</option>
@@ -513,6 +607,133 @@ export default function OwnerApp() {
                 onChange={(e) => setMoTa(e.target.value)}
               />
             </div>
+
+            <div className="field">
+              <label className="field__label" htmlFor="owner-poi-address">Địa chỉ quán *</label>
+              <input
+                id="owner-poi-address"
+                className="input"
+                placeholder="Số nhà, đường, phường..."
+                value={diaChi}
+                disabled={!laDaDuyet}
+                onChange={(event) => setDiaChi(event.target.value)}
+              />
+            </div>
+
+            <div className="form-grid-2">
+              <div className="field">
+                <label className="field__label" htmlFor="owner-poi-latitude">Vĩ độ (Latitude) *</label>
+                <input
+                  id="owner-poi-latitude"
+                  className="input"
+                  type="number"
+                  step="any"
+                  placeholder="10.7569"
+                  value={viDo}
+                  disabled={!laDaDuyet}
+                  onChange={(event) => setViDo(event.target.value)}
+                />
+              </div>
+              <div className="field">
+                <label className="field__label" htmlFor="owner-poi-longitude">Kinh độ (Longitude) *</label>
+                <input
+                  id="owner-poi-longitude"
+                  className="input"
+                  type="number"
+                  step="any"
+                  placeholder="106.7641"
+                  value={kinhDo}
+                  disabled={!laDaDuyet}
+                  onChange={(event) => setKinhDo(event.target.value)}
+                />
+              </div>
+            </div>
+
+            {!poiDangSua && (
+              <section className="owner-submission-menu mt">
+                <h3 className="card__title">Thực đơn quán</h3>
+                <p className="card__subtitle">Thêm món ăn và giá để Admin duyệt cùng địa điểm.</p>
+                <div className="field">
+                  <label className="field__label" htmlFor="owner-submission-menu-name">Tên thực đơn</label>
+                  <input
+                    id="owner-submission-menu-name"
+                    className="input"
+                    value={tenThucDon}
+                    disabled={!laDaDuyet}
+                    onChange={(event) => setTenThucDon(event.target.value)}
+                  />
+                </div>
+                <div className="field">
+                  <label className="field__label" htmlFor="owner-submission-menu-description">Mô tả thực đơn</label>
+                  <textarea
+                    id="owner-submission-menu-description"
+                    className="input textarea"
+                    rows={2}
+                    value={moTaThucDon}
+                    disabled={!laDaDuyet}
+                    onChange={(event) => setMoTaThucDon(event.target.value)}
+                  />
+                </div>
+                {monTrongThucDon.map((item, index) => (
+                  <div className="owner-submission-menu__item" key={index}>
+                    <div className="field">
+                      <label className="field__label" htmlFor={`owner-submission-menu-item-${index}`}>Tên món {index + 1}</label>
+                      <input
+                        id={`owner-submission-menu-item-${index}`}
+                        className="input"
+                        placeholder="Ví dụ: Bánh mì chảo"
+                        value={item.name}
+                        disabled={!laDaDuyet}
+                        onChange={(event) => setMonTrongThucDon((items) => items.map((current, itemIndex) => itemIndex === index ? { ...current, name: event.target.value } : current))}
+                      />
+                    </div>
+                    <div className="field">
+                      <label className="field__label" htmlFor={`owner-submission-menu-price-${index}`}>Giá (VND)</label>
+                      <input
+                        id={`owner-submission-menu-price-${index}`}
+                        className="input"
+                        type="number"
+                        min="0"
+                        step="1000"
+                        placeholder="25000"
+                        value={item.price}
+                        disabled={!laDaDuyet}
+                        onChange={(event) => setMonTrongThucDon((items) => items.map((current, itemIndex) => itemIndex === index ? { ...current, price: event.target.value } : current))}
+                      />
+                    </div>
+                    <div className="field">
+                      <label className="field__label" htmlFor={`owner-submission-menu-item-description-${index}`}>Mô tả món</label>
+                      <input
+                        id={`owner-submission-menu-item-description-${index}`}
+                        className="input"
+                        placeholder="Mô tả ngắn (tuỳ chọn)"
+                        value={item.description}
+                        disabled={!laDaDuyet}
+                        onChange={(event) => setMonTrongThucDon((items) => items.map((current, itemIndex) => itemIndex === index ? { ...current, description: event.target.value } : current))}
+                      />
+                    </div>
+                    {monTrongThucDon.length > 1 && (
+                      <button
+                        className="btn btn--secondary btn--sm"
+                        type="button"
+                        disabled={!laDaDuyet}
+                        onClick={() => setMonTrongThucDon((items) => items.filter((_, itemIndex) => itemIndex !== index))}
+                      >
+                        Xóa món
+                      </button>
+                    )}
+                  </div>
+                ))}
+                <button
+                  className="btn btn--secondary btn--sm"
+                  type="button"
+                  disabled={!laDaDuyet || monTrongThucDon.length >= 100}
+                  onClick={() => setMonTrongThucDon((items) => [...items, { name: '', description: '', price: '' }])}
+                >
+                  Thêm món
+                </button>
+              </section>
+            )}
 
             <div className="button-group mt">
               <button
@@ -612,9 +833,15 @@ export default function OwnerApp() {
               <div className="owner-poi-card__heading">
                 <div>
                   <h2>{poi.name}</h2>
-                  <p>{poi.lat.toFixed(5)}, {poi.lng.toFixed(5)} · Bán kính {poi.trigger_radius}m</p>
+                  <p>{poi.address_line || 'Chưa có địa chỉ'} · {poi.lat.toFixed(5)}, {poi.lng.toFixed(5)} · Bán kính {poi.trigger_radius}m</p>
                 </div>
-                <span className="badge badge--ok">Đang quản lý</span>
+                <span className={`badge badge--${poi.publication_status === 'published' && poi.is_active ? 'ok' : 'warn'}`}>
+                  {poi.publication_status === 'published' && poi.is_active
+                    ? 'Đang công khai'
+                    : poi.publication_status === 'pending_review'
+                      ? 'Đã duyệt · chờ xuất bản'
+                      : 'Đang xử lý'}
+                </span>
               </div>
               <p className="owner-poi-card__description">{poi.description || 'Chưa có mô tả.'}</p>
               {poi.audio_url && layUrlAnh(poi.audio_url) && (
@@ -629,6 +856,9 @@ export default function OwnerApp() {
                   setPoiDangSua(poi.id)
                   setTenQuan(poi.name)
                   setMoTa(poi.description)
+                  setDiaChi(poi.address_line)
+                  setViDo(String(poi.lat))
+                  setKinhDo(String(poi.lng))
                   setDashboardTab('submission')
                 }}
               >

@@ -4,6 +4,7 @@ import AnalyticsPanel from './AnalyticsPanel'
 import AudioTasks from './AudioTasks'
 import OwnerApprovals from './OwnerApprovals'
 import PoiImageManager from './PoiImageManager'
+import PoiTranslations from './PoiTranslations'
 import PortalDashboard, { type PortalDashboardItem } from './PortalDashboard'
 import AdminGovernance from './AdminGovernance'
 import AdminAccessManagement from './AdminAccessManagement'
@@ -30,6 +31,12 @@ const TRONG: Poi = {
   images: [],
 }
 
+interface AdminPoi extends Poi {
+  address_line: string
+  publication_status: string
+  is_active: boolean
+}
+
 // Hai cổng dùng chung MỘT cookie phiên, nên phiên chủ quán có thể "tràn" sang
 // tab Admin khi đổi tab: `/admin/auth/me` trả 200 cho mọi phiên đã đăng nhập
 // (hợp đồng class A) nên client phải tự chặn phiên cổng khách khỏi render
@@ -44,8 +51,13 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   const [matKhau, setMatKhau] = useState('')
   const [loi, setLoi] = useState('')
   const [dangDangNhap, setDangDangNhap] = useState(false)
-  const [pois, setPois] = useState<Poi[]>([])
-  const [form, setForm] = useState<Poi>(TRONG)
+  const [pois, setPois] = useState<AdminPoi[]>([])
+  const [form, setForm] = useState<AdminPoi>({
+    ...TRONG,
+    address_line: '',
+    publication_status: 'draft',
+    is_active: false,
+  })
   const [dangSua, setDangSua] = useState(false)
   const [poiQuanLyAnh, setPoiQuanLyAnh] = useState<Poi | null>(null)
   const [adminTab, setAdminTab] = useState(
@@ -53,9 +65,10 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
   )
 
   const taiPois = useCallback(async () => {
-    const [ketQuaDanhSach] = await Promise.allSettled([api<Poi[]>('/poi')])
-    if (ketQuaDanhSach.status === 'fulfilled') {
-      setPois(ketQuaDanhSach.value)
+    try {
+      setPois(await api<AdminPoi[]>('/admin/pois'))
+    } catch {
+      setLoi('Không tải được danh sách POI quản trị. Vui lòng tải lại trang.')
     }
   }, [])
 
@@ -166,7 +179,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
           body: JSON.stringify({ ...form, id: undefined }),
         })
       }
-      setForm(TRONG)
+      setForm({ ...TRONG, address_line: '', publication_status: 'draft', is_active: false })
       setDangSua(false)
       await taiPois()
       onPoisChanged()
@@ -283,6 +296,11 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M12 2a3 3 0 0 0-3 3v7a3 3 0 0 0 6 0V5a3 3 0 0 0-3-3Z" /><path d="M19 10v2a7 7 0 0 1-14 0v-2m7 9v3" /></svg>,
     },
     {
+      key: 'translations',
+      label: 'Bản dịch POI',
+      icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 5h16M9 3v2m6 0c-.5 5-3 8-7 10m1-6c1 2 3 4 6 5m1 7 3-8 3 8m-5-2h4" /></svg>,
+    },
+    {
       key: 'analytics',
       label: 'Thống kê & Giám sát',
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M4 19V9m8 10V4m8 15v-7" /></svg>,
@@ -302,6 +320,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
     pois: ['Quản lý địa điểm', 'Theo dõi và cập nhật các điểm ẩm thực Quận 4.'],
     approvals: ['Kiểm duyệt', 'Xử lý hồ sơ chủ quán và địa điểm mới gửi lên.'],
     audio: ['Tác vụ âm thanh', 'Quản lý nội dung thuyết minh cho các điểm ẩm thực.'],
+    translations: ['Bản dịch POI', 'Nhập bản dịch thủ công cho các ngôn ngữ khách hàng lựa chọn.'],
     analytics: ['Thống kê & Giám sát', 'Theo dõi tương tác và tình trạng vận hành hệ thống.'],
     access: ['Tài khoản & quyền', 'Quản lý trạng thái tài khoản và quyền vai trò.'],
     audit: ['Nhật ký hoạt động', 'Tra cứu lịch sử thao tác trong hệ thống.'],
@@ -318,7 +337,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       activeItem={adminTab}
       items={navItems}
       onNavigate={(key) => {
-        if (key === 'pois' || key === 'approvals' || key === 'audio' || key === 'analytics' || key === 'access' || key === 'audit') {
+        if (key === 'pois' || key === 'approvals' || key === 'audio' || key === 'translations' || key === 'analytics' || key === 'access' || key === 'audit') {
           setAdminTab(key)
           navigateToPath(getPortalPath('admin', key))
         }
@@ -386,6 +405,16 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
               />
             </div>
 
+            <div className="field">
+              <label className="field__label">Địa chỉ</label>
+              <input
+                className="input"
+                placeholder="Số nhà, đường, phường..."
+                value={form.address_line}
+                onChange={(e) => setForm({ ...form, address_line: e.target.value })}
+              />
+            </div>
+
             <div className="form-grid-2">
               <div className="field">
                 <label className="field__label">Vĩ độ (Latitude) *</label>
@@ -441,7 +470,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
                   className="btn btn--secondary"
                   type="button"
                   onClick={() => {
-                    setForm(TRONG)
+                    setForm({ ...TRONG, address_line: '', publication_status: 'draft', is_active: false })
                     setDangSua(false)
                   }}
                 >
@@ -466,6 +495,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
                   <tr>
                     <th style={{ width: 64 }}>Ảnh</th>
                     <th>Tên quán</th>
+                    <th>Địa chỉ / Trạng thái</th>
                     <th>Toạ độ / Bán kính</th>
                     <th style={{ textAlign: 'right' }}>Thao tác</th>
                   </tr>
@@ -500,6 +530,18 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
                           <div className="muted" style={{ fontSize: '0.82rem' }}>
                             {p.images ? `${p.images.length}/8 ảnh` : '0/8 ảnh'} · {p.audio_url ? 'Đã có audio' : 'Chưa có audio'}
                           </div>
+                        </td>
+                        <td>
+                          <div>{p.address_line || 'Chưa có địa chỉ'}</div>
+                          <span className={`badge badge--${p.publication_status === 'published' && p.is_active ? 'ok' : 'warn'}`}>
+                            {p.publication_status === 'published' && p.is_active
+                              ? 'Đang công khai'
+                              : p.publication_status === 'pending_review'
+                                ? 'Chờ xuất bản'
+                                : p.publication_status === 'draft'
+                                  ? 'Bản nháp'
+                                  : p.publication_status}
+                          </span>
                         </td>
                         <td>
                           <span className="badge badge--neutral" style={{ fontSize: '0.78rem' }}>
@@ -549,13 +591,30 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
 
       {adminTab === 'approvals' && (
         <div className="mt">
-          <OwnerApprovals />
+          <OwnerApprovals
+            onPoiApproved={async () => {
+              await taiPois()
+              onPoisChanged()
+            }}
+          />
         </div>
       )}
 
       {adminTab === 'audio' && (
         <div className="mt">
           <AudioTasks />
+        </div>
+      )}
+
+      {adminTab === 'translations' && (
+        <div className="mt">
+          <PoiTranslations
+            pois={pois}
+            onSaved={async () => {
+              await taiPois()
+              onPoisChanged()
+            }}
+          />
         </div>
       )}
 

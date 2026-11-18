@@ -39,12 +39,26 @@ class XetDuyet(BaseModel):
     admin_note: str = Field(default="", max_length=MAX_ADMIN_NOTE)
 
 
+class SubmissionMenuItem(BaseModel):
+    name: str = Field(min_length=1, max_length=200)
+    description: str = Field(default="", max_length=5000)
+    price: float | None = Field(default=None, ge=0)
+
+
+class SubmissionMenu(BaseModel):
+    name: str = Field(default="Menu chính", min_length=1, max_length=200)
+    description: str = Field(default="", max_length=5000)
+    items: list[SubmissionMenuItem] = Field(default_factory=list, max_length=100)
+
+
 class SubmissionNhap(BaseModel):
     poi_id: str | None = None
     name: str = Field(min_length=1, max_length=MAX_TEN)
     description: str = Field(default="", max_length=MAX_MO_TA)
+    address_line: str = Field(default="", max_length=500)
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
+    menu: SubmissionMenu | None = None
 
 
 def doi_id(poi_id: str) -> UUID:
@@ -316,8 +330,10 @@ async def gui_submission(
     snapshot = {
         "name": body.name,
         "description": body.description,
+        "address_line": body.address_line,
         "lat": body.lat,
         "lng": body.lng,
+        "menu": body.menu.model_dump() if body.menu is not None else None,
     }
     result = await db.execute(
         text(
@@ -354,6 +370,7 @@ async def pois_cua_toi(
         text(
             """
             SELECT p.id::text AS id, p.name, COALESCE(p.description, '') AS description,
+                   COALESCE(p.address_line, '') AS address_line,
                    p.latitude::double precision AS lat,
                    p.longitude::double precision AS lng,
                    p.trigger_radius_m AS trigger_radius,
@@ -444,6 +461,7 @@ async def duyet_submission(
 
     owner_id = UUID(str(submission["owner_id"]))
     snapshot = _json_value(submission["content_snapshot"])
+    snapshot.setdefault("address_line", "")
     poi_id = submission["poi_id"]
     if poi_id is not None:
         poi_id = UUID(str(poi_id))
@@ -467,8 +485,9 @@ async def duyet_submission(
                 """
                 UPDATE pois
                 SET name = :name, description = :description,
+                    address_line = :address_line,
                     latitude = :lat, longitude = :lng,
-                    publication_status = 'pending_review', is_active = FALSE,
+                    publication_status = 'published', is_active = TRUE,
                     updated_by = :reviewer_id, updated_at = now()
                 WHERE id = :poi_id
                 RETURNING id
@@ -491,7 +510,7 @@ async def duyet_submission(
                     updated_at
                 )
                 VALUES (
-                    :name, :description, 'other', '', :lat, :lng,
+                    :name, :description, 'other', :address_line, :lat, :lng,
                     :owner_id, 'pending_review', FALSE, :owner_id, :reviewer_id,
                     now()
                 )
@@ -501,6 +520,50 @@ async def duyet_submission(
             {**snapshot, "owner_id": owner_id, "reviewer_id": reviewer_id},
         )
         poi_id = UUID(str(poi_result.scalar_one()))
+        menu = snapshot.get("menu")
+        if menu is not None:
+            if not isinstance(menu, Mapping):
+                raise HTTPException(status_code=409, detail="Thực đơn gửi lên không hợp lệ")
+            menu_result = await db.execute(
+                text(
+                    """
+                    INSERT INTO menus (poi_id, name, description, is_active)
+                    VALUES (:poi_id, :name, :description, TRUE)
+                    RETURNING id
+                    """
+                ),
+                {
+                    "poi_id": poi_id,
+                    "name": menu.get("name", "Menu chính"),
+                    "description": menu.get("description") or None,
+                },
+            )
+            menu_id = menu_result.scalar_one()
+            items = menu.get("items", [])
+            if not isinstance(items, list):
+                raise HTTPException(status_code=409, detail="Danh sách món gửi lên không hợp lệ")
+            for sort_order, item in enumerate(items):
+                if not isinstance(item, Mapping):
+                    raise HTTPException(status_code=409, detail="Thông tin món gửi lên không hợp lệ")
+                await db.execute(
+                    text(
+                        """
+                        INSERT INTO menu_items (
+                            menu_id, name, description, price, is_available, sort_order
+                        )
+                        VALUES (
+                            :menu_id, :name, :description, :price, TRUE, :sort_order
+                        )
+                        """
+                    ),
+                    {
+                        "menu_id": menu_id,
+                        "name": item["name"],
+                        "description": item.get("description") or None,
+                        "price": item.get("price"),
+                        "sort_order": sort_order,
+                    },
+                )
 
     await db.execute(
         text(
@@ -613,6 +676,7 @@ async def submission_cho_duyet(
             """
             SELECT s.id::text AS id, u.email AS username,
                    COALESCE(s.content_snapshot ->> 'name', '') AS name,
+                   s.content_snapshot AS data,
                    s.submitted_at AS created_at
             FROM poi_submissions AS s
             JOIN users AS u ON u.id = s.owner_id
@@ -622,7 +686,14 @@ async def submission_cho_duyet(
             """
         )
     )
-    return [{**dict(row), "created_at": _iso(row["created_at"])} for row in result.mappings().all()]
+    return [
+        {
+            **dict(row),
+            "data": _json_value(row["data"]),
+            "created_at": _iso(row["created_at"]),
+        }
+        for row in result.mappings().all()
+    ]
 
 
 @router.get("/owner/notifications", summary="Thông báo của tôi")

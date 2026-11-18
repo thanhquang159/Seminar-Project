@@ -1,5 +1,7 @@
 import { useEffect, useState } from 'react'
 import { API_BASE_URL } from '../config'
+import { usePoiStore } from '../stores/poiStore'
+import { dongBo, taiThucDonNgoaiTuyen } from '../offline/sync'
 import { type PackHook } from './useMapPack'
 
 const API_GOC = API_BASE_URL
@@ -28,9 +30,13 @@ const MA_NGON_NGU: Record<string, string> = {
 
 export default function OfflinePacks({ pack }: { pack: PackHook }) {
   const { cheDo, setCheDo, trangThai, taiPack } = pack
+  const lang = usePoiStore((state) => state.lang)
   const [scopes, setScopes] = useState<string[]>([])
   const [langPack, setLangPack] = useState('')
   const [dangTaiAudio, setDangTaiAudio] = useState(false)
+  const [dangTaiNoiDung, setDangTaiNoiDung] = useState(false)
+  const [trangThaiNoiDung, setTrangThaiNoiDung] = useState('')
+  const [loiNoiDung, setLoiNoiDung] = useState(false)
   const [thatBaiLienTiep, setThatBaiLienTiep] = useState(0)
 
   useEffect(() => {
@@ -55,6 +61,26 @@ export default function OfflinePacks({ pack }: { pack: PackHook }) {
       setLangPack(lang)
     } finally {
       setDangTaiAudio(false)
+    }
+  }
+
+  const taiNoiDungNgoaiTuyen = async () => {
+    setDangTaiNoiDung(true)
+    setTrangThaiNoiDung('')
+    setLoiNoiDung(false)
+    try {
+      const { pois } = await dongBo(lang, true)
+      const soMenu = await taiThucDonNgoaiTuyen(lang)
+      setTrangThaiNoiDung(
+        `Đã lưu ${pois.length} địa điểm và ${soMenu} thực đơn để dùng ngoại tuyến (${lang.toUpperCase()}).`,
+      )
+    } catch (error) {
+      setLoiNoiDung(true)
+      setTrangThaiNoiDung(
+        error instanceof Error ? error.message : 'Không thể tải dữ liệu POI và thực đơn.',
+      )
+    } finally {
+      setDangTaiNoiDung(false)
     }
   }
 
@@ -110,6 +136,29 @@ export default function OfflinePacks({ pack }: { pack: PackHook }) {
           Máy chủ offline đang bận hoặc không kết nối được. Vui lòng thử lại sau giây lát.
         </div>
       )}
+
+      <div className="card mt">
+        <h3 className="card__title">Dữ liệu địa điểm và thực đơn</h3>
+        <p className="card__subtitle">
+          Lưu POI và thực đơn công khai theo ngôn ngữ đang chọn ({lang.toUpperCase()}) để xem khi mất mạng.
+        </p>
+        <button
+          className="btn btn--primary mt"
+          type="button"
+          onClick={() => void taiNoiDungNgoaiTuyen()}
+          disabled={dangTaiNoiDung}
+        >
+          {dangTaiNoiDung ? 'Đang tải dữ liệu…' : 'Tải POI và thực đơn'}
+        </button>
+        {trangThaiNoiDung && (
+          <div
+            className={`notice notice--${loiNoiDung ? 'error' : 'ok'} mt`}
+            role={loiNoiDung ? 'alert' : 'status'}
+          >
+            {trangThaiNoiDung}
+          </div>
+        )}
+      </div>
 
       {/* 2. Gói bản đồ offline */}
       <div className="card mt">

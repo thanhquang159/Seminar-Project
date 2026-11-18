@@ -1,32 +1,23 @@
 import { useEffect, useState } from 'react'
 import { API_BASE_URL } from '../config'
 import { useUiBundle } from '../i18n/bundles'
+import {
+  docThucDonCongKhai,
+  luuThucDonCongKhai,
+  type PublicPoiMenu,
+  type PublicPoiMenuItem,
+} from '../offline/idb'
 import { usePoiStore } from '../stores/poiStore'
-
-interface PublicMenuItem {
-  id: string
-  name: string
-  description: string | null
-  price: number | string | null
-  currency_code: string
-  is_available: boolean
-}
-
-interface PublicMenu {
-  id: string
-  name: string
-  description: string | null
-  items: PublicMenuItem[]
-}
 
 interface MenuState {
   poiId: string
-  menus: PublicMenu[]
+  lang: string
+  menus: PublicPoiMenu[]
   dangTai: boolean
   loi: boolean
 }
 
-function isMenuItem(value: unknown): value is PublicMenuItem {
+function isMenuItem(value: unknown): value is PublicPoiMenuItem {
   if (typeof value !== 'object' || value === null) return false
   const item = value as Record<string, unknown>
   return (
@@ -39,11 +30,12 @@ function isMenuItem(value: unknown): value is PublicMenuItem {
   )
 }
 
-function isMenu(value: unknown): value is PublicMenu {
+function isMenu(value: unknown): value is PublicPoiMenu {
   if (typeof value !== 'object' || value === null) return false
   const menu = value as Record<string, unknown>
   return (
     typeof menu.id === 'string'
+    && typeof menu.poi_id === 'string'
     && typeof menu.name === 'string'
     && (typeof menu.description === 'string' || menu.description === null)
     && Array.isArray(menu.items)
@@ -56,18 +48,37 @@ export default function PublicPoiMenu({ poiId }: { poiId: string }) {
   const { t } = useUiBundle(lang)
   const [menuState, setMenuState] = useState<MenuState>({
     poiId,
+    lang,
     menus: [],
     dangTai: true,
     loi: false,
   })
-  const currentState = menuState.poiId === poiId
+  const currentState = menuState.poiId === poiId && menuState.lang === lang
     ? menuState
-    : { poiId, menus: [], dangTai: true, loi: false }
+    : { poiId, lang, menus: [], dangTai: true, loi: false }
 
   useEffect(() => {
     const controller = new AbortController()
 
     const taiMenu = async () => {
+      let coCache = false
+      try {
+        const cached = await docThucDonCongKhai(lang)
+        if (controller.signal.aborted) return
+        if (cached !== null) {
+          coCache = true
+          setMenuState({
+            poiId,
+            lang,
+            menus: cached[poiId] ?? [],
+            dangTai: false,
+            loi: false,
+          })
+        }
+      } catch (error) {
+        console.warn('Không đọc được thực đơn trong cache ngoại tuyến:', error)
+      }
+
       try {
         const response = await fetch(
           `${API_BASE_URL}/poi/${encodeURIComponent(poiId)}/menus`,
@@ -78,17 +89,27 @@ export default function PublicPoiMenu({ poiId }: { poiId: string }) {
         if (!Array.isArray(payload) || !payload.every(isMenu)) {
           throw new Error('Dữ liệu thực đơn không hợp lệ')
         }
-        setMenuState({ poiId, menus: payload, dangTai: false, loi: false })
+        if (controller.signal.aborted) return
+        setMenuState({ poiId, lang, menus: payload, dangTai: false, loi: false })
+        try {
+          const cached = await docThucDonCongKhai(lang)
+          await luuThucDonCongKhai(lang, {
+            ...(cached ?? {}),
+            [poiId]: payload,
+          })
+        } catch (error) {
+          console.warn('Không lưu được thực đơn vào cache ngoại tuyến:', error)
+        }
       } catch {
-        if (!controller.signal.aborted) {
-          setMenuState({ poiId, menus: [], dangTai: false, loi: true })
+        if (!controller.signal.aborted && !coCache) {
+          setMenuState({ poiId, lang, menus: [], dangTai: false, loi: true })
         }
       }
     }
 
     void taiMenu()
     return () => controller.abort()
-  }, [poiId])
+  }, [lang, poiId])
 
   return (
     <section className="poi-detail__menu" aria-label={t('menu_section')}>

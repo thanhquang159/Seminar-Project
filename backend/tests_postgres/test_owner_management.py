@@ -127,6 +127,45 @@ def test_owner_submissions_include_review_note_and_submission_time():
     assert submissions[0]["created_at"] == submitted_at.isoformat()
 
 
+def test_owner_notifications_return_approval_message_for_the_authenticated_owner():
+    owner_id = uuid4()
+    notification_id = uuid4()
+    created_at = datetime(2026, 11, 10, 4, 30, tzinfo=UTC)
+    session = FakeSession(
+        FakeResult(
+            rows=[
+                {
+                    "id": str(notification_id),
+                    "owner_id": str(owner_id),
+                    "notification_type": "poi_submission_approved",
+                    "title": "Đề xuất POI đã được duyệt",
+                    "message": "Đề xuất cho Cafe đã được duyệt",
+                    "reference_type": "poi",
+                    "reference_id": str(uuid4()),
+                    "read": False,
+                    "created_at": created_at,
+                    "read_at": None,
+                }
+            ]
+        )
+    )
+
+    notifications = asyncio.run(
+        owner.thong_bao(
+            session,
+            {"id": str(owner_id), "username": "owner@example.test"},
+        )
+    )
+
+    sql, params = session.statements[0]
+    assert "WHERE owner_id = :owner_id" in sql
+    assert params == {"owner_id": owner_id}
+    assert notifications[0]["id"] == str(notification_id)
+    assert notifications[0]["message"] == "Đề xuất cho Cafe đã được duyệt"
+    assert notifications[0]["read"] is False
+    assert notifications[0]["created_at"] == created_at.isoformat()
+
+
 def test_reject_submission_requires_a_non_empty_reason():
     session = FakeSession()
 

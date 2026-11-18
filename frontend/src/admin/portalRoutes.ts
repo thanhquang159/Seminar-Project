@@ -1,6 +1,13 @@
 export type PortalRole = 'admin' | 'owner'
 export type OwnerPortalPage = 'submission' | 'history' | 'places' | 'qr' | 'menu' | 'notifications'
-export type AdminPortalPage = 'pois' | 'approvals' | 'audio' | 'analytics' | 'access' | 'audit'
+export type AdminPortalPage =
+  | 'pois'
+  | 'approvals'
+  | 'audio'
+  | 'translations'
+  | 'analytics'
+  | 'access'
+  | 'audit'
 export type PortalPage = OwnerPortalPage | AdminPortalPage
 
 const OWNER_PATHS: Record<OwnerPortalPage, string> = {
@@ -26,6 +33,7 @@ const ADMIN_PATHS: Record<AdminPortalPage, string> = {
   pois: '/admin',
   approvals: '/admin/approvals',
   audio: '/admin/audio',
+  translations: '/admin/translations',
   analytics: '/admin/analytics',
   access: '/admin/access',
   audit: '/admin/audit',
@@ -36,6 +44,7 @@ const ADMIN_PAGES: Record<string, AdminPortalPage> = {
   '/admin/pois': 'pois',
   '/admin/approvals': 'approvals',
   '/admin/audio': 'audio',
+  '/admin/translations': 'translations',
   '/admin/analytics': 'analytics',
   '/admin/access': 'access',
   '/admin/audit': 'audit',

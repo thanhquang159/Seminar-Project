@@ -24,15 +24,18 @@ class FakeResult:
 
 
 class FakeSession:
-    def __init__(self, rows=None, version=123, changes=None):
+    def __init__(self, rows=None, version=123, changes=None, count=0):
         self.rows = rows or []
         self.version = version
         self.changes = changes or []
+        self.count = count
         self.statements = []
 
     async def execute(self, statement, params=None):
         sql = str(statement)
         self.statements.append((sql, params or {}))
+        if "SELECT count(*) FROM pois" in sql:
+            return FakeResult(scalar=self.count)
         if "FROM poi_sync_state" in sql:
             return FakeResult(scalar=self.version)
         if "FROM latest_changes" in sql:
@@ -86,20 +89,20 @@ def test_list_pois_uses_postgres_response_shape():
     assert "p.publication_status = 'published'" in session.statements[0][0]
 
 
-def test_count_pois_returns_zero_without_changing_poi_list():
-    session = FakeSession()
+def test_count_pois_counts_active_published_pois():
+    session = FakeSession(count=7)
 
     async def request():
         async with create_client(session) as client:
             count = await client.get("/poi/count")
-            pois = await client.get("/poi")
-            return count, pois
+            return count
 
-    count, pois = asyncio.run(request())
+    count = asyncio.run(request())
     assert count.status_code == 200
-    assert count.json() == {"count": 0}
-    assert pois.status_code == 200
-    assert pois.json() == []
+    assert count.json() == {"count": 7}
+    sql = session.statements[0][0]
+    assert "p.is_active IS TRUE" in sql
+    assert "p.publication_status = 'published'" in sql
     assert len(session.statements) == 1
 
 
@@ -216,6 +219,35 @@ def test_public_menu_endpoint_rejects_non_uuid_id_without_querying_database():
     response = asyncio.run(request())
     assert response.status_code == 400
     assert session.statements == []
+
+
+def test_offline_menus_returns_only_published_pois_and_active_menus():
+    poi_id = str(uuid4())
+    menu_id = str(uuid4())
+    session = FakeSession(
+        rows=[
+            {
+                "id": menu_id,
+                "poi_id": poi_id,
+                "name": "Menu chính",
+                "description": None,
+                "items": [],
+            }
+        ]
+    )
+
+    async def request():
+        async with create_client(session) as client:
+            return await client.get("/poi/menus")
+
+    response = asyncio.run(request())
+    assert response.status_code == 200
+    assert response.json()[0]["poi_id"] == poi_id
+    sql = session.statements[0][0]
+    assert "p.is_active IS TRUE" in sql
+    assert "p.publication_status = 'published'" in sql
+    assert "m.is_active IS TRUE" in sql
+    assert "GROUP BY m.id" in sql
 
 
 def test_delta_returns_tombstones_and_current_pois_after_cursor():

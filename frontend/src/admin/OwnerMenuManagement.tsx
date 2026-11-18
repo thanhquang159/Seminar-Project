@@ -51,8 +51,9 @@ export default function OwnerMenuManagement({
   const [loi, setLoi] = useState('')
   const [thongBao, setThongBao] = useState('')
   const [dangTai, setDangTai] = useState(true)
+  const selectedPoiId = pois.some((poi) => poi.id === poiId) ? poiId : pois[0]?.id ?? ''
 
-  const taiMenus = async (targetPoi = poiId) => {
+  const taiMenus = async (targetPoi = selectedPoiId) => {
     if (!targetPoi) {
       setMenus([])
       return
@@ -70,8 +71,8 @@ export default function OwnerMenuManagement({
 
   useEffect(() => {
     let active = true
-    if (!poiId) return
-    api<OwnerMenu[]>(`/owner/pois/${poiId}/menus`)
+    if (!selectedPoiId) return
+    api<OwnerMenu[]>(`/owner/pois/${selectedPoiId}/menus`)
       .then((data) => {
         if (active) setMenus(data)
       })
@@ -84,14 +85,14 @@ export default function OwnerMenuManagement({
     return () => {
       active = false
     }
-  }, [poiId])
+  }, [selectedPoiId])
 
   const taoMenu = async () => {
-    if (!poiId) return
+    if (!selectedPoiId) return
     setLoi('')
     setThongBao('')
     try {
-      await api<OwnerMenu>(`/owner/pois/${poiId}/menus`, {
+      await api<OwnerMenu>(`/owner/pois/${selectedPoiId}/menus`, {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({ name: 'Menu chính', is_active: true }),
@@ -178,7 +179,7 @@ export default function OwnerMenuManagement({
               <span className="field__label">Địa điểm</span>
               <select
                 className="input"
-                value={poiId}
+                value={selectedPoiId}
                 onChange={(event) => {
                   setDangTai(true)
                   setLoi('')
@@ -189,7 +190,7 @@ export default function OwnerMenuManagement({
                 {pois.map((poi) => <option value={poi.id} key={poi.id}>{poi.name}</option>)}
               </select>
             </label>
-            <button className="btn btn--secondary" type="button" onClick={() => void taoMenu()} disabled={!poiId}>
+            <button className="btn btn--secondary" type="button" onClick={() => void taoMenu()} disabled={!selectedPoiId}>
               Tạo thực đơn
             </button>
           </div>

@@ -11,12 +11,22 @@ interface SubmissionChoDuyet {
   username: string
   name: string
   created_at: string | null
+  data: {
+    address_line?: string
+    lat?: number
+    lng?: number
+    menu?: {
+      name?: string
+      description?: string
+      items?: { name: string; price?: number | null }[]
+    } | null
+  }
 }
 
 // Chủ quán đăng ký ở portal Owner; admin duyệt ở đây thì họ mới gửi được quán.
 // Hai hàng đợi vì một chủ quán phải qua hai cổng: duyệt tài khoản, rồi duyệt
 // từng quán. Thiếu một trong hai thì vòng lặp "gửi → thông báo" không đóng.
-export default function OwnerApprovals() {
+export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () => void | Promise<void> }) {
   const [don, setDon] = useState<DonDangKy[]>([])
   const [choDuyet, setChoDuyet] = useState<SubmissionChoDuyet[]>([])
   const [ghiChu, setGhiChu] = useState<Record<string, string>>({})
@@ -75,6 +85,7 @@ export default function OwnerApprovals() {
       return
     }
     await tai()
+    await onPoiApproved()
   }
 
   const tuChoiQuan = async (id: string) => {
@@ -200,6 +211,20 @@ export default function OwnerApprovals() {
                   <tr key={s.id}>
                     <td>
                       <strong className="poi-title-cell">{s.name}</strong>
+                      <div className="muted mt-xs">
+                        {s.data.address_line || 'Chưa có địa chỉ'} ·{' '}
+                        {typeof s.data.lat === 'number' && typeof s.data.lng === 'number'
+                          ? `${s.data.lat}, ${s.data.lng}`
+                          : 'Chưa có tọa độ'}
+                      </div>
+                      {s.data.menu && (
+                        <div className="muted mt-xs">
+                          {s.data.menu.name || 'Thực đơn'}
+                          {s.data.menu.items?.length
+                            ? ` · ${s.data.menu.items.map((item) => item.name).join(', ')}`
+                            : ''}
+                        </div>
+                      )}
                       <input
                         className="input input--sm mt-xs"
                         aria-label={`Lý do từ chối ${s.name}`}

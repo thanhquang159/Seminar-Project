@@ -2,7 +2,17 @@
 
 import type { Poi } from '../stores/poiStore'
 import { API_BASE_URL } from '../config'
-import { docCursor, docPois, docPoisFallback, luuCursor, luuPois } from './idb'
+import {
+  docCursor,
+  docPois,
+  docPoisFallback,
+  luuCursor,
+  luuPois,
+  luuThucDonCongKhai,
+  xoaTatCaCachePois,
+  type PublicPoiMenu,
+  type PublicPoiMenuItem,
+} from './idb'
 
 const API_GOC = API_BASE_URL
 
@@ -31,12 +41,89 @@ async function taiToanBo(lang: string): Promise<Poi[]> {
   return goi.pois
 }
 
+export async function taiThucDonNgoaiTuyen(lang: string): Promise<number> {
+  const response = await fetch(`${API_GOC}/poi/menus`)
+  if (!response.ok) {
+    throw new Error(`Không thể tải thực đơn ngoại tuyến (HTTP ${response.status})`)
+  }
+  const payload: unknown = await response.json()
+  if (!Array.isArray(payload) || !payload.every(laThucDonCongKhai)) {
+    throw new Error('Dữ liệu thực đơn ngoại tuyến không hợp lệ')
+  }
+  const menusByPoi = payload.reduce<Record<string, PublicPoiMenu[]>>((grouped, menu) => {
+    const menus = grouped[menu.poi_id] ?? []
+    menus.push(menu)
+    grouped[menu.poi_id] = menus
+    return grouped
+  }, {})
+  await luuThucDonCongKhai(lang, menusByPoi)
+  return payload.length
+}
+
+function laThucDonCongKhai(value: unknown): value is PublicPoiMenu {
+  if (typeof value !== 'object' || value === null) return false
+  const menu = value as Record<string, unknown>
+  return (
+    typeof menu.id === 'string'
+    && typeof menu.poi_id === 'string'
+    && typeof menu.name === 'string'
+    && (typeof menu.description === 'string' || menu.description === null)
+    && Array.isArray(menu.items)
+    && menu.items.every(laMonCongKhai)
+  )
+}
+
+function laMonCongKhai(value: unknown): value is PublicPoiMenuItem {
+  if (typeof value !== 'object' || value === null) return false
+  const item = value as Record<string, unknown>
+  return (
+    typeof item.id === 'string'
+    && typeof item.name === 'string'
+    && (typeof item.description === 'string' || item.description === null)
+    && (typeof item.price === 'number' || typeof item.price === 'string' || item.price === null)
+    && typeof item.currency_code === 'string'
+    && typeof item.is_available === 'boolean'
+  )
+}
+
 export async function dongBo(
   lang: string,
   taiLaiToanBo = false,
 ): Promise<{ pois: Poi[]; tuMang: boolean }> {
   try {
     if (taiLaiToanBo) {
+      return { pois: await taiToanBo(lang), tuMang: true }
+    }
+
+    let banCu: { pois: Poi[]; version: number } | null
+    try {
+      banCu = await docPois(lang)
+    } catch (error) {
+      console.warn('Không đọc được danh sách POI trong cache ngoại tuyến:', error)
+      banCu = null
+    }
+
+    if (banCu !== null) {
+      const response = await fetch(`${API_GOC}/poi/count`)
+      if (!response.ok) {
+        throw new Error(`Không thể kiểm tra số lượng POI (HTTP ${response.status})`)
+      }
+      const payload: unknown = await response.json()
+      if (
+        typeof payload !== 'object'
+        || payload === null
+        || !('count' in payload)
+        || typeof payload.count !== 'number'
+        || !Number.isInteger(payload.count)
+        || payload.count < 0
+      ) {
+        throw new Error('Số lượng POI từ máy chủ không hợp lệ')
+      }
+      if (payload.count !== banCu.pois.length) {
+        await xoaTatCaCachePois()
+        return { pois: await taiToanBo(lang), tuMang: true }
+      }
+    } else {
       return { pois: await taiToanBo(lang), tuMang: true }
     }
 
@@ -58,16 +145,6 @@ export async function dongBo(
     }
     if (!res.ok) throw new Error(`Không thể đồng bộ POI (HTTP ${res.status})`)
     const goi = (await res.json()) as { version: number; sync_cursor: number; updated: Poi[]; removed_poi_ids: string[] }
-    let banCu: { pois: Poi[]; version: number } | null
-    try {
-      banCu = await docPois(lang)
-    } catch (error) {
-      console.warn('Không đọc được danh sách POI trong cache ngoại tuyến:', error)
-      banCu = null
-    }
-    if (!banCu) {
-      return { pois: await taiToanBo(lang), tuMang: true }
-    }
     const gop = gopDelta(banCu.pois, goi.updated, goi.removed_poi_ids)
     await luuCache(lang, gop, goi.sync_cursor)
     return { pois: gop, tuMang: true }

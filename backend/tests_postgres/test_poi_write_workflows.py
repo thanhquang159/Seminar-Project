@@ -1,4 +1,5 @@
 import asyncio
+import json
 from unittest.mock import AsyncMock
 from uuid import uuid4
 
@@ -72,7 +73,12 @@ def test_admin_create_uses_existing_postgres_columns_and_defaults(monkeypatch):
 
     result = asyncio.run(
         admin_pois.tao_poi(
-            admin_pois.PoiNhap(name="Cafe", lat=10.7, lng=106.6),
+            admin_pois.PoiNhap(
+                name="Cafe",
+                address_line="12 Street X",
+                lat=10.7,
+                lng=106.6,
+            ),
             session,
             {"id": str(uuid4()), "username": "admin@example.test"},
         )
@@ -83,6 +89,7 @@ def test_admin_create_uses_existing_postgres_columns_and_defaults(monkeypatch):
     assert "category, address_line" in sql
     assert "'draft', FALSE" in sql
     assert params["name"] == "Cafe"
+    assert params["address_line"] == "12 Street X"
     assert "Cafe" not in sql
     assert session.committed
     audit.assert_awaited_once()
@@ -116,7 +123,17 @@ def test_geo_query_uses_parameterized_postgis_distance():
 def test_owner_submission_maps_to_existing_poi_submissions_columns(monkeypatch):
     submission_id = uuid4()
     session = FakeSession(FakeResult(scalar=submission_id))
-    body = owner.SubmissionNhap(name="Cafe", description="Tea", lat=10.7, lng=106.6)
+    body = owner.SubmissionNhap(
+        name="Cafe",
+        description="Tea",
+        address_line="12 Street X",
+        lat=10.7,
+        lng=106.6,
+        menu=owner.SubmissionMenu(
+            name="Morning menu",
+            items=[owner.SubmissionMenuItem(name="Sandwich", price=25000)],
+        ),
+    )
 
     result = asyncio.run(
         owner.gui_submission(body, session, {"id": str(uuid4()), "username": "owner@example.test"})
@@ -126,7 +143,11 @@ def test_owner_submission_maps_to_existing_poi_submissions_columns(monkeypatch):
     assert result == {"ok": True, "submission_id": str(submission_id)}
     assert "INSERT INTO poi_submissions" in sql
     assert params["submission_type"] == "create"
-    assert '"name": "Cafe"' in params["content_snapshot"]
+    snapshot = json.loads(params["content_snapshot"])
+    assert snapshot["address_line"] == "12 Street X"
+    assert snapshot["menu"]["name"] == "Morning menu"
+    assert snapshot["menu"]["items"][0]["name"] == "Sandwich"
+    assert snapshot["name"] == "Cafe"
     assert session.committed
 
 
@@ -238,11 +259,114 @@ def test_submission_approval_creates_inactive_review_poi_and_notification(monkey
     assert result == {"ok": True, "poi_id": str(poi_id)}
     assert "publication_status, is_active" in poi_sql
     assert "'pending_review', FALSE" in poi_sql
+    assert ":address_line" in poi_sql
     assert poi_params["owner_id"] == owner_id
     assert "INSERT INTO owner_notifications" in notification_sql
     assert notification_params["poi_id"] == poi_id
     assert session.committed
     audit.assert_awaited_once()
+
+
+def test_submission_approval_creates_menu_and_items_for_new_poi(monkeypatch):
+    submission_id = uuid4()
+    owner_id = uuid4()
+    poi_id = uuid4()
+    menu_id = uuid4()
+    session = FakeSession(
+        FakeResult(
+            rows=[
+                {
+                    "id": submission_id,
+                    "owner_id": owner_id,
+                    "poi_id": None,
+                    "submission_type": "create",
+                    "content_snapshot": {
+                        "name": "Cafe",
+                        "description": "Tea",
+                        "address_line": "12 Đường X",
+                        "lat": 10.7,
+                        "lng": 106.6,
+                        "menu": {
+                            "name": "Menu sáng",
+                            "description": "Món bán buổi sáng",
+                            "items": [
+                                {
+                                    "name": "Bánh mì",
+                                    "description": "Bánh mì thịt",
+                                    "price": 25000,
+                                }
+                            ],
+                        },
+                    },
+                }
+            ]
+        ),
+        FakeResult(scalar=poi_id),
+        FakeResult(scalar=menu_id),
+        FakeResult(),
+        FakeResult(),
+        FakeResult(),
+        FakeResult(),
+    )
+    monkeypatch.setattr(owner, "ghi_audit", AsyncMock())
+
+    asyncio.run(
+        owner.duyet_submission(
+            str(submission_id),
+            session,
+            {"id": str(uuid4()), "username": "admin@example.test"},
+        )
+    )
+
+    poi_sql, poi_params = session.statements[1]
+    menu_sql, menu_params = session.statements[2]
+    item_sql, item_params = session.statements[3]
+    assert ":address_line" in poi_sql
+    assert poi_params["address_line"] == "12 Đường X"
+    assert "INSERT INTO menus" in menu_sql
+    assert menu_params == {
+        "poi_id": poi_id,
+        "name": "Menu sáng",
+        "description": "Món bán buổi sáng",
+    }
+    assert "INSERT INTO menu_items" in item_sql
+    assert item_params == {
+        "menu_id": menu_id,
+        "name": "Bánh mì",
+        "description": "Bánh mì thịt",
+        "price": 25000,
+        "sort_order": 0,
+    }
+    assert session.committed
+
+
+def test_admin_poi_list_includes_non_public_pois_for_management():
+    poi_id = uuid4()
+    session = FakeSession(
+        FakeResult(
+            rows=[
+                {
+                    "id": str(poi_id),
+                    "name": "Cafe",
+                    "publication_status": "pending_review",
+                    "is_active": False,
+                }
+            ]
+        )
+    )
+
+    pois = asyncio.run(
+        admin_pois.liet_ke_poi(
+            session,
+            {"id": str(uuid4()), "username": "admin@example.test"},
+        )
+    )
+
+    sql, _ = session.statements[0]
+    assert pois[0]["publication_status"] == "pending_review"
+    assert "WHERE p.publication_status <> 'archived'" in sql
+    assert "p.is_active IS TRUE" not in sql
+    assert "p.publication_status = 'published'" not in sql
 
 
 def test_admin_delete_archives_instead_of_breaking_foreign_keys(monkeypatch):

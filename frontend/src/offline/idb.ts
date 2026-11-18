@@ -14,8 +14,32 @@ export const KHO_META = 'meta'
 export const KHO_OUTBOX = 'analytics_outbox'
 export const KHO_UI_BUNDLES = 'ui_translation_bundles'
 export const KHO_MAP_PACKS = 'map_packs'
-// v1: POI + meta. v2: outbox analytics. v3: UI bundles + map packs.
-const PHIEN_DB = 3
+export const KHO_POI_MENUS = 'menus_by_lang'
+// v1: POI + meta. v2: outbox analytics. v3: UI bundles + map packs. v4: public menus.
+const PHIEN_DB = 4
+
+export interface PublicPoiMenu {
+  id: string
+  poi_id: string
+  name: string
+  description: string | null
+  items: {
+    id: string
+    name: string
+    description: string | null
+    price: number | string | null
+    currency_code: string
+    is_available: boolean
+  }[]
+}
+
+export type PublicPoiMenuItem = PublicPoiMenu['items'][number]
+
+type PublicPoiMenusRecord = {
+  lang: string
+  menusByPoi: Record<string, PublicPoiMenu[]>
+  saved_at: number
+}
 
 export interface UiBundleRecord {
   id: string
@@ -58,6 +82,9 @@ export function moDb(): Promise<IDBDatabase> {
       if (!db.objectStoreNames.contains(KHO_MAP_PACKS)) {
         db.createObjectStore(KHO_MAP_PACKS, { keyPath: 'id' })
       }
+      if (!db.objectStoreNames.contains(KHO_POI_MENUS)) {
+        db.createObjectStore(KHO_POI_MENUS, { keyPath: 'lang' })
+      }
     }
     yeuCau.onsuccess = () => resolve(yeuCau.result)
     yeuCau.onerror = () => reject(yeuCau.error)
@@ -95,6 +122,31 @@ export async function docPois(lang: string): Promise<{ pois: Poi[]; version: num
   return ban
 }
 
+export async function xoaTatCaCachePois(): Promise<void> {
+  const db = await moDb()
+  try {
+    await new Promise<void>((resolve, reject) => {
+      const tx = db.transaction([KHO_POI, KHO_META], 'readwrite')
+      tx.objectStore(KHO_POI).clear()
+      const cursorRequest = tx.objectStore(KHO_META).openCursor()
+      cursorRequest.onsuccess = () => {
+        const cursor = cursorRequest.result
+        if (!cursor) return
+        const value = cursor.value as { khoa?: unknown }
+        if (typeof value.khoa === 'string' && value.khoa.startsWith('cursor-')) {
+          cursor.delete()
+        }
+        cursor.continue()
+      }
+      tx.oncomplete = () => resolve()
+      tx.onerror = () => reject(tx.error)
+      tx.onabort = () => reject(tx.error ?? new Error('Không thể xóa cache POI trong IndexedDB'))
+    })
+  } finally {
+    db.close()
+  }
+}
+
 // Chuỗi fallback offline: chọn → en → vi để không màn hình trống.
 export async function docPoisFallback(lang: string): Promise<Poi[]> {
   for (const thu of [lang, 'en', 'vi']) {
@@ -106,6 +158,30 @@ export async function docPoisFallback(lang: string): Promise<Poi[]> {
     }
   }
   return []
+}
+
+export async function luuThucDonCongKhai(
+  lang: string,
+  menusByPoi: Record<string, PublicPoiMenu[]>,
+): Promise<void> {
+  const db = await moDb()
+  try {
+    await ghi(db, KHO_POI_MENUS, { lang, menusByPoi, saved_at: Date.now() })
+  } finally {
+    db.close()
+  }
+}
+
+export async function docThucDonCongKhai(
+  lang: string,
+): Promise<Record<string, PublicPoiMenu[]> | null> {
+  const db = await moDb()
+  try {
+    const record = await doc<PublicPoiMenusRecord>(db, KHO_POI_MENUS, lang)
+    return record?.menusByPoi ?? null
+  } finally {
+    db.close()
+  }
 }
 
 export async function luuCursor(lang: string, cursor: number): Promise<void> {
