@@ -7,7 +7,7 @@ from typing import Annotated
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, ValidationError
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -22,6 +22,7 @@ from app.limits import MAX_ADMIN_NOTE, MAX_MO_TA, MAX_TEN, MatKhauDangKy
 from app.pii import giai_ma_pii, ma_hoa_pii
 from app.postgres import get_db
 from app.services.pg_identity import resolve_user_id, user_label
+from app.services.publication import invalidate_translations, notify_publication
 
 router = APIRouter(tags=["owner"])
 
@@ -80,6 +81,28 @@ def _json_value(value: object) -> dict:
 
 def _iso(value: datetime | None) -> str | None:
     return value.isoformat() if value is not None else None
+
+
+def _snapshot_for_approval(value: object) -> dict:
+    """Dữ liệu cũ/seed cũng phải hợp lệ trước khi bắt đầu tạo POI và menu."""
+    try:
+        return SubmissionNhap.model_validate(_json_value(value)).model_dump()
+    except ValidationError as exc:
+        labels = {
+            "name": "tên quán",
+            "lat": "vĩ độ",
+            "lng": "kinh độ",
+            "description": "mô tả",
+            "address_line": "địa chỉ",
+            "menu": "thực đơn",
+        }
+        fields = list(
+            dict.fromkeys(labels.get(str(error["loc"][0]), "nội dung") for error in exc.errors())
+        )
+        detail = f"Đề xuất thiếu hoặc sai: {', '.join(fields)}. Chủ quán cần bổ sung và gửi lại."
+    except (TypeError, ValueError):
+        detail = "Nội dung đề xuất không hợp lệ. Chủ quán cần kiểm tra và gửi lại."
+    raise HTTPException(status_code=409, detail=detail)
 
 
 @router.post("/owner/register", summary="Đăng ký làm chủ quán")
@@ -152,6 +175,8 @@ async def xem_trang_thai(
     )
     registration = result.mappings().one_or_none()
     if registration is None:
+        if user.get("role") == "admin":
+            return {"status": "admin", "admin_note": ""}
         raise HTTPException(status_code=404, detail="Chưa đăng ký")
     return {"status": registration["status"], "admin_note": registration["admin_note"]}
 
@@ -413,7 +438,8 @@ async def submission_cua_toi(
         text(
             """
             SELECT s.id::text AS id, s.owner_id::text AS owner_id,
-                   s.poi_id::text AS poi_id, s.content_snapshot AS data,
+                   COALESCE(s.poi_id::text, s.content_snapshot ->> 'approved_poi_id') AS poi_id,
+                   s.content_snapshot AS data, s.submission_type,
                    s.status, COALESCE(s.admin_note, '') AS admin_note,
                    s.submitted_at, s.submitted_at AS created_at, u.email AS username
             FROM poi_submissions AS s
@@ -460,13 +486,19 @@ async def duyet_submission(
         raise HTTPException(status_code=404, detail="Không có submission chờ")
 
     owner_id = UUID(str(submission["owner_id"]))
-    snapshot = _json_value(submission["content_snapshot"])
-    snapshot.setdefault("address_line", "")
+    if owner_id == reviewer_id and user_duyet.get("role") != "admin":
+        raise HTTPException(
+            status_code=403,
+            detail="Chỉ Admin có quyền duyệt mới được tự duyệt đề xuất POI của mình.",
+        )
+    snapshot = _snapshot_for_approval(submission["content_snapshot"])
     poi_id = submission["poi_id"]
     if poi_id is not None:
         poi_id = UUID(str(poi_id))
         poi_result = await db.execute(
-            text("SELECT owner_id FROM pois WHERE id = :poi_id FOR UPDATE"),
+            text(
+                "SELECT id, owner_id, name, description, publication_status, is_active FROM pois WHERE id = :poi_id FOR UPDATE"
+            ),
             {"poi_id": poi_id},
         )
         poi = poi_result.mappings().one_or_none()
@@ -480,6 +512,16 @@ async def duyet_submission(
                 status_code=409,
                 detail="Đề xuất không còn khớp với quán hiện tại, cần gửi lại",
             )
+        if poi["publication_status"] == "archived":
+            raise HTTPException(status_code=409, detail="POI đã lưu trữ, không thể duyệt cập nhật")
+        if poi["name"] != snapshot["name"] or (poi["description"] or "") != snapshot.get(
+            "description", ""
+        ):
+            await invalidate_translations(
+                db, poi_id, snapshot["name"], snapshot.get("description", "")
+            )
+        if poi["publication_status"] == "published" and poi["is_active"]:
+            await notify_publication(db, poi, published=False)
         poi_result = await db.execute(
             text(
                 """
@@ -487,7 +529,7 @@ async def duyet_submission(
                 SET name = :name, description = :description,
                     address_line = :address_line,
                     latitude = :lat, longitude = :lng,
-                    publication_status = 'published', is_active = TRUE,
+                    publication_status = 'unpublished', is_active = FALSE,
                     updated_by = :reviewer_id, updated_at = now()
                 WHERE id = :poi_id
                 RETURNING id
@@ -511,7 +553,7 @@ async def duyet_submission(
                 )
                 VALUES (
                     :name, :description, 'other', :address_line, :lat, :lng,
-                    :owner_id, 'pending_review', FALSE, :owner_id, :reviewer_id,
+                    :owner_id, 'unpublished', FALSE, :owner_id, :reviewer_id,
                     now()
                 )
                 RETURNING id
@@ -544,7 +586,9 @@ async def duyet_submission(
                 raise HTTPException(status_code=409, detail="Danh sách món gửi lên không hợp lệ")
             for sort_order, item in enumerate(items):
                 if not isinstance(item, Mapping):
-                    raise HTTPException(status_code=409, detail="Thông tin món gửi lên không hợp lệ")
+                    raise HTTPException(
+                        status_code=409, detail="Thông tin món gửi lên không hợp lệ"
+                    )
                 await db.execute(
                     text(
                         """
@@ -570,11 +614,13 @@ async def duyet_submission(
             """
             UPDATE poi_submissions
             SET status = 'approved', reviewed_by = :reviewer_id,
+                content_snapshot = content_snapshot ||
+                    jsonb_build_object('approved_poi_id', CAST(CAST(:poi_id AS uuid) AS text)),
                 reviewed_at = now(), updated_at = now()
             WHERE id = :submission_id
             """
         ),
-        {"submission_id": submission_id, "reviewer_id": reviewer_id},
+        {"submission_id": submission_id, "reviewer_id": reviewer_id, "poi_id": poi_id},
     )
     await db.execute(
         text(
@@ -591,7 +637,8 @@ async def duyet_submission(
         {
             "owner_id": owner_id,
             "poi_id": poi_id,
-            "message": f"Đề xuất cho '{snapshot.get('name', '')}' đã được duyệt",
+            "message": f"Đề xuất cho '{snapshot.get('name', '')}' đã được duyệt. "
+            "POI chưa công khai; Admin cần kiểm tra bản tiếng Anh, audio và bấm Công khai.",
         },
     )
     await ghi_audit(db, user_label(user_duyet), "poi:approve", f"submission:{submission_id}")
@@ -686,14 +733,29 @@ async def submission_cho_duyet(
             """
         )
     )
-    return [
-        {
-            **dict(row),
-            "data": _json_value(row["data"]),
-            "created_at": _iso(row["created_at"]),
-        }
-        for row in result.mappings().all()
-    ]
+    submissions = []
+    for row in result.mappings().all():
+        blockers = []
+        if (
+            user_duyet.get("role") != "admin"
+            and user_label(user_duyet)
+            and row["username"].casefold() == user_label(user_duyet).casefold()
+        ):
+            blockers.append("Chỉ Admin có quyền duyệt mới được tự duyệt đề xuất POI của mình.")
+        try:
+            _snapshot_for_approval(row["data"])
+        except HTTPException as exc:
+            blockers.append(exc.detail)
+        submissions.append(
+            {
+                **dict(row),
+                "data": _json_value(row["data"]),
+                "created_at": _iso(row["created_at"]),
+                "can_approve": not blockers,
+                "approval_blockers": blockers,
+            }
+        )
+    return submissions
 
 
 @router.get("/owner/notifications", summary="Thông báo của tôi")

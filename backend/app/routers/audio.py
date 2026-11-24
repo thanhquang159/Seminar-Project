@@ -103,7 +103,13 @@ async def on_demand(
     except RuntimeError as exc:
         raise HTTPException(status_code=502, detail=str(exc)) from None
     url = duong_audio_url(tep.name, body.lang)
-    await hoan_tat_audio(db, oid, body.lang, url)
+    await hoan_tat_audio(
+        db,
+        oid,
+        body.lang,
+        url,
+        expected_text=ban_dich["description"] or ban_dich["name"] or "",
+    )
     return {"poi_id": body.poi_id, "lang": body.lang, "audio_url": url}
 
 
@@ -114,21 +120,24 @@ async def liet_ke_tasks(
     result = await db.execute(
         text(
             """
-            SELECT id::text AS task_id,
-                   poi_id::text AS poi_id,
-                   language_code AS lang,
-                   CASE task_status
+            SELECT t.id::text AS task_id,
+                   t.poi_id::text AS poi_id, p.name AS poi_name,
+                   t.language_code AS lang,
+                   CASE t.task_status
                        WHEN 'processing' THEN 'running'
                        WHEN 'completed' THEN 'done'
                        WHEN 'failed' THEN 'error'
                        WHEN 'cancelled' THEN 'canceled'
-                       ELSE task_status
+                       ELSE t.task_status
                    END AS status,
-                   progress_percent AS progress,
-                   error_message AS loi,
-                   updated_at
-            FROM audio_tasks
-            ORDER BY updated_at DESC
+                   t.progress_percent AS progress,
+                   t.error_message AS loi,
+                   t.updated_at,
+                   NOT EXISTS (SELECT 1 FROM audio_tasks newer
+                       WHERE newer.localization_id=t.localization_id AND newer.created_at>t.created_at) AS is_latest
+            FROM audio_tasks t JOIN pois p ON p.id=t.poi_id
+            WHERE p.publication_status <> 'archived'
+            ORDER BY t.updated_at DESC
             LIMIT 100
             """
         )
@@ -161,11 +170,14 @@ async def stream_tasks(_user: dict = DuocQuanLyAudio) -> StreamingResponse:
     return StreamingResponse(sinh(), media_type="text/event-stream")
 
 
-@router.post("/tasks/{task_id}/{lenh}", summary="Pause/resume/cancel tác vụ")
+@router.post("/tasks/{task_id}/{lenh}", summary="Pause/resume/retry/cancel tác vụ")
 async def dieu_khien_task(task_id: str, lenh: str, _user: dict = DuocQuanLyAudio) -> dict:
-    if lenh not in ("pause", "resume", "cancel"):
+    if lenh not in ("pause", "resume", "retry", "cancel"):
         raise HTTPException(status_code=400, detail="Lệnh không hợp lệ")
-    ok = await quan_ly_tasks.dieu_khien(task_id, lenh)
+    try:
+        ok = await quan_ly_tasks.dieu_khien(task_id, lenh)
+    except ValueError as exc:
+        raise HTTPException(status_code=409, detail=str(exc)) from None
     if not ok:
         raise HTTPException(status_code=404, detail="Không tìm thấy tác vụ")
     return {"ok": True}

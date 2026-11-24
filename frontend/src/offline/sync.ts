@@ -103,6 +103,12 @@ export async function dongBo(
       banCu = null
     }
 
+    // Cache VI từ bản cũ có thể chứa fallback EN dù nội dung nguồn VI đã có.
+    // Tải snapshot để sửa cả khi cursor và số lượng POI không thay đổi.
+    if (lang === 'vi' && banCu?.pois.some((p) => p.lang !== 'vi' || p.is_fallback)) {
+      return { pois: await taiToanBo(lang), tuMang: true }
+    }
+
     if (banCu !== null) {
       const response = await fetch(`${API_GOC}/poi/count`)
       if (!response.ok) {

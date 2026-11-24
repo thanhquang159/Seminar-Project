@@ -17,12 +17,21 @@ from app.auth import doi_quyen
 from app.postgres import get_db
 from app.services import images
 from app.services.pg_identity import resolve_user_id, user_label
+from app.services.publication import (
+    APPROVAL_SQL,
+    invalidate_translations,
+    notify_publication,
+    publication_readiness,
+    read_publication,
+    set_publication,
+)
 
 router = APIRouter(prefix="/admin/pois", tags=["admin-poi"])
 
 DuocTaoPoi = doi_quyen("poi:create")
 DuocSuaPoi = doi_quyen("poi:update")
 DuocXoaPoi = doi_quyen("poi:delete")
+DuocCongKhaiPoi = doi_quyen("poi:publish")
 
 _POI_RETURNING = """
     id::text AS id,
@@ -74,7 +83,7 @@ async def liet_ke_poi(
 ) -> list[dict]:
     result = await db.execute(
         text(
-            """
+            f"""
             SELECT p.id::text AS id, p.name,
                    COALESCE(p.description, '') AS description,
                    COALESCE(p.address_line, '') AS address_line,
@@ -84,8 +93,11 @@ async def liet_ke_poi(
                    p.publication_status, p.is_active,
                    COALESCE(img.images, '[]'::json) AS images,
                    COALESCE(loc.language_code, 'vi') AS lang,
-                   FALSE AS is_fallback, loc.audio_url
+                   FALSE AS is_fallback, loc.audio_url,
+                   p.owner_id, {APPROVAL_SQL} AS has_approval,
+                   to_jsonb(en) AS english
             FROM pois AS p
+            LEFT JOIN poi_localizations en ON en.poi_id = p.id AND en.language_code = 'en'
             LEFT JOIN LATERAL (
                 SELECT l.language_code, l.audio_url
                 FROM poi_localizations AS l
@@ -106,7 +118,50 @@ async def liet_ke_poi(
             """
         )
     )
-    return [dict(row) for row in result.mappings().all()]
+    return [
+        {
+            **{
+                key: value
+                for key, value in row.items()
+                if key not in {"english", "owner_id", "has_approval"}
+            },
+            "readiness": publication_readiness(row, row.get("english")),
+        }
+        for row in result.mappings().all()
+    ]
+
+
+@router.get("/{poi_id}/readiness", summary="Kiểm tra điều kiện công khai POI")
+async def kiem_tra_cong_khai(
+    poi_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = DuocCongKhaiPoi,
+) -> dict:
+    poi = await read_publication(db, doi_id(poi_id))
+    return {
+        "id": str(poi["id"]),
+        "publication_status": poi["publication_status"],
+        "is_active": poi["is_active"],
+        "readiness": poi["readiness"],
+    }
+
+
+@router.post("/{poi_id}/publish", summary="Công khai POI sau khi kiểm tra English và audio")
+async def publish_poi(
+    poi_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = DuocCongKhaiPoi,
+) -> dict:
+    return await set_publication(db, doi_id(poi_id), user, published=True)
+
+
+@router.post("/{poi_id}/unpublish", summary="Ẩn POI khỏi công khai")
+async def unpublish_poi(
+    poi_id: str,
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: dict = DuocCongKhaiPoi,
+) -> dict:
+    return await set_publication(db, doi_id(poi_id), user, published=False)
 
 
 @router.post("", status_code=201, summary="Tạo POI")
@@ -155,7 +210,35 @@ async def sua_poi(
     db: Annotated[AsyncSession, Depends(get_db)],
     user: dict = DuocSuaPoi,
 ) -> dict:
+    parsed_id = doi_id(poi_id)
     actor_id = await resolve_user_id(db, user)
+    previous = (
+        (
+            await db.execute(
+                text(
+                    "SELECT id, name, description, owner_id, publication_status, is_active FROM pois WHERE id = :poi_id FOR UPDATE"
+                ),
+                {"poi_id": parsed_id},
+            )
+        )
+        .mappings()
+        .one_or_none()
+    )
+    if previous is None:
+        raise HTTPException(status_code=404, detail="Không tìm thấy POI")
+    content_changed = (
+        previous["name"] != body.name or (previous["description"] or "") != body.description
+    )
+    if content_changed:
+        await invalidate_translations(db, parsed_id, body.name, body.description)
+        if previous["publication_status"] == "published":
+            await db.execute(
+                text(
+                    "UPDATE pois SET publication_status = 'unpublished', is_active = FALSE WHERE id = :poi_id"
+                ),
+                {"poi_id": parsed_id},
+            )
+            await notify_publication(db, previous, published=False)
     row = (
         (
             await db.execute(
@@ -220,6 +303,14 @@ async def xoa_poi(
     )
     if row is None:
         raise HTTPException(status_code=404, detail="Không tìm thấy POI")
+    await db.execute(
+        text("""
+            UPDATE audio_tasks SET task_status='cancelled', completed_at=now(), updated_at=now(),
+                error_message='POI đã xóa'
+            WHERE poi_id=:poi_id AND task_status IN ('queued','processing','paused')
+        """),
+        {"poi_id": doi_id(poi_id)},
+    )
     await ghi_audit(db, user_label(user), "poi:delete", f"poi:{poi_id}")
     await db.commit()
     return Response(status_code=204)

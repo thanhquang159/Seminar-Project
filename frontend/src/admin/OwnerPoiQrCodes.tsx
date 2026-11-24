@@ -85,7 +85,7 @@ export default function OwnerPoiQrCodes({ pois }: { pois: OwnerPoi[] }) {
         <div>
           <h2 className="card__title">Mã QR địa điểm</h2>
           <p className="card__subtitle">
-            Chọn POI đã được Admin duyệt để tạo mã dẫn thẳng đến trang khám phá.
+            Chọn POI đã được Admin công khai để tạo mã dẫn thẳng đến trang khám phá.
           </p>
         </div>
       </div>
@@ -93,7 +93,7 @@ export default function OwnerPoiQrCodes({ pois }: { pois: OwnerPoi[] }) {
       {publishedPois.length === 0 ? (
         <div className="empty-state" role="status">
           <p className="muted">
-            Chưa có POI nào được duyệt và đang hiển thị. Mã QR sẽ sẵn sàng sau khi POI được duyệt.
+            Chưa có POI đang công khai. Mã QR sẽ sẵn sàng sau khi Admin duyệt nội dung, chuẩn bị English + Audio và bấm Công khai.
           </p>
         </div>
       ) : (

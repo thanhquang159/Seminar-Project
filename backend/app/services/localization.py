@@ -6,6 +6,8 @@ from uuid import UUID
 from sqlalchemy import text
 from sqlalchemy.ext.asyncio import AsyncSession
 
+from app.services.publication import notify_publication
+
 NGON_NGU_UU_TIEN = ("vi", "en", "zh", "ja", "ko")
 
 
@@ -16,18 +18,36 @@ async def dam_bao_index(db: AsyncSession) -> None:
 
 async def luu_ban_dich(db: AsyncSession, poi_id: UUID, lang: str, ten: str, mo_ta: str) -> dict:
     """Upsert bản dịch, sau đó xếp audio bền vững qua bảng audio_tasks."""
+    # Khóa POI trước bản dịch, cùng thứ tự với publish để tránh kiểm tra dữ liệu cũ.
+    result = await db.execute(
+        text(
+            "SELECT id, name, owner_id, publication_status, is_active FROM pois WHERE id = :poi_id FOR UPDATE"
+        ),
+        {"poi_id": poi_id},
+    )
+    poi = result.mappings().first()
+    if lang == "en" and poi and poi["publication_status"] == "published":
+        await db.execute(
+            text(
+                "UPDATE pois SET publication_status = 'unpublished', is_active = FALSE WHERE id = :poi_id"
+            ),
+            {"poi_id": poi_id},
+        )
+        await notify_publication(db, poi, published=False)
     await db.execute(
         text(
             """
             INSERT INTO poi_localizations
                 (poi_id, language_code, localized_name, localized_description,
-                 audio_url, audio_storage_key, audio_status, updated_at)
+                 readiness_status, audio_url, audio_storage_key, audio_status, updated_at)
             VALUES
-                (:poi_id, :lang, :name, :description, NULL, NULL, 'queued', now())
+                (:poi_id, :lang, :name, :description, :readiness, NULL, NULL, 'queued', now())
             ON CONFLICT (poi_id, language_code)
             DO UPDATE SET
                 localized_name = EXCLUDED.localized_name,
                 localized_description = EXCLUDED.localized_description,
+                readiness_status = EXCLUDED.readiness_status,
+                is_fallback = FALSE,
                 audio_url = NULL,
                 audio_storage_key = NULL,
                 audio_status = 'queued',
@@ -39,6 +59,7 @@ async def luu_ban_dich(db: AsyncSession, poi_id: UUID, lang: str, ten: str, mo_t
             "lang": lang,
             "name": ten,
             "description": mo_ta,
+            "readiness": "ready" if ten.strip() and mo_ta.strip() else "incomplete",
         },
     )
     await db.execute(
@@ -79,7 +100,7 @@ async def ghi_log_dich(db: AsyncSession, username: str, resource: str) -> None:
 async def lay_ban_dich(db: AsyncSession, poi_id: UUID, lang: str) -> tuple[dict | None, bool]:
     """Fallback 3 tầng: yêu cầu → en → vi, trả kèm cờ is_fallback."""
     languages = [lang]
-    if lang != "en":
+    if lang not in ("vi", "en"):
         languages.append("en")
     if lang != "vi":
         languages.append("vi")
@@ -125,8 +146,8 @@ def ghep_poi(doc: dict, ban_dich: dict | None, is_fallback: bool, lang: str) -> 
             "trigger_radius": doc.get("trigger_radius", doc.get("trigger_radius_m", 30)),
             "audio_priority": doc.get("audio_priority", 0),
             "images": doc.get("images") or [],
-            "lang": lang,
-            "is_fallback": True,
+            "lang": "vi",
+            "is_fallback": lang != "vi",
             "audio_url": None,
         }
     return {

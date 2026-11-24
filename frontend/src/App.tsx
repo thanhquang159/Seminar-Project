@@ -5,7 +5,7 @@ import { PoiDetail, PoiList } from './components/PoiList'
 import { useMapPack } from './components/useMapPack'
 import Settings from './components/Settings'
 import { apiText } from './admin/api'
-import { playWithFallback } from './audio/playback'
+import { playWithFallback, stopPlayback } from './audio/playback'
 import { useGeofence } from './geofence/useGeofence'
 import { useViTri } from './geofence/useViTri'
 import { chonPrefetch, tinhBackoff } from './geofence/prefetch'
@@ -233,6 +233,9 @@ function MainApp() {
   const { t } = useUiBundle(lang)
   const [selectedId, setSelectedId] = useState<string | null>(() => layPoiIdTuDuongDan())
   const [dangDoc, setDangDoc] = useState<string | null>(null)
+  useEffect(() => usePoiStore.subscribe((state, previous) => {
+    if (state.lang !== previous.lang) setDangDoc(null)
+  }), [])
   const [tab, setTab] = useState<TabType>(khoiTaoTab)
   const pack = useMapPack()
   const khoiDong = useStartup()
@@ -392,6 +395,7 @@ function MainApp() {
         poiId: poi.id,
         lang: langRef.current,
         text: poi.description,
+        contentLang: poi.lang,
         audioUrl: poi.audio_url,
         isFallback: poi.is_fallback,
         uuTien: poi.audio_priority,
@@ -522,7 +526,7 @@ function MainApp() {
             <button
               type="button"
               className="btn-icon btn-icon--sm"
-              onClick={() => setDangDoc(null)}
+              onClick={() => { stopPlayback(); setDangDoc(null) }}
               title={t('close_audio')}
               aria-label={t('close_audio')}
             >

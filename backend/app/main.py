@@ -30,6 +30,7 @@ from app.routers.owner import router as owner_router
 from app.routers.owner_menus import router as owner_menus_router
 from app.routers.runtime_observability import router as runtime_observability_router
 from app.routers.warmup import router as warmup_router
+from app.services.tasks import quan_ly_tasks
 
 dat_cau_hinh_log()
 
@@ -39,8 +40,10 @@ async def lifespan(app: FastAPI):
     kiem_tra_bi_mat()
     try:
         await connect_db()
+        await quan_ly_tasks.start()
         yield
     finally:
+        await quan_ly_tasks.stop()
         await close_db()
 
 

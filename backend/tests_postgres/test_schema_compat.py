@@ -26,6 +26,7 @@ def test_postgres_permission_codes_satisfy_route_permissions():
         "analytics:view",
         "audit:read",
         "poi:approve",
+        "poi:publish",
         "poi:create",
         "poi:delete",
         "poi:update",

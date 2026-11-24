@@ -5,6 +5,7 @@ import AudioTasks from './AudioTasks'
 import OwnerApprovals from './OwnerApprovals'
 import PoiImageManager from './PoiImageManager'
 import PoiTranslations from './PoiTranslations'
+import PoiPublication, { type PublicationReadiness } from './PoiPublication'
 import PortalDashboard, { type PortalDashboardItem } from './PortalDashboard'
 import AdminGovernance from './AdminGovernance'
 import AdminAccessManagement from './AdminAccessManagement'
@@ -35,6 +36,7 @@ interface AdminPoi extends Poi {
   address_line: string
   publication_status: string
   is_active: boolean
+  readiness?: PublicationReadiness
 }
 
 // Hai cổng dùng chung MỘT cookie phiên, nên phiên chủ quán có thể "tràn" sang
@@ -46,6 +48,7 @@ const CONG_KHACH = new Set(['poi_owner', 'user'])
 
 export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void }) {
   const [user, setUser] = useState<string | null>(null)
+  const [permissions, setPermissions] = useState<string[]>([])
   const [checkingSession, setCheckingSession] = useState(true)
   const [ten, setTen] = useState('')
   const [matKhau, setMatKhau] = useState('')
@@ -88,7 +91,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
     const restoreSession = async () => {
       const pathAtStart = window.location.pathname
       try {
-        const me = await api<{ username: string; role: string }>('/admin/auth/me')
+        const me = await api<{ username: string; role: string; permissions: string[] }>('/admin/auth/me')
         if (!mounted) return
         if (isStaleLoginSessionCheck(pathAtStart, window.location.pathname, '/admin/login')) return
         if (CONG_KHACH.has(me.role)) {
@@ -98,6 +101,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
           return
         }
         setUser(me.username)
+        setPermissions(me.permissions ?? [])
         await taiPois()
         if (mounted && window.location.pathname === '/admin/login') {
           navigateToPath('/admin', true)
@@ -135,12 +139,13 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
         setLoi('Sai tên đăng nhập hoặc mật khẩu')
         return
       }
-      const me = (await res.json()) as { username: string; role: string }
+      const me = await api<{ username: string; role: string; permissions: string[] }>('/admin/auth/me')
       if (CONG_KHACH.has(me.role)) {
         setLoi('Tài khoản này là chủ quán, không mở được cổng quản trị')
         return
       }
       setUser(me.username)
+      setPermissions(me.permissions ?? [])
       setMatKhau('')
       await taiPois()
       navigateToPath('/admin')
@@ -533,15 +538,8 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
                         </td>
                         <td>
                           <div>{p.address_line || 'Chưa có địa chỉ'}</div>
-                          <span className={`badge badge--${p.publication_status === 'published' && p.is_active ? 'ok' : 'warn'}`}>
-                            {p.publication_status === 'published' && p.is_active
-                              ? 'Đang công khai'
-                              : p.publication_status === 'pending_review'
-                                ? 'Chờ xuất bản'
-                                : p.publication_status === 'draft'
-                                  ? 'Bản nháp'
-                                  : p.publication_status}
-                          </span>
+                          <PoiPublication poi={p} canPublish={permissions.includes('poi:publish')}
+                            onChanged={async () => { await taiPois(); onPoisChanged() }} />
                         </td>
                         <td>
                           <span className="badge badge--neutral" style={{ fontSize: '0.78rem' }}>

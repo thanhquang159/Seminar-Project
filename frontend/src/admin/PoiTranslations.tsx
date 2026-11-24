@@ -26,7 +26,7 @@ interface PoiTranslationsProps {
 
 export default function PoiTranslations({ pois, onSaved }: PoiTranslationsProps) {
   const [missing, setMissing] = useState<MissingTranslation[]>([])
-  const [lang, setLang] = useState('zh')
+  const [lang, setLang] = useState('en')
   const [poiId, setPoiId] = useState('')
   const [name, setName] = useState('')
   const [description, setDescription] = useState('')
@@ -47,7 +47,11 @@ export default function PoiTranslations({ pois, onSaved }: PoiTranslationsProps)
         )
         setMissing(supported)
         const firstMissing = supported[0]
-        if (firstMissing) {
+        const requestedPoi = new URLSearchParams(window.location.search).get('poi')
+        if (requestedPoi && pois.some((item) => item.id === requestedPoi)) {
+          setLang('en')
+          setPoiId(requestedPoi)
+        } else if (firstMissing) {
           setLang(firstMissing.lang)
           setPoiId(firstMissing.poi_id)
         } else if (pois.length > 0) {
@@ -103,7 +107,7 @@ export default function PoiTranslations({ pois, onSaved }: PoiTranslationsProps)
       )
       setName('')
       setDescription('')
-      setNotice(`Đã lưu bản dịch ${lang.toUpperCase()} cho ${poi.name}.`)
+      setNotice(`Đã lưu bản dịch ${lang.toUpperCase()} cho ${poi.name}. Audio đang được tạo; khi hoàn tất, trở lại danh sách POI, kiểm tra điều kiện và bấm Công khai.`)
       await onSaved()
     } catch (cause) {
       setError(cause instanceof Error ? cause.message : 'Không lưu được bản dịch.')
@@ -118,7 +122,7 @@ export default function PoiTranslations({ pois, onSaved }: PoiTranslationsProps)
         <div>
           <h2 className="card__title">Bổ sung bản dịch POI</h2>
           <p className="card__subtitle">
-            Nhập bản dịch đã được kiểm tra. Nội dung được lưu trong hệ thống và không gửi đến dịch vụ bên ngoài.
+            Nhập bản dịch đã được kiểm tra. Cần tên và mô tả English để công khai POI. Sau khi lưu, hệ thống gửi nội dung đến dịch vụ tạo audio.
           </p>
         </div>
         <span className="badge badge--neutral">
@@ -171,7 +175,7 @@ export default function PoiTranslations({ pois, onSaved }: PoiTranslationsProps)
               <p>{poi.description || 'Chưa có mô tả.'}</p>
             </div>
           ) : (
-            <p className="notice notice--info mt">Không có POI công khai để dịch.</p>
+            <p className="notice notice--info mt">Không có POI để dịch.</p>
           )}
 
           <div className="field mt">

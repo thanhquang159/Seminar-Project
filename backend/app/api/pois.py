@@ -24,7 +24,7 @@ _POI_FIELDS = """
     p.audio_priority,
     COALESCE(img.images, '[]'::json) AS images,
     COALESCE(loc.language_code, 'vi') AS lang,
-    (loc.language_code IS DISTINCT FROM :lang) AS is_fallback,
+    (COALESCE(loc.language_code, 'vi') <> :lang) AS is_fallback,
     CASE
         WHEN loc.language_code = 'vi' AND :lang <> 'vi' THEN NULL
         ELSE loc.audio_url
@@ -38,7 +38,7 @@ LEFT JOIN LATERAL (
     WHERE l.poi_id = p.id
       AND (
           l.language_code = :lang
-          OR (:lang <> 'en' AND l.language_code = 'en')
+          OR (:lang NOT IN ('vi', 'en') AND l.language_code = 'en')
           OR (:lang <> 'vi' AND l.language_code = 'vi')
       )
     ORDER BY CASE
@@ -95,9 +95,7 @@ async def lay_danh_sach(
 
 @router.get("/count", summary="Lấy tổng số POI trên dashboard")
 async def dem_poi(db: Annotated[AsyncSession, Depends(get_db)]) -> dict[str, int]:
-    result = await db.execute(
-        text(f"SELECT count(*) FROM pois AS p WHERE {_PUBLIC_FILTER}")
-    )
+    result = await db.execute(text(f"SELECT count(*) FROM pois AS p WHERE {_PUBLIC_FILTER}"))
     return {"count": int(result.scalar_one())}
 
 

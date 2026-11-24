@@ -42,6 +42,18 @@ describe('gopDelta', () => {
 })
 
 describe('dongBo', () => {
+  it('thay snapshot VI bị lẫn EN dù cursor không đổi', async () => {
+    const fixed = [poi('oc-to', 'Ốc Tô')]
+    idb.docPois.mockResolvedValue({ pois: [{ ...poi('oc-to', 'Snail Bowl'), lang: 'en', is_fallback: true }], version: 20 })
+    idb.docCursor.mockResolvedValue(20)
+    const fetchMock = vi.fn().mockResolvedValue(new Response(JSON.stringify({ version: 20, sync_cursor: 20, pois: fixed })))
+    vi.stubGlobal('fetch', fetchMock)
+    expect(await dongBo('vi')).toEqual({ pois: fixed, tuMang: true })
+    expect(fetchMock).toHaveBeenCalledOnce()
+    expect(fetchMock.mock.calls[0][0]).toContain('/poi/load-all?lang=vi')
+    expect(idb.luuPois).toHaveBeenCalledWith('vi', fixed, 20)
+  })
+
   it('thay cache cũ bằng snapshot đầy đủ khi khởi động online', async () => {
     const snapshot = [poi('db-1', 'POI từ PostgreSQL')]
     idb.docCursor.mockResolvedValue(100)

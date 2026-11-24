@@ -58,7 +58,7 @@ def duong_audio_url(ten_tep: str, lang: str, ban: int | None = None) -> str:
 
 
 async def kich_hoat_sinh_audio(db, poi_id, langs: tuple[str, ...] = NGON_NGU_AUDIO) -> list[str]:
-    """Mô tả đổi thì xóa audio cũ, tạm ẩn POI chờ tiếng Anh xong."""
+    """Xóa audio cũ và ẩn POI; Admin phải công khai lại sau khi tạo xong audio."""
     poi_uuid = poi_id if isinstance(poi_id, UUID) else UUID(str(poi_id))
     await db.execute(
         text(
@@ -90,11 +90,23 @@ async def kich_hoat_sinh_audio(db, poi_id, langs: tuple[str, ...] = NGON_NGU_AUD
     return ids
 
 
-async def hoan_tat_audio(db: AsyncSession, poi_id: UUID, lang: str, audio_url: str) -> None:
-    """Worker gọi khi xong một ngôn ngữ, đủ tiếng Anh thì bật lại POI."""
+async def hoan_tat_audio(
+    db: AsyncSession,
+    poi_id: UUID,
+    lang: str,
+    audio_url: str,
+    *,
+    expected_text: str | None = None,
+    commit: bool = True,
+) -> bool:
+    """Chỉ ghi audio; việc công khai luôn cần thao tác có quyền của Admin."""
     poi_uuid = poi_id if isinstance(poi_id, UUID) else UUID(str(poi_id))
     audio_key = Path(audio_url.split("?", 1)[0]).name
     await db.execute(
+        text("SELECT id FROM pois WHERE id = :poi_id FOR UPDATE"),
+        {"poi_id": poi_uuid},
+    )
+    result = await db.execute(
         text(
             """
             UPDATE poi_localizations
@@ -103,6 +115,8 @@ async def hoan_tat_audio(db: AsyncSession, poi_id: UUID, lang: str, audio_url: s
                 audio_status = 'ready',
                 updated_at = now()
             WHERE poi_id = :poi_id AND language_code = :lang
+              AND (CAST(:expected_text AS text) IS NULL
+                   OR COALESCE(NULLIF(localized_description, ''), localized_name, '') = :expected_text)
             """
         ),
         {
@@ -110,24 +124,13 @@ async def hoan_tat_audio(db: AsyncSession, poi_id: UUID, lang: str, audio_url: s
             "audio_storage_key": audio_key,
             "poi_id": poi_uuid,
             "lang": lang,
+            "expected_text": expected_text,
         },
     )
-    if lang == "en":
-        await db.execute(
-            text(
-                """
-                UPDATE pois
-                SET is_active = true, updated_at = now()
-                WHERE id = :poi_id
-                  AND EXISTS (
-                      SELECT 1
-                      FROM poi_localizations
-                      WHERE poi_id = :poi_id
-                        AND language_code = 'en'
-                        AND audio_url IS NOT NULL
-                  )
-                """
-            ),
-            {"poi_id": poi_uuid},
-        )
-    await db.commit()
+    await db.execute(
+        text("UPDATE pois SET updated_at = now() WHERE id = :poi_id"),
+        {"poi_id": poi_uuid},
+    )
+    if commit:
+        await db.commit()
+    return result.rowcount > 0

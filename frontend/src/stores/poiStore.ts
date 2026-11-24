@@ -1,6 +1,7 @@
 import { create } from 'zustand'
 import { dongBo } from '../offline/sync'
 import { docPois } from '../offline/idb'
+import { stopPlayback } from '../audio/playback'
 
 // Một POI như backend trả về ở GET /poi (đã hydrate ngôn ngữ).
 export interface Poi {
@@ -51,7 +52,8 @@ export const usePoiStore = create<PoiState>((set, get) => ({
   lang: ngonNguMacDinh,
   setLang: (lang: string) => {
     localStorage.setItem('quan4-lang', lang)
-    set({ lang })
+    stopPlayback()
+    set({ lang, pois: [], loading: true, daTaiDuLieu: false })
     void get().fetchPOIs()
   },
   fetchPOIs: async (taiLaiToanBo = false) => {
@@ -60,7 +62,8 @@ export const usePoiStore = create<PoiState>((set, get) => ({
     try {
       try {
         const banLuu = await docPois(lang)
-        if (banLuu !== null && get().lang === lang) {
+        if (banLuu !== null && get().lang === lang
+          && !(lang === 'vi' && banLuu.pois.some((p) => p.lang !== 'vi' || p.is_fallback))) {
           set({ pois: banLuu.pois, loading: false, daTaiDuLieu: true })
         }
       } catch (error) {

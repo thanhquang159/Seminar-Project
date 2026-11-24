@@ -90,10 +90,19 @@ class FileQueue {
 export const fileQueue = new FileQueue()
 let lanPhat = 0
 
+export function stopPlayback(): void {
+  ++lanPhat
+  fileQueue.stop()
+  if (typeof window !== 'undefined' && 'speechSynthesis' in window) {
+    window.speechSynthesis.cancel()
+  }
+}
+
 export interface PhatYeuCau {
   poiId: string
   lang: string
   text: string
+  contentLang?: string
   audioUrl: string | null
   isFallback: boolean
   uuTien: number
@@ -105,8 +114,9 @@ export async function playWithFallback(yeuCau: PhatYeuCau): Promise<string> {
   const token = ++lanPhat
   const conHan = () => token === lanPhat
   const { poiId, lang, text, audioUrl, isFallback, uuTien } = yeuCau
+  const contentLang = yeuCau.contentLang ?? lang
 
-  if (audioUrl !== null && !isFallback) {
+  if (audioUrl !== null && !isFallback && contentLang === lang) {
     const url = new URL(audioUrl, API_GOC).toString()
     if (await fileQueue.play(url, uuTien)) return 'tier1'
     if (!conHan()) return 'bo'
@@ -129,7 +139,7 @@ export async function playWithFallback(yeuCau: PhatYeuCau): Promise<string> {
     const res = await apiText('/audio/tts', {
       method: 'POST',
       headers: { 'Content-Type': 'application/json' },
-      body: JSON.stringify({ text, lang }),
+      body: JSON.stringify({ text, lang: contentLang }),
     })
     if (!conHan()) return 'bo'
     if (!res.ok) throw new Error()
@@ -139,6 +149,6 @@ export async function playWithFallback(yeuCau: PhatYeuCau): Promise<string> {
   } catch {
     if (!conHan()) return 'bo'
   }
-  speak(text, lang)
+  speak(text, contentLang)
   return 'tier3'
 }

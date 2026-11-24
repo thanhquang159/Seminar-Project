@@ -18,6 +18,7 @@ class FakeResult:
     def __init__(self, rows=None, scalar=None):
         self.rows = rows or []
         self.scalar = scalar
+        self.rowcount = 1
 
     def mappings(self):
         return self
@@ -97,14 +98,16 @@ def test_localization_upsert_uses_existing_unique_key_and_queues_audio(monkeypat
     result = asyncio.run(run())
     assert result["poi_id"] == poi_id
     assert result["lang"] == "en"
-    assert "ON CONFLICT (poi_id, language_code)" in session.calls[0][0]
-    assert session.calls[0][1]["name"] == "Translated"
-    assert "UPDATE pois" in session.calls[1][0]
+    assert "FOR UPDATE" in session.calls[0][0]
+    assert "ON CONFLICT (poi_id, language_code)" in session.calls[1][0]
+    assert session.calls[1][1]["name"] == "Translated"
+    assert session.calls[1][1]["readiness"] == "ready"
+    assert "UPDATE pois" in session.calls[2][0]
     assert queued == [(str(poi_id), "en")]
     assert session.commits == 1
 
 
-def test_audio_completion_updates_localization_and_activates_poi_for_english():
+def test_audio_completion_updates_localization_without_publishing():
     session = FakeSession()
     poi_id = uuid4()
 
@@ -114,11 +117,14 @@ def test_audio_completion_updates_localization_and_activates_poi_for_english():
         )
 
     asyncio.run(run())
-    assert len(session.calls) == 2
-    assert "UPDATE poi_localizations" in session.calls[0][0]
-    assert session.calls[0][1]["audio_storage_key"] == "example.mp3"
-    assert "UPDATE pois" in session.calls[1][0]
-    assert session.calls[1][1]["poi_id"] == poi_id
+    assert len(session.calls) == 3
+    assert "FOR UPDATE" in session.calls[0][0]
+    assert "UPDATE poi_localizations" in session.calls[1][0]
+    assert session.calls[1][1]["audio_storage_key"] == "example.mp3"
+    assert "UPDATE pois" in session.calls[2][0]
+    assert session.calls[2][1]["poi_id"] == poi_id
+    assert "is_active" not in session.calls[2][0]
+    assert "publication_status" not in session.calls[2][0]
     assert session.commits == 1
 
 
@@ -158,9 +164,9 @@ def test_audio_task_insert_uses_required_localization_foreign_key(monkeypatch):
 
     task_id = asyncio.run(run())
     assert len(task_id) == 32
-    assert "FROM poi_localizations" in session.calls[0][0]
-    assert "INSERT INTO audio_tasks" in session.calls[1][0]
-    assert session.calls[1][1]["localization_id"] == localization_id
+    assert "JOIN poi_localizations" in session.calls[0][0]
+    assert "INSERT INTO audio_tasks" in session.calls[2][0]
+    assert session.calls[2][1]["localization_id"] == localization_id
     assert session.commits == 1
 
 
@@ -334,7 +340,7 @@ def test_localization_endpoint_keeps_permission_and_upsert_flow(monkeypatch):
     assert response.status_code == 200
     assert response.json() == {"poi_id": str(poi_id), "lang": "ja", "name": "名称"}
     assert queued == [(str(poi_id), "ja")]
-    assert "ON CONFLICT (poi_id, language_code)" in session.calls[3][0]
+    assert "ON CONFLICT (poi_id, language_code)" in session.calls[4][0]
 
 
 def test_warmup_status_endpoint_lists_missing_language_pairs():

@@ -218,7 +218,7 @@ def test_owner_cannot_approve_own_registration():
     assert len(session.statements) == 1
 
 
-def test_submission_approval_creates_inactive_review_poi_and_notification(monkeypatch):
+def test_submission_approval_creates_unpublished_poi_and_notification(monkeypatch):
     submission_id = uuid4()
     owner_id = uuid4()
     poi_id = uuid4()
@@ -258,7 +258,9 @@ def test_submission_approval_creates_inactive_review_poi_and_notification(monkey
     notification_sql, notification_params = session.statements[3]
     assert result == {"ok": True, "poi_id": str(poi_id)}
     assert "publication_status, is_active" in poi_sql
-    assert "'pending_review', FALSE" in poi_sql
+    assert "'unpublished', FALSE" in poi_sql
+    assert session.statements[2][1]["poi_id"] == poi_id
+    assert "chưa công khai" in notification_params["message"]
     assert ":address_line" in poi_sql
     assert poi_params["owner_id"] == owner_id
     assert "INSERT INTO owner_notifications" in notification_sql

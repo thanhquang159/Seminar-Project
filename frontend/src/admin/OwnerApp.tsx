@@ -1,5 +1,6 @@
-import { useCallback, useEffect, useState } from 'react'
+import { useCallback, useEffect, useRef, useState } from 'react'
 import { api, apiText } from './api'
+import { apiErrorMessage } from './apiErrors'
 import PortalDashboard, { type PortalDashboardItem } from './PortalDashboard'
 import OwnerMenuManagement from './OwnerMenuManagement'
 import OwnerPoiQrCodes from './OwnerPoiQrCodes'
@@ -19,6 +20,7 @@ interface OwnerSubmission {
   poi_id: string | null
   data: Record<string, unknown>
   status: string
+  submission_type?: 'create' | 'update'
   created_at: string | null
   admin_note: string | null
 }
@@ -70,7 +72,23 @@ export default function OwnerApp() {
   const [thongBaoGui, setThongBaoGui] = useState('')
   const [thongBao, setThongBao] = useState<{ id: string; message: string; read: boolean }[]>([])
   const [lichSu, setLichSu] = useState<OwnerSubmission[]>([])
+  const [trangThaiLichSu, setTrangThaiLichSu] = useState<'loading' | 'ready' | 'error'>('loading')
+  const historyRequest = useRef(0)
+  const [dangGui, setDangGui] = useState(false)
   const [poisCuaToi, setPoisCuaToi] = useState<OwnerPoi[]>([])
+
+  const taiLichSu = useCallback(async (isActive: () => boolean = () => true) => {
+    const request = ++historyRequest.current
+    setTrangThaiLichSu('loading')
+    try {
+      const submissions = await api<OwnerSubmission[]>('/owner/submissions/mine')
+      if (!isActive() || request !== historyRequest.current) return
+      setLichSu(submissions)
+      setTrangThaiLichSu('ready')
+    } catch {
+      if (isActive() && request === historyRequest.current) setTrangThaiLichSu('error')
+    }
+  }, [])
 
   const taiThongTinChuQuan = useCallback(async (isActive: () => boolean = () => true) => {
     let ownerStatus: string
@@ -82,14 +100,15 @@ export default function OwnerApp() {
     } catch (error) {
       if (!isActive()) return
       if (error instanceof Error && error.message === 'HTTP 404') {
-        setTrangThai('admin')
+        setTrangThai('unregistered')
       } else {
         setTrangThai('unavailable')
       }
+      setTrangThaiLichSu('error')
       return
     }
 
-    if (ownerStatus === 'approved') {
+    if (ownerStatus === 'approved' || ownerStatus === 'admin') {
       try {
         const notifications = await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications')
         if (!isActive()) return
@@ -98,13 +117,10 @@ export default function OwnerApp() {
         if (isActive()) setLoi('Không tải được thông báo của Chủ quán. Hãy tải lại trang.')
       }
 
+      await taiLichSu(isActive)
       try {
-        const [submissions, pois] = await Promise.all([
-          api<OwnerSubmission[]>('/owner/submissions/mine'),
-          api<OwnerPoi[]>('/owner/pois'),
-        ])
+        const pois = await api<OwnerPoi[]>('/owner/pois')
         if (!isActive()) return
-        setLichSu(submissions)
         setPoisCuaToi(pois)
       } catch {
         if (isActive()) setLoi('Đăng nhập được nhưng chưa tải được thông tin Chủ quán. Hãy tải lại trang.')
@@ -112,14 +128,16 @@ export default function OwnerApp() {
     } else {
       setThongBao([])
       setLichSu([])
+      setTrangThaiLichSu('ready')
       setPoisCuaToi([])
     }
-  }, [])
+  }, [taiLichSu])
 
   useEffect(() => {
-    if (!user || trangThai !== 'approved') return
+    if (!user || (trangThai !== 'approved' && trangThai !== 'admin')) return
     let active = true
     const refresh = async () => {
+      if (dashboardTab === 'history') await taiLichSu(() => active)
       if (dashboardTab === 'notifications') {
         try {
           const notifications = await api<{ id: string; message: string; read: boolean }[]>('/owner/notifications')
@@ -143,7 +161,7 @@ export default function OwnerApp() {
       active = false
       window.removeEventListener('focus', refresh)
     }
-  }, [dashboardTab, trangThai, user])
+  }, [dashboardTab, trangThai, user, taiLichSu])
 
   useEffect(() => {
     let mounted = true
@@ -280,6 +298,7 @@ export default function OwnerApp() {
   }
 
   const guiQuan = async () => {
+    if (dangGui) return
     setLoi('')
     setThongBaoGui('')
     if (!tenQuan.trim()) {
@@ -311,8 +330,9 @@ export default function OwnerApp() {
       setLoi('Giá món ăn phải là số không âm')
       return
     }
+    setDangGui(true)
     try {
-      await api('/owner/submissions', {
+      const response = await apiText('/owner/submissions', {
         method: 'POST',
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
@@ -333,6 +353,10 @@ export default function OwnerApp() {
             : {}),
         }),
       })
+      if (!response.ok) {
+        setLoi(await apiErrorMessage(response, 'Gửi quán thất bại'))
+        return
+      }
       setThongBaoGui('Đã gửi thông tin quán thành công! Quán đang chờ Admin phê duyệt.')
       setTenQuan('')
       setMoTa('')
@@ -344,8 +368,11 @@ export default function OwnerApp() {
       setMonTrongThucDon([{ name: '', description: '', price: '' }])
       setPoiDangSua('')
       setGoiYAI('')
+      await taiLichSu()
     } catch {
-      setLoi('Gửi quán thất bại, vui lòng kiểm tra lại thông tin')
+      setLoi('Không kết nối được máy chủ để gửi quán. Vui lòng kiểm tra kết nối và thử lại.')
+    } finally {
+      setDangGui(false)
     }
   }
 
@@ -538,6 +565,8 @@ export default function OwnerApp() {
           <span className="dashboard-metric__hint">cập nhật từ đội ngũ vận hành</span>
         </div>
       </section>
+
+      {loi !== '' && <div className="notice notice--error dashboard-notice" role="alert">{loi}</div>}
 
       {dashboardTab === 'submission' && (
         <>
@@ -739,7 +768,7 @@ export default function OwnerApp() {
               <button
                 className="btn btn--primary"
                 type="button"
-                disabled={!laDaDuyet || dangXuLyAI}
+                disabled={!laDaDuyet || dangXuLyAI || dangGui}
                 onClick={() => void guiQuan()}
               >
                 Gửi
@@ -756,7 +785,6 @@ export default function OwnerApp() {
 
             {goiYAI !== '' && <div className="notice notice--info mt" role="status">{goiYAI}</div>}
             {thongBaoGui !== '' && <div className="notice notice--ok mt">{thongBaoGui}</div>}
-            {loi !== '' && <div className="notice notice--error mt">{loi}</div>}
           </div>
         </>
       )}
@@ -768,14 +796,20 @@ export default function OwnerApp() {
               <h2 className="card__title">Nội dung đã gửi</h2>
               <p className="card__subtitle">Theo dõi tiến trình xét duyệt từng đề xuất của bạn.</p>
             </div>
-            <span className="badge badge--neutral">{lichSu.length} mục</span>
+            <div className="row">
+              <span className="badge badge--neutral">{lichSu.length} mục</span>
+              <button type="button" className="btn btn--secondary btn--sm"
+                disabled={trangThaiLichSu === 'loading'} onClick={() => void taiLichSu()}>Tải lại lịch sử</button>
+            </div>
           </div>
 
-          {lichSu.length === 0 ? (
+          {trangThaiLichSu === 'loading' && <p role="status">Đang tải lịch sử gửi duyệt…</p>}
+          {trangThaiLichSu === 'error' && <p role="alert" className="notice notice--error">Không tải được lịch sử gửi duyệt. Vui lòng bấm Tải lại lịch sử.</p>}
+          {trangThaiLichSu === 'ready' && lichSu.length === 0 ? (
             <div className="empty-state">
               <p className="muted">Bạn chưa gửi nội dung nào để kiểm duyệt.</p>
             </div>
-          ) : (
+          ) : lichSu.length > 0 ? (
             <div className="table-responsive mt">
               <table className="table">
                 <thead>
@@ -804,7 +838,7 @@ export default function OwnerApp() {
                     return (
                       <tr key={submission.id}>
                         <td><strong>{tenNoiDung}</strong></td>
-                        <td>{submission.poi_id ? 'Cập nhật quán' : 'Quán mới'}</td>
+                        <td>{(submission.submission_type ?? (submission.poi_id ? 'update' : 'create')) === 'update' ? 'Cập nhật quán' : 'Quán mới'}</td>
                         <td>{submission.created_at ? new Date(submission.created_at).toLocaleDateString('vi-VN') : '—'}</td>
                         <td>
                           <span className={`badge badge--${submission.status === 'approved' ? 'ok' : submission.status === 'rejected' ? 'error' : 'warn'}`}>
@@ -818,7 +852,7 @@ export default function OwnerApp() {
                 </tbody>
               </table>
             </div>
-          )}
+          ) : null}
         </div>
       )}
 
@@ -838,11 +872,16 @@ export default function OwnerApp() {
                 <span className={`badge badge--${poi.publication_status === 'published' && poi.is_active ? 'ok' : 'warn'}`}>
                   {poi.publication_status === 'published' && poi.is_active
                     ? 'Đang công khai'
+                    : poi.publication_status === 'unpublished'
+                      ? 'Đã duyệt · chưa công khai'
                     : poi.publication_status === 'pending_review'
                       ? 'Đã duyệt · chờ xuất bản'
                       : 'Đang xử lý'}
                 </span>
               </div>
+              {poi.publication_status === 'unpublished' && (
+                <p className="notice notice--info">Nội dung đã duyệt. Admin cần chuẩn bị English và audio, sau đó bấm Công khai để khách thấy POI. Xem Thông báo để biết lần thay đổi gần nhất.</p>
+              )}
               <p className="owner-poi-card__description">{poi.description || 'Chưa có mô tả.'}</p>
               {poi.audio_url && layUrlAnh(poi.audio_url) && (
                 <audio {...{ src: layUrlAnh(poi.audio_url) }} className="owner-poi-card__audio" controls preload="none">

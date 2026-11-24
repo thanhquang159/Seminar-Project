@@ -10,7 +10,7 @@ _PERMISSIONS_FOR_API = {
     "audit_logs.read": {"audit:read"},
     "owner_registrations.review": {"user:update"},
     "pois.manage": {"poi:create", "poi:delete", "poi:update"},
-    "pois.publish": {"poi:approve"},
+    "pois.publish": {"poi:publish"},
     "pois.read": {"poi:read"},
     "roles.manage": {"role:read"},
     "submissions.review": {"poi:approve"},
