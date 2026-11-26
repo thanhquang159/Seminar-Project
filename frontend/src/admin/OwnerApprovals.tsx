@@ -1,4 +1,4 @@
-import { useEffect, useState } from "react";
+import { useCallback, useEffect, useRef, useState } from "react";
 import { api, apiText } from "./api";
 import { apiErrorMessage } from "./apiErrors";
 
@@ -44,48 +44,65 @@ interface SubmissionChoDuyet {
 export default function OwnerApprovals({
   onPoiApproved,
   onPendingChanged,
+  refreshVersion = 0,
 }: {
   onPoiApproved: () => void | Promise<void>;
   onPendingChanged?: () => void | Promise<void>;
+  refreshVersion?: number;
 }) {
   const [don, setDon] = useState<DonDangKy[]>([]);
   const [choDuyet, setChoDuyet] = useState<SubmissionChoDuyet[]>([]);
   const [ghiChu, setGhiChu] = useState<Record<string, string>>({});
   const [lyDoTuChoi, setLyDoTuChoi] = useState<Record<string, string>>({});
   const [loi, setLoi] = useState("");
+  const [loiTai, setLoiTai] = useState("");
   const [thongBaoDuyet, setThongBaoDuyet] = useState("");
   const [busy, setBusy] = useState(false);
+  const request = useRef<AbortController | null>(null);
+  const processing = useRef(false);
 
-  const tai = async () => {
-    const [registrations, submissions] = await Promise.allSettled([
-      api<DonDangKy[]>("/owner/registrations"),
-      api<SubmissionChoDuyet[]>("/owner/submissions/pending"),
-    ]);
-    const errors: string[] = [];
-    if (registrations.status === "fulfilled") setDon(registrations.value);
-    else errors.push("Không tải được đơn đăng ký (cần quyền user:update).");
-    if (submissions.status === "fulfilled") setChoDuyet(submissions.value);
-    else errors.push("Không tải được quán chờ duyệt (cần quyền poi:approve).");
-    setLoi(errors.join(" "));
-    await onPendingChanged?.();
+  const tai = useCallback(async (force = false) => {
+    // Truy vấn chậm được chạy xong; chỉ thao tác chủ động mới thay thế truy vấn đang chạy.
+    if (!force && request.current && !request.current.signal.aborted) return;
+    request.current?.abort();
+    const controller = new AbortController();
+    request.current = controller;
+    const timeout = setTimeout(() => {
+      controller.abort();
+      setLoiTai("Tải danh sách quá lâu. Hệ thống sẽ tự thử lại.");
+    }, 15_000);
+    controller.signal.addEventListener("abort", () => clearTimeout(timeout), { once: true });
+    try {
+      const options: RequestInit = { signal: controller.signal, cache: "no-store" };
+      const [registrations, submissions] = await Promise.allSettled([
+        api<DonDangKy[]>("/owner/registrations", options),
+        api<SubmissionChoDuyet[]>("/owner/submissions/pending", options),
+      ]);
+      // Phản hồi trước thao tác duyệt hoặc trước lần tải mới không được ghi đè danh sách.
+      if (controller.signal.aborted) return;
+      const errors: string[] = [];
+      if (registrations.status === "fulfilled") setDon(registrations.value);
+      else errors.push("Không tải được đơn đăng ký (cần quyền user:update).");
+      if (submissions.status === "fulfilled") setChoDuyet(submissions.value);
+      else errors.push("Không tải được quán chờ duyệt (cần quyền poi:approve).");
+      setLoiTai(errors.join(" "));
+    } finally {
+      clearTimeout(timeout);
+      if (request.current === controller) request.current = null;
+    }
+  }, []);
+
+  const taiLai = async () => {
+    await Promise.all([tai(true), onPendingChanged?.()]);
   };
 
-  // Vào trang phải tải CẢ HAI hàng đợi: chỉ tải danh đăng ký thì hàng quán chờ
-  // duyệt trống cho tới lần duyệt đầu, mà E2E kiểm đúng ô này.
+  // Mỗi lần kiểm tra thông báo đều làm mới cả hai hàng đợi, kể cả khi tổng không đổi.
+  // Chỉ tải danh sách ở đây để tránh vòng lặp tải danh sách → đếm → tải danh sách.
   useEffect(() => {
-    api<DonDangKy[]>("/owner/registrations")
-      .then(setDon)
-      .catch(() =>
-        setLoi("Không xem được danh sách đăng ký (cần quyền user:update)"),
-      );
-    api<SubmissionChoDuyet[]>("/owner/submissions/pending")
-      .then(setChoDuyet)
-      .catch(() =>
-        setLoi(
-          "Không xem được danh sách quán chờ duyệt (cần quyền poi:approve)",
-        ),
-      );
-  }, []);
+    if (!processing.current) void tai();
+  }, [refreshVersion, tai]);
+
+  useEffect(() => () => request.current?.abort(), []);
 
   const thucHien = async (
     path: string,
@@ -93,7 +110,9 @@ export default function OwnerApprovals({
     body?: object,
     poiApproved = false,
   ) => {
-    if (busy) return;
+    if (processing.current) return;
+    processing.current = true;
+    request.current?.abort();
     setBusy(true);
     setLoi("");
     setThongBaoDuyet("");
@@ -116,7 +135,7 @@ export default function OwnerApprovals({
           ? "Đã duyệt nội dung. POI chưa công khai: mở Quản lý POI, chuẩn bị English + Audio, kiểm tra điều kiện rồi bấm Công khai."
           : `${label} thành công.`,
       );
-      await tai();
+      await taiLai();
       if (poiApproved) {
         try {
           await onPoiApproved();
@@ -131,6 +150,7 @@ export default function OwnerApprovals({
         "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối và thử lại.",
       );
     } finally {
+      processing.current = false;
       setBusy(false);
     }
   };
@@ -193,7 +213,7 @@ export default function OwnerApprovals({
           type="button"
           className="btn btn--secondary btn--sm"
           disabled={busy}
-          onClick={() => void tai()}
+          onClick={() => void taiLai()}
         >
           Tải lại danh sách
         </button>
@@ -406,9 +426,9 @@ export default function OwnerApprovals({
           {thongBaoDuyet}
         </div>
       )}
-      {loi !== "" && (
+      {(loi !== "" || loiTai !== "") && (
         <div className="notice notice--error mt" role="alert">
-          {loi}
+          {[loi, loiTai].filter(Boolean).join(" ")}
         </div>
       )}
     </div>

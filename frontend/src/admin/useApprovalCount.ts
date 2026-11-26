@@ -7,7 +7,7 @@ const isVisible = () => document.visibilityState !== 'hidden'
 export function useApprovalCount(user: string | null, permissions: string[]) {
   const enabled = Boolean(user) && permissions.some((permission) =>
     permission === 'user:update' || permission === 'poi:approve')
-  const [count, setCount] = useState<{ user: string; total: number } | null>(null)
+  const [count, setCount] = useState<{ user: string; total: number; version: number } | null>(null)
   const request = useRef<AbortController | null>(null)
   const expired = useRef(false)
 
@@ -22,7 +22,9 @@ export function useApprovalCount(user: string | null, permissions: string[]) {
         signal: controller.signal, cache: 'no-store',
       })
       // Bỏ kết quả cũ nếu vừa tải lại sau thao tác duyệt hoặc đã đổi phiên.
-      if (!controller.signal.aborted) setCount({ user, total: result.total })
+      if (!controller.signal.aborted) {
+        setCount((previous) => ({ user, total: result.total, version: (previous?.version ?? 0) + 1 }))
+      }
     } catch (error) {
       // Lỗi mạng tạm thời giữ số gần nhất; dừng cập nhật nếu phiên hết hạn.
       if (!controller.signal.aborted && error instanceof Error) {
@@ -55,5 +57,6 @@ export function useApprovalCount(user: string | null, permissions: string[]) {
     }
   }, [enabled, refresh])
 
-  return { count: enabled && count?.user === user ? count.total : 0, refresh }
+  const current = enabled && count?.user === user ? count : null
+  return { count: current?.total ?? 0, refreshVersion: current?.version ?? 0, refresh }
 }

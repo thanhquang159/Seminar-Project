@@ -51,7 +51,7 @@ const CONG_KHACH = new Set(['poi_owner', 'user'])
 export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void }) {
   const [user, setUser] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<string[]>([])
-  const { count: pendingApprovalCount, refresh: refreshApprovalCount } = useApprovalCount(user, permissions)
+  const { count: pendingApprovalCount, refreshVersion: approvalRefreshVersion, refresh: refreshApprovalCount } = useApprovalCount(user, permissions)
   const [checkingSession, setCheckingSession] = useState(true)
   const [ten, setTen] = useState('')
   const [matKhau, setMatKhau] = useState('')
@@ -612,6 +612,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       {adminTab === 'approvals' && (
         <div className="mt">
           <OwnerApprovals
+            refreshVersion={approvalRefreshVersion}
             onPendingChanged={refreshApprovalCount}
             onPoiApproved={async () => {
               await taiPois()
