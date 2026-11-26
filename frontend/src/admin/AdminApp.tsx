@@ -3,6 +3,7 @@ import { api, apiText } from './api'
 import AnalyticsPanel from './AnalyticsPanel'
 import AudioTasks from './AudioTasks'
 import OwnerApprovals from './OwnerApprovals'
+import { useApprovalCount } from './useApprovalCount'
 import PoiImageManager from './PoiImageManager'
 import PoiTranslations from './PoiTranslations'
 import PoiPublication, { type PublicationReadiness } from './PoiPublication'
@@ -50,6 +51,7 @@ const CONG_KHACH = new Set(['poi_owner', 'user'])
 export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void }) {
   const [user, setUser] = useState<string | null>(null)
   const [permissions, setPermissions] = useState<string[]>([])
+  const { count: pendingApprovalCount, refresh: refreshApprovalCount } = useApprovalCount(user, permissions)
   const [checkingSession, setCheckingSession] = useState(true)
   const [ten, setTen] = useState('')
   const [matKhau, setMatKhau] = useState('')
@@ -294,6 +296,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
     {
       key: 'approvals',
       label: 'Duyệt chủ quán',
+      badge: pendingApprovalCount,
       icon: <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.7"><path d="M16 21v-2a4 4 0 0 0-4-4H6a4 4 0 0 0-4 4v2" /><circle cx="9" cy="7" r="4" /><path d="M22 21v-2a4 4 0 0 0-3-3.9M16 3.1a4 4 0 0 1 0 7.8" /></svg>,
     },
     {
@@ -609,6 +612,7 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
       {adminTab === 'approvals' && (
         <div className="mt">
           <OwnerApprovals
+            onPendingChanged={refreshApprovalCount}
             onPoiApproved={async () => {
               await taiPois()
               onPoisChanged()

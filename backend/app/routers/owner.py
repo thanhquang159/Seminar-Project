@@ -20,6 +20,7 @@ from app.auth import (
     YeuCauOwnerDuyet,
     bam_mat_khau,
     doi_quyen,
+    lay_user_hien_tai,
 )
 from app.limits import LangField, MAX_ADMIN_NOTE, MAX_MO_TA, MAX_TEN, MatKhauDangKy
 from app.pii import giai_ma_pii, ma_hoa_pii
@@ -287,6 +288,35 @@ async def xem_trang_thai(
             return {"status": "admin", "admin_note": ""}
         raise HTTPException(status_code=404, detail="Chưa đăng ký")
     return {"status": registration["status"], "admin_note": registration["admin_note"]}
+
+
+@router.get("/owner/approvals/counts", summary="Số yêu cầu chờ duyệt theo quyền quản trị")
+async def dem_yeu_cau_cho_duyet(
+    db: Annotated[AsyncSession, Depends(get_db)],
+    user: Annotated[dict, Depends(lay_user_hien_tai)],
+) -> dict[str, int]:
+    permissions = user.get("permissions", [])
+    can_review_registrations = "user:update" in permissions
+    can_review_submissions = "poi:approve" in permissions
+    if not can_review_registrations and not can_review_submissions:
+        raise HTTPException(status_code=403, detail="Không có quyền xem yêu cầu chờ duyệt")
+
+    # Đếm toàn bộ hàng đợi, không bị giới hạn 100 bản ghi như API danh sách.
+    result = await db.execute(
+        text("""
+            SELECT
+                (SELECT count(*) FROM owner_registrations
+                 WHERE status = 'pending' AND :can_review_registrations) AS registrations,
+                (SELECT count(*) FROM poi_submissions
+                 WHERE status = 'pending' AND :can_review_submissions) AS submissions
+        """),
+        {
+            "can_review_registrations": can_review_registrations,
+            "can_review_submissions": can_review_submissions,
+        },
+    )
+    counts = dict(result.mappings().one())
+    return {**counts, "total": counts["registrations"] + counts["submissions"]}
 
 
 @router.get("/owner/registrations", summary="Liệt kê đơn chờ duyệt")

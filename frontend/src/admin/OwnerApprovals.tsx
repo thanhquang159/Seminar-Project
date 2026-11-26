@@ -43,8 +43,10 @@ interface SubmissionChoDuyet {
 // từng quán. Thiếu một trong hai thì vòng lặp "gửi → thông báo" không đóng.
 export default function OwnerApprovals({
   onPoiApproved,
+  onPendingChanged,
 }: {
   onPoiApproved: () => void | Promise<void>;
+  onPendingChanged?: () => void | Promise<void>;
 }) {
   const [don, setDon] = useState<DonDangKy[]>([]);
   const [choDuyet, setChoDuyet] = useState<SubmissionChoDuyet[]>([]);
@@ -65,6 +67,7 @@ export default function OwnerApprovals({
     if (submissions.status === "fulfilled") setChoDuyet(submissions.value);
     else errors.push("Không tải được quán chờ duyệt (cần quyền poi:approve).");
     setLoi(errors.join(" "));
+    await onPendingChanged?.();
   };
 
   // Vào trang phải tải CẢ HAI hàng đợi: chỉ tải danh đăng ký thì hàng quán chờ
