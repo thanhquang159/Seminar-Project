@@ -22,6 +22,7 @@ const TRONG: Poi = {
   id: '',
   name: '',
   description: '',
+  category: 'other',
   lat: 10.7569,
   lng: 106.7641,
   trigger_radius: 30,
@@ -408,6 +409,24 @@ export default function AdminApp({ onPoisChanged }: { onPoisChanged: () => void 
                 value={form.description}
                 onChange={(e) => setForm({ ...form, description: e.target.value })}
               />
+            </div>
+
+            <div className="field">
+              <label className="field__label">Danh mục POI *</label>
+              <select
+                className="input"
+                value={form.category ?? 'other'}
+                onChange={(e) => setForm({ ...form, category: e.target.value })}
+              >
+                <option value="restaurant">Nhà hàng</option>
+                <option value="cafe">Cà phê</option>
+                <option value="street_food">Ẩm thực đường phố</option>
+                <option value="bakery">Tiệm bánh</option>
+                <option value="dessert">Tráng miệng</option>
+                <option value="seafood">Hải sản</option>
+                <option value="bar">Quán bar</option>
+                <option value="other">Khác</option>
+              </select>
             </div>
 
             <div className="field">

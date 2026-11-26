@@ -106,6 +106,18 @@ không cần đăng nhập; request ẩn danh được giới hạn theo IP.
 
 ## Owner portal
 
+- `POST /owner/auth/login`, `GET /owner/auth/me`, `POST /owner/auth/refresh`
+  hỗ trợ phiên xem kết quả đăng ký của tài khoản `pending`/`rejected`. Các tài
+  khoản này chỉ xem trạng thái, xem thông báo và đánh dấu thư của mình đã đọc;
+  quyền quản lý POI/menu vẫn yêu cầu tài khoản được duyệt. Logout dùng chung
+  `POST /admin/auth/logout`.
+- Duyệt/từ chối đăng ký tạo `owner_registration_approved` hoặc
+  `owner_registration_rejected` trong cùng transaction; thư từ chối chứa lý do.
+  Đơn đã xử lý trả `404` khi duyệt lại và không tạo thông báo trùng.
+- OwnerApp truy vấn trạng thái và thông báo mỗi 5 giây sau khi lượt trước kết
+  thúc trên mọi trang Owner, tạm dừng khi tab ẩn, tải ngay khi trở lại cửa sổ
+  hoặc có mạng. Lỗi mạng giữ dữ liệu cũ và tự thử lại; logout/rời trang hủy
+  truy vấn. Badge hiển thị số chưa đọc trong 50 thông báo gần nhất.
 - `GET /owner/pois` chỉ trả POI thuộc tài khoản chủ quán đã được duyệt.
 - `GET /owner/submissions/mine` trả trạng thái, thời điểm gửi và `admin_note`;
   submission bị từ chối sẽ tạo thông báo cho chủ quán.

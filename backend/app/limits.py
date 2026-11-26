@@ -44,7 +44,10 @@ MAX_MO_TA = 5000
 # lệ sẽ bị 413 đúng ở ranh giới 5 MB.
 MAX_BYTE_ANH = 5 * 1024 * 1024
 MAX_BYTE_TAI_ANH = MAX_BYTE_ANH + 1024 * 1024
-DUONG_DAN_TAI_ANH = ("/admin/pois/",)
+DUONG_DAN_TAI_ANH = (
+    "/admin/pois/",
+    "/owner/submissions/",
+)
 
 
 def _mat_khau_trong_gioi_han(v: str) -> str:

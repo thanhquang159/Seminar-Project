@@ -8,7 +8,8 @@ const API = API_BASE_URL
 export async function apiText(path: string, init?: RequestInit): Promise<Response> {
   const res = await fetch(`${API}${path}`, { ...init, credentials: 'include' })
   if (res.status !== 401) return res
-  const refresh = await fetch(`${API}/admin/auth/refresh`, { method: 'POST', credentials: 'include' })
+  const refreshPath = path.startsWith('/owner/') ? '/owner/auth/refresh' : '/admin/auth/refresh'
+  const refresh = await fetch(`${API}${refreshPath}`, { method: 'POST', credentials: 'include', signal: init?.signal })
   if (!refresh.ok) return res
   return fetch(`${API}${path}`, { ...init, credentials: 'include' })
 }

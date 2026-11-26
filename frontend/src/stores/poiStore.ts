@@ -8,6 +8,7 @@ export interface Poi {
   id: string
   name: string
   description: string
+  category?: string
   lat: number
   lng: number
   trigger_radius: number

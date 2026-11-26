@@ -60,6 +60,17 @@ async def dang_nhap(
     response: Response,
     db: AsyncSession = DbSession,
 ) -> dict:
+    return await dang_nhap_voi_pham_vi(body, request, response, db)
+
+
+async def dang_nhap_voi_pham_vi(
+    body: DangNhap,
+    request: Request,
+    response: Response,
+    db: AsyncSession,
+    *,
+    owner_portal: bool = False,
+) -> dict:
     ip = _ip(request)
     await login_guard.kiem_tra(db, body.username, ip)
     user = await lay_user_theo_ten(body.username, db)
@@ -68,7 +79,23 @@ async def dang_nhap(
         if user
         else dung_mat_khau("gia", bam_mat_khau("gia"))
     )
-    if user is None or user["account_status"] != "active" or not valid_password:
+    allowed = user is not None and user["account_status"] == "active"
+    if (
+        owner_portal
+        and user
+        and valid_password
+        and user["account_status"] in {"pending", "rejected"}
+        and not user["is_poi_owner_verified"]
+    ):
+        registration = await db.execute(
+            text("""
+                SELECT status FROM owner_registrations
+                WHERE user_id = :user_id ORDER BY submitted_at DESC LIMIT 1
+            """),
+            {"user_id": user["id"]},
+        )
+        allowed = registration.scalar_one_or_none() == user["account_status"]
+    if not allowed or not valid_password:
         await login_guard.ghi_nhan_that_bai(db, body.username, ip)
         raise HTTPException(status_code=401, detail=THONG_BAO_SAI)
 

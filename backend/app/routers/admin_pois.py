@@ -3,7 +3,7 @@
 import hashlib
 import io
 from collections.abc import Mapping
-from typing import Annotated
+from typing import Annotated, Literal
 from uuid import UUID
 
 from fastapi import APIRouter, Depends, HTTPException, Response, UploadFile
@@ -39,8 +39,7 @@ _POI_RETURNING = """
     COALESCE(description, '') AS description,
     latitude::double precision AS lat,
     longitude::double precision AS lng,
-    trigger_radius_m AS trigger_radius,
-    audio_priority
+    category,
 """
 
 
@@ -49,6 +48,16 @@ class PoiNhap(BaseModel):
 
     name: str = Field(min_length=1, max_length=200)
     description: str = Field(default="", max_length=5000)
+    category: Literal[
+        "restaurant",
+        "cafe",
+        "street_food",
+        "bakery",
+        "dessert",
+        "seafood",
+        "bar",
+        "other",
+    ] = "other"
     address_line: str = Field(default="", max_length=500)
     lat: float = Field(ge=-90, le=90)
     lng: float = Field(ge=-180, le=180)
@@ -71,6 +80,7 @@ def _poi_response(row: Mapping[str, object]) -> dict:
         "description": row.get("description") or "",
         "lat": float(row["lat"]),
         "lng": float(row["lng"]),
+        "category": row.get("category", "other"),
         "trigger_radius": row.get("trigger_radius", 30),
         "audio_priority": row.get("audio_priority", 0),
     }
@@ -86,6 +96,7 @@ async def liet_ke_poi(
             f"""
             SELECT p.id::text AS id, p.name,
                    COALESCE(p.description, '') AS description,
+                   COALESCE(p.category, 'other') AS category,
                    COALESCE(p.address_line, '') AS address_line,
                    p.latitude::double precision AS lat,
                    p.longitude::double precision AS lng,
@@ -182,7 +193,7 @@ async def tao_poi(
                     created_by, updated_by, updated_at
                 )
                 VALUES (
-                    :name, :description, 'other', :address_line, :lat, :lng,
+                    :name, :description, :category, :address_line, :lat, :lng,
                     :trigger_radius, :audio_priority, 'draft', FALSE,
                     :actor_id, :actor_id, now()
                 )
@@ -247,6 +258,7 @@ async def sua_poi(
                 UPDATE pois
                 SET name = :name,
                     description = :description,
+                    category = :category,
                     address_line = :address_line,
                     latitude = :lat,
                     longitude = :lng,

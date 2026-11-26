@@ -1,131 +1,199 @@
-import { useEffect, useState } from 'react'
-import { api, apiText } from './api'
-import { apiErrorMessage } from './apiErrors'
+import { useEffect, useState } from "react";
+import { api, apiText } from "./api";
+import { apiErrorMessage } from "./apiErrors";
 
 interface DonDangKy {
-  username: string
-  status: string
+  username: string;
+  status: string;
 }
 
 interface SubmissionChoDuyet {
-  id: string
-  username: string
-  name: string
-  created_at: string | null
-  can_approve?: boolean
-  approval_blockers?: string[]
+  id: string;
+  username: string;
+  name: string;
+  created_at: string | null;
+  can_approve?: boolean;
+  approval_blockers?: string[];
   data: {
-    address_line?: string
-    lat?: number
-    lng?: number
+    address_line?: string;
+    lat?: number;
+    lng?: number;
+    category?: string;
+    source_language?: string;
+    trigger_radius?: number;
+    collision_check?: {
+      kind: "none" | "geofence_overlap";
+      overlaps?: Array<{
+        name: string;
+        distance_m: number;
+        existing_radius_m: number;
+      }>;
+    };
+    images?: Array<{ public_url: string; mime_type: string }>;
     menu?: {
-      name?: string
-      description?: string
-      items?: { name: string; price?: number | null }[]
-    } | null
-  }
+      name?: string;
+      description?: string;
+      items?: { name: string; price?: number | null }[];
+    } | null;
+  };
 }
 
 // Chủ quán đăng ký ở portal Owner; admin duyệt ở đây thì họ mới gửi được quán.
 // Hai hàng đợi vì một chủ quán phải qua hai cổng: duyệt tài khoản, rồi duyệt
 // từng quán. Thiếu một trong hai thì vòng lặp "gửi → thông báo" không đóng.
-export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () => void | Promise<void> }) {
-  const [don, setDon] = useState<DonDangKy[]>([])
-  const [choDuyet, setChoDuyet] = useState<SubmissionChoDuyet[]>([])
-  const [ghiChu, setGhiChu] = useState<Record<string, string>>({})
-  const [lyDoTuChoi, setLyDoTuChoi] = useState<Record<string, string>>({})
-  const [loi, setLoi] = useState('')
-  const [thongBaoDuyet, setThongBaoDuyet] = useState('')
-  const [busy, setBusy] = useState(false)
+export default function OwnerApprovals({
+  onPoiApproved,
+}: {
+  onPoiApproved: () => void | Promise<void>;
+}) {
+  const [don, setDon] = useState<DonDangKy[]>([]);
+  const [choDuyet, setChoDuyet] = useState<SubmissionChoDuyet[]>([]);
+  const [ghiChu, setGhiChu] = useState<Record<string, string>>({});
+  const [lyDoTuChoi, setLyDoTuChoi] = useState<Record<string, string>>({});
+  const [loi, setLoi] = useState("");
+  const [thongBaoDuyet, setThongBaoDuyet] = useState("");
+  const [busy, setBusy] = useState(false);
 
   const tai = async () => {
     const [registrations, submissions] = await Promise.allSettled([
-      api<DonDangKy[]>('/owner/registrations'), api<SubmissionChoDuyet[]>('/owner/submissions/pending'),
-    ])
-    const errors: string[] = []
-    if (registrations.status === 'fulfilled') setDon(registrations.value)
-    else errors.push('Không tải được đơn đăng ký (cần quyền user:update).')
-    if (submissions.status === 'fulfilled') setChoDuyet(submissions.value)
-    else errors.push('Không tải được quán chờ duyệt (cần quyền poi:approve).')
-    setLoi(errors.join(' '))
-  }
+      api<DonDangKy[]>("/owner/registrations"),
+      api<SubmissionChoDuyet[]>("/owner/submissions/pending"),
+    ]);
+    const errors: string[] = [];
+    if (registrations.status === "fulfilled") setDon(registrations.value);
+    else errors.push("Không tải được đơn đăng ký (cần quyền user:update).");
+    if (submissions.status === "fulfilled") setChoDuyet(submissions.value);
+    else errors.push("Không tải được quán chờ duyệt (cần quyền poi:approve).");
+    setLoi(errors.join(" "));
+  };
 
   // Vào trang phải tải CẢ HAI hàng đợi: chỉ tải danh đăng ký thì hàng quán chờ
   // duyệt trống cho tới lần duyệt đầu, mà E2E kiểm đúng ô này.
   useEffect(() => {
-    api<DonDangKy[]>('/owner/registrations')
+    api<DonDangKy[]>("/owner/registrations")
       .then(setDon)
-      .catch(() => setLoi('Không xem được danh sách đăng ký (cần quyền user:update)'))
-    api<SubmissionChoDuyet[]>('/owner/submissions/pending')
+      .catch(() =>
+        setLoi("Không xem được danh sách đăng ký (cần quyền user:update)"),
+      );
+    api<SubmissionChoDuyet[]>("/owner/submissions/pending")
       .then(setChoDuyet)
-      .catch(() => setLoi('Không xem được danh sách quán chờ duyệt (cần quyền poi:approve)'))
-  }, [])
+      .catch(() =>
+        setLoi(
+          "Không xem được danh sách quán chờ duyệt (cần quyền poi:approve)",
+        ),
+      );
+  }, []);
 
-  const thucHien = async (path: string, label: string, body?: object, poiApproved = false) => {
-    if (busy) return
-    setBusy(true)
-    setLoi('')
-    setThongBaoDuyet('')
+  const thucHien = async (
+    path: string,
+    label: string,
+    body?: object,
+    poiApproved = false,
+  ) => {
+    if (busy) return;
+    setBusy(true);
+    setLoi("");
+    setThongBaoDuyet("");
     try {
       const res = await apiText(path, {
-        method: 'POST',
-        ...(body ? { headers: { 'Content-Type': 'application/json' }, body: JSON.stringify(body) } : {}),
-      })
+        method: "POST",
+        ...(body
+          ? {
+              headers: { "Content-Type": "application/json" },
+              body: JSON.stringify(body),
+            }
+          : {}),
+      });
       if (!res.ok) {
-        setLoi(await apiErrorMessage(res, `${label} thất bại`))
-        return
+        setLoi(await apiErrorMessage(res, `${label} thất bại`));
+        return;
       }
-      setThongBaoDuyet(poiApproved
-        ? 'Đã duyệt nội dung. POI chưa công khai: mở Quản lý POI, chuẩn bị English + Audio, kiểm tra điều kiện rồi bấm Công khai.'
-        : `${label} thành công.`)
-      await tai()
+      setThongBaoDuyet(
+        poiApproved
+          ? "Đã duyệt nội dung. POI chưa công khai: mở Quản lý POI, chuẩn bị English + Audio, kiểm tra điều kiện rồi bấm Công khai."
+          : `${label} thành công.`,
+      );
+      await tai();
       if (poiApproved) {
-        try { await onPoiApproved() }
-        catch { setLoi('Đã duyệt thành công nhưng chưa tải lại được danh sách POI. Vui lòng tải lại trang.') }
+        try {
+          await onPoiApproved();
+        } catch {
+          setLoi(
+            "Đã duyệt thành công nhưng chưa tải lại được danh sách POI. Vui lòng tải lại trang.",
+          );
+        }
       }
     } catch {
-      setLoi('Không kết nối được máy chủ. Vui lòng kiểm tra kết nối và thử lại.')
+      setLoi(
+        "Không kết nối được máy chủ. Vui lòng kiểm tra kết nối và thử lại.",
+      );
     } finally {
-      setBusy(false)
+      setBusy(false);
     }
-  }
+  };
 
   const duyetTaiKhoan = async (ten: string) => {
-    await thucHien(`/owner/registrations/${encodeURIComponent(ten)}/approve`, 'Duyệt tài khoản')
-  }
+    await thucHien(
+      `/owner/registrations/${encodeURIComponent(ten)}/approve`,
+      "Duyệt tài khoản",
+    );
+  };
 
   const tuChoi = async (ten: string) => {
-    const note = (ghiChu[ten] ?? '').trim()
-    if (note === '') {
-      setLoi('Từ chối phải có ghi chú để chủ quán biết cần bổ sung gì')
-      return
+    const note = (ghiChu[ten] ?? "").trim();
+    if (note === "") {
+      setLoi("Từ chối phải có ghi chú để chủ quán biết cần bổ sung gì");
+      return;
     }
-    await thucHien(`/owner/registrations/${encodeURIComponent(ten)}/reject`, 'Từ chối tài khoản', { admin_note: note })
-  }
+    await thucHien(
+      `/owner/registrations/${encodeURIComponent(ten)}/reject`,
+      "Từ chối tài khoản",
+      { admin_note: note },
+    );
+  };
 
   // Duyệt quán sẽ tạo POI và bắn thông báo cho chủ quán — đúng mốc mà E2E kiểm.
   const duyetQuan = async (id: string) => {
-    await thucHien(`/owner/submissions/${id}/approve`, 'Duyệt quán', undefined, true)
-  }
+    await thucHien(
+      `/owner/submissions/${id}/approve`,
+      "Duyệt quán",
+      undefined,
+      true,
+    );
+  };
 
   const tuChoiQuan = async (id: string) => {
-    const admin_note = (lyDoTuChoi[id] ?? '').trim()
-    if (admin_note === '') {
-      setLoi('Vui lòng nhập lý do từ chối để chủ quán biết nội dung cần chỉnh sửa')
-      return
+    const admin_note = (lyDoTuChoi[id] ?? "").trim();
+    if (admin_note === "") {
+      setLoi(
+        "Vui lòng nhập lý do từ chối để chủ quán biết nội dung cần chỉnh sửa",
+      );
+      return;
     }
-    await thucHien(`/owner/submissions/${id}/reject`, 'Từ chối quán', { admin_note })
-  }
+    await thucHien(`/owner/submissions/${id}/reject`, "Từ chối quán", {
+      admin_note,
+    });
+  };
 
   return (
     <div className="card">
       <div className="section-header">
         <div>
           <h3 className="card__title">Kiểm duyệt chủ quán</h3>
-          <p className="card__subtitle">Chỉ hiển thị hồ sơ và đề xuất đang chờ duyệt. Quán đã duyệt được quản lý và công khai tại danh sách POI; quán do Admin tạo trực tiếp không có đơn Owner chờ duyệt.</p>
+          <p className="card__subtitle">
+            Chỉ hiển thị hồ sơ và đề xuất đang chờ duyệt. Quán đã duyệt được
+            quản lý và công khai tại danh sách POI; quán do Admin tạo trực tiếp
+            không có đơn Owner chờ duyệt.
+          </p>
         </div>
-        <button type="button" className="btn btn--secondary btn--sm" disabled={busy}
-          onClick={() => void tai()}>Tải lại danh sách</button>
+        <button
+          type="button"
+          className="btn btn--secondary btn--sm"
+          disabled={busy}
+          onClick={() => void tai()}
+        >
+          Tải lại danh sách
+        </button>
       </div>
 
       {/* 1. Hàng đợi đơn đăng ký chủ quán */}
@@ -147,7 +215,7 @@ export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () =>
               <thead>
                 <tr>
                   <th>Tài khoản & Ghi chú từ chối</th>
-                  <th style={{ textAlign: 'right', width: 200 }}>Xử lý</th>
+                  <th style={{ textAlign: "right", width: 200 }}>Xử lý</th>
                 </tr>
               </thead>
               <tbody>
@@ -156,7 +224,16 @@ export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () =>
                     <td>
                       <div className="user-approval-cell">
                         <span className="user-avatar-tag">
-                          <svg width="15" height="15" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="1.75" strokeLinecap="round" strokeLinejoin="round">
+                          <svg
+                            width="15"
+                            height="15"
+                            viewBox="0 0 24 24"
+                            fill="none"
+                            stroke="currentColor"
+                            strokeWidth="1.75"
+                            strokeLinecap="round"
+                            strokeLinejoin="round"
+                          >
                             <path d="M19 21v-2a4 4 0 0 0-4-4H9a4 4 0 0 0-4 4v2" />
                             <circle cx="12" cy="7" r="4" />
                           </svg>
@@ -166,13 +243,24 @@ export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () =>
                           <input
                             className="input input--sm"
                             placeholder="Ghi chú khi từ chối"
-                            value={ghiChu[d.username] ?? ''}
-                            onChange={(e) => setGhiChu({ ...ghiChu, [d.username]: e.target.value })}
+                            value={ghiChu[d.username] ?? ""}
+                            onChange={(e) =>
+                              setGhiChu({
+                                ...ghiChu,
+                                [d.username]: e.target.value,
+                              })
+                            }
                           />
                         </div>
                       </div>
                     </td>
-                    <td style={{ textAlign: 'right', verticalAlign: 'middle', whiteSpace: 'nowrap' }}>
+                    <td
+                      style={{
+                        textAlign: "right",
+                        verticalAlign: "middle",
+                        whiteSpace: "nowrap",
+                      }}
+                    >
                       <button
                         className="btn btn--sm btn--primary mr-xs"
                         type="button"
@@ -218,7 +306,7 @@ export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () =>
                 <tr>
                   <th>Tên quán ăn đề xuất & lý do từ chối</th>
                   <th>Chủ quán gửi</th>
-                  <th style={{ textAlign: 'right', width: 140 }}>Hành động</th>
+                  <th style={{ textAlign: "right", width: 140 }}>Hành động</th>
                 </tr>
               </thead>
               <tbody>
@@ -226,33 +314,65 @@ export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () =>
                   <tr key={s.id}>
                     <td>
                       <strong className="poi-title-cell">{s.name}</strong>
-                      {s.approval_blockers?.map((reason) => <p key={reason} className="notice notice--warn">{reason}</p>)}
+                      {s.approval_blockers?.map((reason) => (
+                        <p key={reason} className="notice notice--warn">
+                          {reason}
+                        </p>
+                      ))}
                       <div className="muted mt-xs">
-                        {s.data.address_line || 'Chưa có địa chỉ'} ·{' '}
-                        {typeof s.data.lat === 'number' && typeof s.data.lng === 'number'
+                        {s.data.address_line || "Chưa có địa chỉ"} ·{" "}
+                        {typeof s.data.lat === "number" &&
+                        typeof s.data.lng === "number"
                           ? `${s.data.lat}, ${s.data.lng}`
-                          : 'Chưa có tọa độ'}
+                          : "Chưa có tọa độ"}
+                        {typeof s.data.trigger_radius === "number"
+                          ? ` · Geofence ${s.data.trigger_radius} m`
+                          : ""}
+                        {s.data.category
+                          ? ` · Danh mục ${s.data.category}`
+                          : ""}
+                        {s.data.source_language
+                          ? ` · Ngôn ngữ nguồn ${s.data.source_language}`
+                          : ""}
                       </div>
+                      {s.data.collision_check?.kind === "geofence_overlap" && (
+                        <p className="notice notice--warn mt-xs">
+                          Cảnh báo geofence chồng lấn với:{" "}
+                          {s.data.collision_check.overlaps
+                            ?.map((item) => item.name)
+                            .join(", ") || "POI gần đó"}
+                        </p>
+                      )}
+                      {s.data.images && s.data.images.length > 0 && (
+                        <div className="muted mt-xs">
+                          Hình ảnh đính kèm: {s.data.images.length}/8
+                        </div>
+                      )}
                       {s.data.menu && (
                         <div className="muted mt-xs">
-                          {s.data.menu.name || 'Thực đơn'}
+                          {s.data.menu.name || "Thực đơn"}
                           {s.data.menu.items?.length
-                            ? ` · ${s.data.menu.items.map((item) => item.name).join(', ')}`
-                            : ''}
+                            ? ` · ${s.data.menu.items.map((item) => item.name).join(", ")}`
+                            : ""}
                         </div>
                       )}
                       <input
                         className="input input--sm mt-xs"
                         aria-label={`Lý do từ chối ${s.name}`}
                         placeholder="Nhập lý do nếu từ chối"
-                        value={lyDoTuChoi[s.id] ?? ''}
-                        onChange={(event) => setLyDoTuChoi({ ...lyDoTuChoi, [s.id]: event.target.value })}
+                        value={lyDoTuChoi[s.id] ?? ""}
+                        onChange={(event) =>
+                          setLyDoTuChoi({
+                            ...lyDoTuChoi,
+                            [s.id]: event.target.value,
+                          })
+                        }
                       />
                     </td>
                     <td>
                       <span className="badge badge--neutral">{s.username}</span>
                     </td>
-                    <td style={{ textAlign: 'right', whiteSpace: 'nowrap' }}>
+                    <td style={{ textAlign: "right", whiteSpace: "nowrap" }}>
                       <button
                         className="btn btn--sm btn--primary"
                         type="button"
@@ -278,8 +398,16 @@ export default function OwnerApprovals({ onPoiApproved }: { onPoiApproved: () =>
         )}
       </div>
 
-      {thongBaoDuyet && <div className="notice notice--ok mt" role="status">{thongBaoDuyet}</div>}
-      {loi !== '' && <div className="notice notice--error mt" role="alert">{loi}</div>}
+      {thongBaoDuyet && (
+        <div className="notice notice--ok mt" role="status">
+          {thongBaoDuyet}
+        </div>
+      )}
+      {loi !== "" && (
+        <div className="notice notice--error mt" role="alert">
+          {loi}
+        </div>
+      )}
     </div>
-  )
+  );
 }

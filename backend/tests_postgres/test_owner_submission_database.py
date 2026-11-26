@@ -13,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.auth import lay_user_hien_tai
 from app.postgres import engine, get_db
 from app.routers import owner
+from app.routers.owner_auth import lay_phien_owner
 
 
 @pytest.mark.parametrize("self_approval", [True, False])
@@ -59,6 +60,7 @@ def test_owner_history_and_approval_reasons_on_postgres(pytestconfig, self_appro
                         app.include_router(owner.router)
                         app.dependency_overrides[get_db] = lambda: db
                         app.dependency_overrides[lay_user_hien_tai] = lambda: current_user
+                        app.dependency_overrides[lay_phien_owner] = lambda: current_user
                         async with AsyncClient(
                             transport=ASGITransport(app=app), base_url="http://test"
                         ) as client:
